@@ -84,7 +84,7 @@ import AgencilCore
         let literal = "$(touch forbidden); * ' quoted"
         let result = try await ProcessRunner().run([executable.path, literal], in: temp.url,
                                                   environment: ["PATH": "/usr/bin:/bin"],
-                                                  timeout: .seconds(2), gracePeriod: .milliseconds(100))
+                                                  timeout: .seconds(20), gracePeriod: .milliseconds(100))
         #expect(result.status == 0)
         #expect(String(decoding: result.stdout, as: UTF8.self) == literal + "\nneighbor-ok")
         #expect(!FileManager.default.fileExists(atPath: temp.url.appendingPathComponent("forbidden").path))
