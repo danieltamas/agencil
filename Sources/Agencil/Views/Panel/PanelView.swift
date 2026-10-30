@@ -86,7 +86,7 @@ struct PanelView: View {
     }
 
     @ViewBuilder private var content: some View {
-        ScrollView {
+        FittingScroll {
             VStack(spacing: Space.m) {
                 switch tab {
                 case "threads": ForEach(DemoPanel.threads) { ThreadRow(thread: $0) }
@@ -96,7 +96,6 @@ struct PanelView: View {
                 }
             }
         }
-        .scrollIndicators(.hidden)
     }
 
     private var footer: some View {
