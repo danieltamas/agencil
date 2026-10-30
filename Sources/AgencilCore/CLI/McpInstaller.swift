@@ -62,6 +62,10 @@ struct McpInstaller {
         var base = original
         var removed: String?
         if let ownedText, let range = uniqueRange(of: ownedText, in: text) {
+            // Keys the user added under our table would attach to the previous one once it is gone.
+            if harness == "codex", !Self.onlyBlankOrComments(text[range.upperBound...]) {
+                throw Refusal(message: "\(path.path) has settings after the agencil entry that Agencil did not write; it was left untouched")
+            }
             base = Data(text.replacingCharacters(in: range, with: "").utf8)
             removed = ownedText
         } else if declaresAgencil(harness, text) {
@@ -88,14 +92,15 @@ struct McpInstaller {
             for line in (inserted ?? "").split(separator: "\n") { print("+\(line)") }
             return 0
         }
-        // Ownership is recorded before the file changes: a crash in between leaves a record of text that is not
-        // in the file (harmless), never an entry in the file that nothing admits to having written.
+        // Installing records ownership before the file changes and removing forgets it after: a crash in between
+        // leaves a record of text that is not in the file (harmless), never an entry in the file that nothing
+        // admits to having written.
         let previous = try readRecord()
         var entries = previous
         if let inserted {
             entries[harness] = ["path": path.path, "text": inserted, "hash": Self.hash(inserted), "created": created]
+            try writeRecord(entries)
         } else { entries.removeValue(forKey: harness) }
-        try writeRecord(entries)
         do {
             try requireUnchanged(path, existed: existed, snapshot: current)
             if deleteIfEmpty && result.isEmpty {
@@ -112,9 +117,10 @@ struct McpInstaller {
                 }
             }
         } catch {
-            try? writeRecord(previous)
+            if inserted != nil { try? writeRecord(previous) }
             throw error
         }
+        if inserted == nil { try writeRecord(entries) }
         print(inserted == nil ? "agencil: removed the agencil entry from \(path.path)" : "agencil: installed the agencil entry in \(path.path)")
         return 0
     }
@@ -170,6 +176,16 @@ struct McpInstaller {
         return (Data(result), text)
     }
 
+    /// The text up to the next TOML table header holds nothing but blank lines and comments.
+    private static func onlyBlankOrComments(_ rest: Substring) -> Bool {
+        for line in rest.split(separator: "\n", omittingEmptySubsequences: false) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("[") { return true }
+            if !trimmed.isEmpty && !trimmed.hasPrefix("#") { return false }
+        }
+        return true
+    }
+
     private func uniqueRange(of needle: String, in text: String) -> Range<String.Index>? {
         guard let first = text.range(of: needle), text.range(of: needle, range: first.upperBound..<text.endIndex) == nil else { return nil }
         return first
@@ -223,7 +239,10 @@ struct McpInstaller {
 
     /// A hash of the user-scope `agencil` server as Claude's config holds it; nil when it holds none (or no config).
     private func claudeEntryHash() throws -> String? {
-        guard let data = try? Data(contentsOf: claudeConfig) else { return nil }
+        guard FileManager.default.fileExists(atPath: claudeConfig.path) else { return nil }
+        guard let data = try? Data(contentsOf: claudeConfig) else {
+            throw Refusal(message: "\(claudeConfig.path) cannot be read; it was left untouched")
+        }
         guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
             throw Refusal(message: "\(claudeConfig.path) does not parse; it was left untouched")
         }
@@ -241,20 +260,29 @@ struct McpInstaller {
         let recorded = entries["claude"] as? [String: Any]
         let present = try claudeEntryHash()
         // An entry Claude holds is ours only while it still hashes to what we saw right after writing it.
-        if let present, present != recorded?["entry"] as? String {
+        // A "pending" record means a previous run died after asking claude to add the server: adopt what is there.
+        let adopting = recorded?["pending"] as? Bool == true
+        if let present, !adopting, present != recorded?["entry"] as? String {
             throw Refusal(message: recorded == nil
                 ? "claude already has an agencil server that Agencil did not write; it was left untouched"
                 : "the agencil server in claude changed since Agencil wrote it; it was left untouched")
         }
         if uninstall && recorded == nil { print("agencil: nothing to remove for claude"); return 0 }
+        let before = entries
+        if !uninstall {
+            entries["claude"] = ["command": line, "hash": Self.hash(line), "pending": true]
+            try writeRecord(entries)
+        }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = ["claude"] + arguments
         process.environment = environment
         process.standardInput = FileHandle.nullDevice
-        try process.run()
+        do { try process.run() } catch { try? writeRecord(before); throw error }
         process.waitUntilExit()
-        guard process.terminationStatus == 0 else { throw Refusal(message: "`\(line)` failed with status \(process.terminationStatus)") }
+        guard process.terminationStatus == 0 else {
+            try? writeRecord(before)
+            throw Refusal(message: "`\(line)` failed with status \(process.terminationStatus)") }
         if uninstall {
             entries.removeValue(forKey: "claude")
         } else {
