@@ -11,6 +11,7 @@ struct AgencilApp: App {
         let arguments = CommandLine.arguments
         if ScreenshotCommand.requested(arguments) { exit(ScreenshotCommand.run(arguments)) }
         LookLaunch.attach()
+        AppBroker.start()
     }
 
     var body: some Scene {

@@ -64,6 +64,12 @@ public final class Ledger: @unchecked Sendable {
         return Claim(id: id, body: body, supersedes: superseding)
     }
 
+    /// Runs `body` with the ledger's lock held, so a multi-statement change is not interleaved with another thread's.
+    func locked<T>(_ body: () throws -> T) rethrows -> T {
+        lock.lock(); defer { lock.unlock() }
+        return try body()
+    }
+
     public func claim(id: String) throws -> Claim? {
         lock.lock(); defer { lock.unlock() }
         return try query("SELECT id, body, supersedes FROM claims WHERE id = ?;", [id]) { statement in
@@ -71,7 +77,7 @@ public final class Ledger: @unchecked Sendable {
         }.first
     }
 
-    private func execute(_ sql: String) throws {
+    func execute(_ sql: String) throws {
         var message: UnsafeMutablePointer<CChar>?
         guard sqlite3_exec(database, sql, nil, nil, &message) == SQLITE_OK else {
             defer { sqlite3_free(message) }
@@ -83,11 +89,11 @@ public final class Ledger: @unchecked Sendable {
         try query(sql, []) { Int(sqlite3_column_int64($0, 0)) }.first ?? 0
     }
 
-    private func run(_ sql: String, _ values: [String?]) throws {
+    func run(_ sql: String, _ values: [String?]) throws {
         _ = try query(sql, values) { _ in () }
     }
 
-    private func query<T>(_ sql: String, _ values: [String?], row: (OpaquePointer) -> T) throws -> [T] {
+    func query<T>(_ sql: String, _ values: [String?], row: (OpaquePointer) -> T) throws -> [T] {
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK, let statement else {
             throw Failure(message: String(cString: sqlite3_errmsg(database)))
@@ -116,7 +122,7 @@ public final class Ledger: @unchecked Sendable {
         }
     }
 
-    private static func text(_ statement: OpaquePointer, _ column: Int32) -> String? {
+    static func text(_ statement: OpaquePointer, _ column: Int32) -> String? {
         guard let bytes = sqlite3_column_text(statement, column) else { return nil }
         return String(decoding: UnsafeBufferPointer(start: bytes, count: Int(sqlite3_column_bytes(statement, column))), as: UTF8.self)
     }

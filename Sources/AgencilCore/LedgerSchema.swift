@@ -48,5 +48,12 @@ enum LedgerSchema {
             BEGIN SELECT RAISE(ABORT, '\(table) row already exists: INSERT OR REPLACE is refused'); END;
             """
         }.joined(),
+        // Launches: the durable intent, identity and reservation of every process the broker starts. Mutable
+        // lifecycle rows like runs; `reserved` is cleared only when no process remains in the process group.
+        """
+        CREATE TABLE launches (id TEXT PRIMARY KEY, nonce TEXT NOT NULL UNIQUE, argv TEXT NOT NULL, cwd TEXT NOT NULL,
+            env TEXT NOT NULL, reserved_seconds INTEGER NOT NULL, state TEXT NOT NULL, reserved INTEGER NOT NULL,
+            pid INTEGER, pgid INTEGER, start_time REAL, registered_at REAL, created_at REAL NOT NULL, ended_at REAL);
+        """,
     ]
 }

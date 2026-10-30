@@ -96,7 +96,8 @@ lint_forbidden_names
 if ((!lint_only)); then
   cd "$repo"
   swift build --build-tests --scratch-path "$scratch" || fail "build failed"
-  swift test --skip-build --scratch-path "$scratch" || fail "tests failed"
+  # Serial: the suites start real processes and sockets and probe against short deadlines, which parallel load flakes.
+  swift test --skip-build --no-parallel --scratch-path "$scratch" || fail "tests failed"
 fi
 
 ((!failed)) && echo "check: ok"
