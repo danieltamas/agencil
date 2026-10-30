@@ -75,7 +75,11 @@ extension Broker {
             throw Failure(message: "unknown id \(id)")
         }
         guard latest.state == .asking else { return ["ok": true, "run": id, "stopping": false] }
-        tracking.withLock { _ = stoppedThreads.insert(id) }
+        let key = "\(id)-\(latest.seq)"
+        tracking.withLock {
+            stoppedThreads.insert(key)
+            ollamaTasks[key]?.cancel()
+        }
         if latest.launchID == nil { return ["ok": true, "run": id, "stopping": true] }
         if let launch = latest.launchID, let run = tracking.withLock({ tracked[launch] }) { terminate(run) }
         return ["ok": true, "run": id, "stopping": true]
@@ -87,80 +91,109 @@ extension Broker {
                      files: [(path: String, text: String)], thread existing: ThreadRecord?, wait: Int) throws -> [String: Any] {
         let thread = try existing ?? threads.createThread(requested: requested, seat: resolved.seat.name, caller: caller,
                                                          substituted: resolved.substituted)
-        if existing != nil, try threads.exchanges(thread: thread.id).contains(where: { $0.state == .asking }) {
+        guard let (exchange, transcript) = try threads.beginExchange(thread: thread.id, question: question) else {
             throw Failure(message: "thread \(thread.id) is still waiting for an answer")
         }
-        try threads.recordRequest(caller: caller, outcome: "accepted", runID: thread.id)
-        let transcript = try threads.exchanges(thread: thread.id).filter { $0.state == .answered }
-            .map { (asked: $0.question, answered: $0.answer ?? "") }
-        let exchange = try threads.addExchange(thread: thread.id, question: question)
-        let prompt = Adapter.prompt(question: question, files: files, transcript: transcript)
-        let runDirectory = directory.appendingPathComponent("runs").appendingPathComponent("\(thread.id)-\(exchange.seq)")
-        try FileManager.default.createDirectory(at: runDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-        let answerFile = runDirectory.appendingPathComponent("answer.txt").path
-        let seat = resolved.seat
+        let key = "\(thread.id)-\(exchange.seq)"
+        do {
+            try threads.recordRequest(caller: caller, outcome: "accepted", runID: thread.id)
+            let prompt = Adapter.prompt(question: question, files: files, transcript: transcript)
+            let runDirectory = directory.appendingPathComponent("runs").appendingPathComponent("\(thread.id)-\(exchange.seq)")
+            try FileManager.default.createDirectory(at: runDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            let answerFile = runDirectory.appendingPathComponent("answer.txt").path
+            let seat = resolved.seat
 
-        func fail(_ reason: String) -> [String: Any] {
-            try? threads.finish(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil, reason: reason)
-            return reply(thread, awaiting: exchange.seq, wait: 0)
-        }
-        if seat.harness == "ollama" {
-            Thread.detachNewThread { [self] in
-                let result = OllamaClient.chat(seat: seat, prompt: prompt)
-                if tracking.withLock({ stoppedThreads.remove(thread.id) != nil }) {
-                    try? threads.finish(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil, reason: "stopped")
-                    return
-                }
-                switch result {
-                case .success(let text): try? threads.finish(thread: thread.id, seq: exchange.seq, state: .answered, answer: text, reason: nil)
-                case .failure(let refusal): try? threads.finish(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil,
-                                                                 reason: String(refusal.message.dropFirst("failed: ".count)))
-                }
+            func fail(_ reason: String) -> [String: Any] {
+                try? threads.finish(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil, reason: reason)
+                return reply(thread, awaiting: exchange.seq, wait: 0)
             }
+            if seat.harness == "ollama" {
+                Thread.detachNewThread { [self] in
+                    let result = OllamaClient.chat(seat: seat, prompt: prompt) { task in
+                        tracking.withLock {
+                            ollamaTasks[key] = task
+                            if stoppedThreads.contains(key) { task.cancel() }
+                        }
+                    }
+                    let stopped = tracking.withLock { () -> Bool in
+                        ollamaTasks[key] = nil
+                        return stoppedThreads.remove(key) != nil
+                    }
+                    if stopped {
+                        try? threads.finish(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil, reason: "stopped")
+                        return
+                    }
+                    switch result {
+                    case .success(let text): try? threads.finish(thread: thread.id, seq: exchange.seq, state: .answered, answer: text, reason: nil)
+                    case .failure(let refusal): try? threads.finish(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil,
+                                                                     reason: String(refusal.message.dropFirst("failed: ".count)))
+                    }
+                }
+                return reply(thread, awaiting: exchange.seq, wait: wait)
+            }
+            guard let executable = resolved.executable,
+                  let invocation = try Adapter.command(seat: seat, executable: executable, prompt: prompt, answerFile: answerFile,
+                                                       runDirectory: runDirectory.path) else {
+                return fail("\(seat.harness) has no adapter")
+            }
+            let workingDirectory = invocation.workingDirectory ?? runDirectory.path
+            // A shell reports $PWD as inherited when it names the working directory, so it must match the path we gave.
+            var launchRequest: [String: Any] = ["argv": invocation.argv, "cwd": workingDirectory,
+                                                "env": invocation.environment.merging(["PWD": workingDirectory]) { _, mine in mine },
+                                                "reservation": ["seconds": seat.capSeconds]]
+            if invocation.stdoutIsAnswer { launchRequest["stdout"] = answerFile }
+            let began = Date()
+            let started: [String: Any]
+            // The exchange is tied to its launch before the seat can start, so a crash never orphans a running group.
+            var attached: String?
+            do {
+                started = try launch(launchRequest, onIntent: { id in
+                    try self.threads.attach(launch: id, thread: thread.id, seq: exchange.seq)
+                    attached = id
+                })
+            } catch {
+                if let id = attached { failWhenClosed(thread: thread.id, seq: exchange.seq, launch: id, reason: "the seat could not be started: \(error.localizedDescription)") }
+                else { try? threads.finish(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil, reason: "the seat could not be started") }
+                return reply(thread, awaiting: exchange.seq, wait: 0)
+            }
+            guard let launchID = started["run"] as? String else { return fail("the seat could not be started") }
+            // A stop that arrived before the launch was attached found nothing to end; end it now.
+            if tracking.withLock({ stoppedThreads.contains(key) }), let run = tracking.withLock({ tracked[launchID] }) { terminate(run) }
+            Thread.detachNewThread { [self] in complete(thread: thread, seq: exchange.seq, launchID: launchID, answerFile: answerFile, seat: seat, began: began) }
             return reply(thread, awaiting: exchange.seq, wait: wait)
+        } catch {
+            // Setup failed before any seat ran: the exchange must not stay asking and block every follow-up.
+            try? threads.finish(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil,
+                                reason: "the seat could not be set up: \(error.localizedDescription)")
+            throw error
         }
-        guard let executable = resolved.executable,
-              let invocation = try Adapter.command(seat: seat, executable: executable, prompt: prompt, answerFile: answerFile,
-                                                   runDirectory: runDirectory.path) else {
-            return fail("\(seat.harness) has no adapter")
-        }
-        let workingDirectory = invocation.workingDirectory ?? runDirectory.path
-        // A shell reports $PWD as inherited when it names the working directory, so it must match the path we gave.
-        var launchRequest: [String: Any] = ["argv": invocation.argv, "cwd": workingDirectory,
-                                            "env": invocation.environment.merging(["PWD": workingDirectory]) { _, mine in mine },
-                                            "reservation": ["seconds": seat.capSeconds]]
-        if invocation.stdoutIsAnswer { launchRequest["stdout"] = answerFile }
-        let started: [String: Any]
-        do { started = try launch(launchRequest) } catch { return fail("the seat could not be started: \(error.localizedDescription)") }
-        guard let launchID = started["run"] as? String else { return fail("the seat could not be started") }
-        try threads.attach(launch: launchID, thread: thread.id, seq: exchange.seq)
-        // A stop that arrived before the launch was attached found nothing to end; end it now.
-        if tracking.withLock({ stoppedThreads.contains(thread.id) }), let run = tracking.withLock({ tracked[launchID] }) { terminate(run) }
-        Thread.detachNewThread { [self] in complete(thread: thread, seq: exchange.seq, launchID: launchID, answerFile: answerFile, seat: seat) }
-        return reply(thread, awaiting: exchange.seq, wait: wait)
     }
 
     /// Waits for the seat's leader to exit, ends whatever it left in the group, and records what it answered.
-    private func complete(thread: ThreadRecord, seq: Int, launchID: String, answerFile: String, seat: Seat) {
+    private func complete(thread: ThreadRecord, seq: Int, launchID: String, answerFile: String, seat: Seat, began: Date) {
         var status: Int32?
-        let began = Date()
+        var ranFor = 0.0
         while true {
             if let run = tracking.withLock({ tracked[launchID] }) {
                 if let leader = run.leaderStatus {
                     status = leader
+                    ranFor = Date().timeIntervalSince(began)
                     terminate(run)
+                    // The exchange stays asking (and stoppable) until the monitor has seen the group empty.
+                    while tracking.withLock({ tracked[launchID] }) != nil { usleep(20_000) }
                     break
                 }
             } else {
                 status = (try? store.launch(id: launchID))?.exitStatus
+                ranFor = Date().timeIntervalSince(began)
                 break
             }
             usleep(20_000)
         }
-        let stopped = tracking.withLock { stoppedThreads.remove(thread.id) != nil }
+        let stopped = tracking.withLock { stoppedThreads.remove("\(thread.id)-\(seq)") != nil }
         if stopped {
             try? threads.finish(thread: thread.id, seq: seq, state: .failed, answer: nil, reason: "stopped")
-        } else if Date().timeIntervalSince(began) >= Double(seat.capSeconds) {
+        } else if ranFor >= Double(seat.capSeconds) {
             try? threads.finish(thread: thread.id, seq: seq, state: .failed, answer: nil, reason: "\(seat.harness) ran past its \(seat.capSeconds) second cap")
         } else if status == 0 {
             let text = ((try? String(contentsOfFile: answerFile, encoding: .utf8)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -215,6 +248,40 @@ extension Broker {
             var text = String(decoding: data.prefix(Self.fileLimit), as: UTF8.self)
             if data.count > Self.fileLimit { text += "\n[truncated: cut at 64 KB]" }
             return (path, text)
+        }
+    }
+}
+
+extension Broker {
+    /// Exchanges that were asking when a broker died: each fails once its launch is proven closed, never before,
+    /// so a follow-up cannot start while the old process group is still alive. An exchange with no recorded launch
+    /// waits for every launch that was open at startup.
+    func reconcileExchanges() {
+        guard let open = try? threads.unfinished(), !open.isEmpty else { return }
+        let startup = Set(((try? store.open()) ?? []).map(\.id))
+        Thread.detachNewThread { [self] in
+            for item in open {
+                let waitFor = item.launchID.map { [$0] } ?? Array(startup)
+                waitUntilClosed(waitFor)
+                try? threads.finish(thread: item.thread, seq: item.seq, state: .failed, answer: nil,
+                                    reason: "the broker restarted before the seat answered")
+            }
+        }
+    }
+
+    /// Fails the exchange only after the launch's group is proven empty.
+    func failWhenClosed(thread: String, seq: Int, launch: String, reason: String) {
+        Thread.detachNewThread { [self] in
+            waitUntilClosed([launch])
+            try? threads.finish(thread: thread, seq: seq, state: .failed, answer: nil, reason: reason)
+        }
+    }
+
+    private func waitUntilClosed(_ launches: [String]) {
+        // An unreadable ledger keeps waiting: ownership is never released on an unknown state.
+        while true {
+            if let open = try? store.open(), !open.contains(where: { launches.contains($0.id) }) { return }
+            sleep(1)
         }
     }
 }

@@ -42,6 +42,7 @@ public struct HarnessDiscovery: Sendable {
         }
         // The newest install is the one a user gets by upgrading; a stale copy earlier on the path does not win.
         var best: (path: URL, version: String)?
+        var installs: [HarnessProbe.Install] = []
         var firstFailure: ProbeStatus?
         for path in paths {
             switch await run([path.path] + entry.versionArguments, environment: environment, timeout: timeout) {
@@ -50,6 +51,8 @@ public struct HarnessDiscovery: Sendable {
                     firstFailure = firstFailure ?? .failed(reason: "version command failed")
                     continue
                 }
+                let state = await signIn(entry, executable: path, environment: environment, timeout: timeout).0
+                installs.append(.init(executable: path, version: version, signedIn: state))
                 if best == nil || isNewer(version, than: best!.version) { best = (path, version) }
             case .failure(let status): firstFailure = firstFailure ?? status
             }
@@ -59,7 +62,9 @@ public struct HarnessDiscovery: Sendable {
         }
         let (signedIn, status) = await signIn(entry, executable: best.path, environment: environment, timeout: timeout)
         let chain = await chainSupport(entry, executable: best.path, environment: environment, timeout: timeout)
-        return result(version: best.version, executable: best.path, signedIn: signedIn, status: status, chain: chain)
+        var probe = result(version: best.version, executable: best.path, signedIn: signedIn, status: status, chain: chain)
+        probe.installs = installs
+        return probe
     }
 
     // MARK: sign-in
@@ -151,7 +156,7 @@ public struct HarnessDiscovery: Sendable {
     }
 
     /// Release precedence: a prerelease ("1.0.0-beta.2") is older than its release; otherwise numbers, then text.
-    private static func isNewer(_ candidate: String, than current: String) -> Bool {
+    static func isNewer(_ candidate: String, than current: String) -> Bool {
         func split(_ version: String) -> (core: [Int], pre: String?) {
             let end = version.firstIndex(where: { $0 == "-" || $0 == "+" }) ?? version.endIndex
             let core = version[..<end].split(separator: ".").compactMap { Int($0) }

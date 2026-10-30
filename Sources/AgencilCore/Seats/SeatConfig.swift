@@ -58,6 +58,13 @@ public struct SeatConfig: Sendable {
 
     // MARK: parsing
 
+    /// A JSON whole number; booleans, fractions and text are not numbers here.
+    private static func whole(_ value: Any?) -> Int? {
+        guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
+              number.doubleValue == number.doubleValue.rounded() else { return nil }
+        return number.intValue
+    }
+
     private static func array(_ text: String?, _ key: String) throws -> [[String: Any]] {
         guard let text, !text.isEmpty else { return [] }
         guard let parsed = try? JSONSerialization.jsonObject(with: Data(text.utf8)) else {
@@ -80,6 +87,7 @@ public struct SeatConfig: Sendable {
                 throw fail("seat \(name) has an unknown harness")
             }
             guard let model = item["model"] as? String, !model.isEmpty else { throw fail("seat \(name) needs a model") }
+            if let role = item["role"], !(role is String) { throw fail("seat \(name) has a bad role") }
             let role = item["role"] as? String ?? "answerer"
             guard roles.contains(role) else { throw fail("seat \(name) has an unknown role") }
             if let pin = item["pin"], !(pin is String) { throw fail("seat \(name) has a bad pin") }
@@ -87,13 +95,13 @@ public struct SeatConfig: Sendable {
             if let hardening = item["hardening"], hardening as? [String] == nil { throw fail("seat \(name) has a bad hardening list") }
             if let cap = item["cap"], cap as? [String: Any] == nil { throw fail("seat \(name) has a bad cap") }
             let cap = item["cap"] as? [String: Any] ?? [:]
-            guard let seconds = cap["seconds"] as? Int ?? (cap.isEmpty ? 120 : nil), (1...3600).contains(seconds) else {
+            guard let seconds = whole(cap["seconds"]) ?? (cap.isEmpty ? 120 : nil), (1...3600).contains(seconds) else {
                 throw fail("seat \(name) needs cap.seconds from 1 to 3600")
             }
-            if let tokens = cap["tokens"], !((tokens as? Int).map { $0 > 0 } ?? false) { throw fail("seat \(name) has a bad cap.tokens") }
+            if let tokens = cap["tokens"], !(whole(tokens).map { $0 > 0 } ?? false) { throw fail("seat \(name) has a bad cap.tokens") }
             return Seat(name: name, harness: harness, model: model, endpoint: item["endpoint"] as? String,
                         pin: item["pin"] as? String, role: role, hardening: item["hardening"] as? [String] ?? [],
-                        capSeconds: seconds, capTokens: cap["tokens"] as? Int)
+                        capSeconds: seconds, capTokens: whole(cap["tokens"]))
         }
     }
 
@@ -102,9 +110,9 @@ public struct SeatConfig: Sendable {
             func fail(_ problem: String) -> ConfigProblem { ConfigProblem(key: "routes", problem: problem) }
             guard let callers = item["callers"] as? [String], !callers.isEmpty else { throw fail("a route needs callers") }
             guard let target = item["target"] as? String, !target.isEmpty else { throw fail("a route needs a target") }
-            if let hops = item["hop_limit"], hops as? Int == nil { throw fail("hop_limit must be a whole number") }
+            if let hops = item["hop_limit"], whole(hops) == nil { throw fail("hop_limit must be a whole number") }
             if let list = item["fallbacks"], list as? [String] == nil { throw fail("fallbacks must be a list of seat names") }
-            let hops = item["hop_limit"] as? Int ?? 2
+            let hops = whole(item["hop_limit"]) ?? 2
             guard (1...4).contains(hops) else { throw fail("hop_limit is 1 to 4") }
             let fallbacks = item["fallbacks"] as? [String] ?? []
             if let unknown = fallbacks.first(where: { !seatNames.contains($0) }) { throw fail("fallback \(unknown) is not a seat") }

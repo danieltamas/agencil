@@ -57,15 +57,23 @@ public enum Resolver {
         case "gemini", "aider", "goose":
             return .failure(Unusable(reason: "\(seat.harness) has no adapter"))
         default:
-            guard let probe = world.probe(seat.harness), let executable = probe.executable, let version = probe.version else {
+            guard let probe = world.probe(seat.harness), let newest = probe.executable, let version = probe.version else {
                 let known = world.probe(seat.harness)
                 if known?.paths.isEmpty == false { return .failure(Unusable(reason: "\(seat.harness) could not be probed: \(known?.probeStatus.message ?? "unknown")")) }
                 return .failure(Unusable(reason: "\(seat.harness) is not installed"))
             }
+            // The pin picks the newest install that satisfies it; sign-in is the account's, probed on the newest.
+            var executable = newest
+            var signedIn = probe.signedIn
             if let pin = seat.pin, !satisfies(version, pin: pin) {
-                return .failure(Unusable(reason: "\(seat.harness) \(version) is outside the pin \(pin)"))
+                let matching = probe.installs.filter { satisfies($0.version, pin: pin) }
+                guard let chosen = matching.max(by: { HarnessDiscovery.isNewer($1.version, than: $0.version) }) else {
+                    return .failure(Unusable(reason: "\(seat.harness) \(version) is outside the pin \(pin)"))
+                }
+                executable = chosen.executable
+                signedIn = chosen.signedIn
             }
-            switch probe.signedIn {
+            switch signedIn {
             case .signedIn: return .success(executable.path)
             case .signedOut: return .failure(Unusable(reason: "\(seat.harness) not signed in"))
             case .unknown(let reason):

@@ -66,12 +66,18 @@ extension Broker {
     private var seamPause: Bool { environment["AGENCIL_TEST_PAUSE_AFTER_SPAWN"] == "1" }
 
     /// Records the launcher's intent, spawns it, and answers once its identity is in the ledger.
-    func launch(_ request: [String: Any]) throws -> [String: Any] {
+    func launch(_ request: [String: Any], onIntent: ((String) throws -> Void)? = nil) throws -> [String: Any] {
         guard let argv = request["argv"] as? [String], !argv.isEmpty else { throw Failure(message: "launch needs an argv") }
         let reservation = (request["reservation"] as? [String: Any])?["seconds"] as? Int ?? 0
         guard reservation > 0 else { throw Failure(message: "launch needs a reservation in seconds") }
         let launch = try store.createIntent(argv: argv, cwd: request["cwd"] as? String ?? directory.path,
                                             env: request["env"] as? [String: String] ?? [:], reservedSeconds: reservation)
+        if let onIntent {
+            do { try onIntent(launch.id) } catch {
+                try? store.finish(id: launch.id, state: .interrupted)
+                throw error
+            }
+        }
         if let output = request["stdout"] as? String { tracking.withLock { outputs[launch.id] = output } }
         let pending = PendingLaunch()
         tracking.withLock { waiting[launch.nonce] = pending }

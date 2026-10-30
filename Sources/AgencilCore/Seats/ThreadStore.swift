@@ -71,6 +71,24 @@ public struct ThreadStore: Sendable {
         }
     }
 
+    /// Starts an exchange only when the thread has none in flight; the transcript is read in the same step, so two
+    /// follow-ups can never both run on a transcript that lacks the other. Nil when one is still asking.
+    public func beginExchange(thread: String, question: String) throws -> (exchange: Exchange, transcript: [(asked: String, answered: String)])? {
+        try ledger.locked {
+            let rows = try ledger.query("SELECT seq, question, answer, state FROM exchanges WHERE thread_id = ? ORDER BY seq;", [thread]) {
+                (seq: Int(Ledger.text($0, 0) ?? "") ?? 0, asked: Ledger.text($0, 1) ?? "", answer: Ledger.text($0, 2) ?? "",
+                 state: Ledger.text($0, 3) ?? "")
+            }
+            if rows.contains(where: { $0.state == "asking" }) { return nil }
+            let next = (rows.last?.seq ?? 0) + 1
+            try ledger.run("INSERT INTO exchanges (thread_id, seq, question, state, created_at) VALUES (?, ?, ?, 'asking', ?);",
+                           [thread, String(next), question, Self.now()])
+            try ledger.run("UPDATE runs SET status = 'asking', ended_at = NULL WHERE id = ?;", [thread])
+            return (Exchange(seq: next, question: question, answer: nil, state: .asking, reason: nil, launchID: nil),
+                    rows.filter { $0.state == "answered" }.map { (asked: $0.asked, answered: $0.answer) })
+        }
+    }
+
     public func attach(launch: String, thread: String, seq: Int) throws {
         try ledger.locked {
             try ledger.run("UPDATE exchanges SET launch_id = ? WHERE thread_id = ? AND seq = ?;", [launch, thread, String(seq)])
@@ -85,10 +103,12 @@ public struct ThreadStore: Sendable {
         }
     }
 
-    /// Exchanges still asking when the broker starts have lost their process: recovery has ended every launch.
-    public func failUnfinished(reason: String) throws {
+    /// Exchanges still asking, with the launch each is waiting on (nil when it never got one).
+    public func unfinished() throws -> [(thread: String, seq: Int, launchID: String?)] {
         try ledger.locked {
-            try ledger.run("UPDATE exchanges SET state = 'failed', reason = ? WHERE state = 'asking';", [reason])
+            try ledger.query("SELECT thread_id, seq, launch_id FROM exchanges WHERE state = 'asking';", []) {
+                (thread: Ledger.text($0, 0) ?? "", seq: Int(Ledger.text($0, 1) ?? "") ?? 0, launchID: Ledger.text($0, 2))
+            }
         }
     }
 

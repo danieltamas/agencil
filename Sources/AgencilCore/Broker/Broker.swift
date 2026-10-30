@@ -31,7 +31,9 @@ public final class Broker: @unchecked Sendable {
     var waiting: [String: PendingLaunch] = [:]
     /// Launch id to the file its stdout goes to (an answer); only a seat started by this broker has one.
     var outputs: [String: String] = [:]
+    /// Exchange keys ("<thread>-<seq>") that were asked to stop, and the Ollama requests that can be cancelled.
     var stoppedThreads: Set<String> = []
+    var ollamaTasks: [String: URLSessionTask] = [:]
     private var connections = 0
 
     /// Takes the exclusive lock first: only the holder may remove a stale socket or touch the ledger's runs.
@@ -62,7 +64,7 @@ public final class Broker: @unchecked Sendable {
         signal(SIGPIPE, SIG_IGN)
         Thread.detachNewThread { [self] in monitorLoop() }
         recoverOpenLaunches()
-        try? threads.failUnfinished(reason: "the broker restarted before the seat answered")
+        reconcileExchanges()
         unlink(socketPath)
         listener = try UnixSocket.listen(at: socketPath)
         Thread.detachNewThread { [self] in acceptLoop() }

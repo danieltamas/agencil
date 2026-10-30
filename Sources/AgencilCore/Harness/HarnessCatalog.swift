@@ -77,4 +77,15 @@ public struct HarnessProbe: Equatable, Sendable {
     public let signedIn: SignInState
     public let probeStatus: ProbeStatus
     public let chainSupport: ChainSupport
+    /// Every install whose version command answered; a seat's pin picks among them.
+    public var installs: [Install] = []
+
+    public struct Install: Equatable, Sendable {
+        public let executable: URL
+        public let version: String
+        public let signedIn: SignInState
+        public init(executable: URL, version: String, signedIn: SignInState) {
+            self.executable = executable; self.version = version; self.signedIn = signedIn
+        }
+    }
 }
