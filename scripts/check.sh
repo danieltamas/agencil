@@ -76,9 +76,22 @@ lint_readme() {
   done < <(grep -E 'bash -s --|--uninstall|--purge' "$readme" | grep -oE -- '--[a-z-]+' | sort -u | grep -v -- '^--$')
 }
 
+# Demo data and fixtures never carry a name from the owner's private list. The list is git-ignored and absent in
+# CI, which then checks nothing.
+lint_forbidden_names() {
+  local names=$root/scripts/forbidden-names.txt hits
+  [[ -f $names ]] || return 0
+  hits=$(grep -rniFf "$names" "$root/Sources" "$root/Tests/Fixtures" "$root/docs" "$root/README.md" 2>/dev/null || true)
+  if [[ -n $hits ]]; then
+    echo "${hits//"$root"\//}" >&2
+    fail "a forbidden name appears in the demo data or docs"
+  fi
+}
+
 lint_size
 lint_ascii
 lint_readme
+lint_forbidden_names
 
 if ((!lint_only)); then
   cd "$repo"

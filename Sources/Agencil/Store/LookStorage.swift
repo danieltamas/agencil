@@ -12,3 +12,13 @@ enum LookStorage {
         )
     }
 }
+
+/// Wires the saved look into `Appearance` once at launch. A home that cannot be opened leaves the default look.
+@MainActor
+enum LookLaunch {
+    static func attach() {
+        let fallback = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".agencil")
+        guard let home = try? AgencilHome(directory: fallback, environment: ProcessInfo.processInfo.environment) else { return }
+        Appearance.shared.attach(LookStorage.persistence(store: ConfigStore(directory: home.directory)))
+    }
+}

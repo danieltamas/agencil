@@ -84,3 +84,8 @@ extension Color {
                   blue: Double(hex & 0xFF) / 255, opacity: opacity)
     }
 }
+
+extension View {
+    /// A second line of detail: at most two lines, then it ends in an ellipsis.
+    func detailLines() -> some View { lineLimit(2) }
+}
