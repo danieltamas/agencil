@@ -7,13 +7,14 @@ final class DiscoveryCache: @unchecked Sendable {
     private var probes: [String: HarnessProbe] = [:]
     private var taken: Date?
 
-    /// The world the resolver sees: fresh probes, and the Ollama check.
+    /// The world the resolver sees. Probing starts at the first probe lookup, so a refused route costs no process runs.
     func world(environment: [String: String], home: URL) -> ResolverWorld {
         let catalog = try? HarnessCatalog.embedded()
-        let fresh = lock.withLock { taken.map { Date().timeIntervalSince($0) < Self.lifetime } ?? false }
-        if !fresh, let catalog { refresh(catalog, environment: environment, home: home) }
-        let snapshot = lock.withLock { probes }
-        return ResolverWorld(probe: { snapshot[$0] },
+        return ResolverWorld(probe: { [self] kind in
+                                 let fresh = lock.withLock { taken.map { Date().timeIntervalSince($0) < Self.lifetime } ?? false }
+                                 if !fresh, let catalog { refresh(catalog, environment: environment, home: home) }
+                                 return lock.withLock { probes[kind] }
+                             },
                              statusless: Set(catalog?.entries.filter { $0.status == nil }.map(\.kind) ?? []),
                              ollamaProblem: { OllamaClient.problem(for: $0) })
     }
