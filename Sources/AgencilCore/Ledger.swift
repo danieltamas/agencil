@@ -31,11 +31,25 @@ public final class Ledger: @unchecked Sendable {
         database = handle
         chmod(path, 0o600)
         sqlite3_busy_timeout(handle, 5000)
-        try execute("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")
+        try execute("PRAGMA foreign_keys = ON;")
+        try enableWAL()
         try migrate()
     }
 
     deinit { sqlite3_close(database) }
+
+    /// Switching a fresh file to WAL needs a lock that SQLite's busy timeout does not wait for, so two openers
+    /// racing on a new ledger retry here until one of them has made the switch.
+    private func enableWAL() throws {
+        let deadline = Date().addingTimeInterval(5)
+        while true {
+            do { return try execute("PRAGMA journal_mode = WAL;") } catch let failure as Failure {
+                let busy = failure.message.contains("locked") || failure.message.contains("busy")
+                guard busy, Date() < deadline else { throw failure }
+                usleep(5_000)
+            }
+        }
+    }
 
     /// Applies every migration above the file's `user_version`, each in its own transaction. Safe to repeat.
     public func migrate() throws {
