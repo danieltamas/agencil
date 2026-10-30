@@ -8,7 +8,6 @@
     "scripts/release.sh {version} --verify"
   ],
   "assets": [
-    "dist/Agencil-{version}.zip",
     "dist/Agencil-{version}-adhoc.zip",
     "dist/SHA256SUMS"
   ],

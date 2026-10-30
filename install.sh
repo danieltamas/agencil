@@ -42,12 +42,12 @@ release_version() {
   echo "$version"
 }
 
-# Downloads Agencil-X.Y.Z.zip and SHA256SUMS into $2, checks the zip against exactly one matching line, and unpacks it.
+# Downloads Agencil-X.Y.Z-adhoc.zip and SHA256SUMS into $2, checks the zip against exactly one matching line, and unpacks it.
 # Sets $app to the unpacked Agencil.app.
 download_release() {
   local version=$1 dir=$2 base zip sums line
   base=https://github.com/$repo/releases/download/v$version
-  zip=Agencil-$version.zip
+  zip=Agencil-$version-adhoc.zip
   fetch -o "$dir/$zip" "$base/$zip" || fail "could not download $zip"
   fetch -o "$dir/SHA256SUMS" "$base/SHA256SUMS" || fail "could not download SHA256SUMS"
   line=$(awk -v zip="$zip" 'NF == 2 && $2 == zip && $1 ~ /^[0-9a-f]{64}$/' "$dir/SHA256SUMS" || true)

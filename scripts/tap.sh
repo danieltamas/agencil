@@ -21,7 +21,7 @@ while (($#)); do
   shift
 done
 
-asset=Agencil-$version.zip
+asset=Agencil-$version-adhoc.zip
 url=https://github.com/danieltamas/agencil/releases/download/v$version/$asset
 sha=$(awk -v name="$asset" '$2 == name { print $1 }' "$sums")
 [[ $sha =~ ^[0-9a-f]{64}$ ]] || fail "no checksum for $asset in $sums"

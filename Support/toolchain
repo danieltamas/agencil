@@ -1,8 +1,3 @@
 # The toolchain a release is built with; scripts/release.sh refuses any other.
 xcode-build 17C52
 # For reference: Xcode 26.2, Swift 6.2.3, macOS SDK 26.2, ld-1230.1
-# UNSET until scripts/make-signing-identity.sh has run and its SHA-1 is pinned here; a signed release is refused until then.
-# The certificate every release is signed with (SHA-1, as codesign's designated requirement names it): the
-# self-signed "Agencil Local" identity in the owner's keychain. macOS ties Full Disk Access to it, so a grant
-# outlives updates. A different certificate means every user grants again: never change it casually.
-signing-certificate 0000000000000000000000000000000000000000

@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
-# Builds the release zips for a tag (docs/RELEASE.md, decision D1): Agencil-X.Y.Z-adhoc.zip, universal and ad hoc
-# signed, the same bytes every time; and Agencil-X.Y.Z.zip, the same app signed with the pinned certificate
-# (Support/toolchain), which users install so Full Disk Access outlives updates. A signature carries its signing
-# time, so only the ad hoc zip is reproducible. Writes both and dist/SHA256SUMS; publishing is the owner's step.
+# Builds the release zip for a tag: Agencil-X.Y.Z-adhoc.zip, universal and ad hoc signed, the same bytes every
+# time (like Bton and RMJ; no certificate is involved). Writes it and dist/SHA256SUMS; publishing is the owner's step.
 #   release.sh <X.Y.Z> [--verify] [--adhoc-only] [--out <dir>] [--scratch <dir>] [--ref <rev>]
-#   --verify   builds a second time somewhere else and fails if one byte of the ad hoc zip differs
-#   --adhoc-only  only the reproducible zip, no certificate needed: for anyone checking a release (CI included)
+#   --verify   builds a second time somewhere else and fails if one byte of the zip differs
+#   --adhoc-only  accepted and ignored: ad hoc is the only way a release is signed
 #   --out      where the zip and SHA256SUMS go (default dist/)
 #   --scratch  where the build trees go (default $HOME/.cache/agencil-release; never inside the repo)
 #   --ref      build this revision instead of the tag vX.Y.Z (a trial run: the output says it is not a release)
@@ -19,14 +17,13 @@ version=${1:-}
 [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "usage: release.sh <X.Y.Z> [--verify] [--out <dir>] [--scratch <dir>] [--ref <rev>]"
 shift
 verify=0
-adhoc_only=0
 out=$repo/dist
 scratch=$HOME/.cache/agencil-release
 ref=v$version
 while (($#)); do
   case $1 in
     --verify) verify=1 ;;
-    --adhoc-only) adhoc_only=1 ;;
+    --adhoc-only) ;;
     --out) out=$2; shift ;;
     --scratch) scratch=$2; shift ;;
     --ref) ref=$2; shift ;;
@@ -42,13 +39,6 @@ commit=$(git rev-parse --verify "$ref^{commit}" 2>/dev/null) || fail "$ref does 
 pin=$(awk '$1 == "xcode-build" { print $2 }' Support/toolchain)
 have=$(xcodebuild -version | awk '/^Build version/ { print $3 }')
 [[ -n $pin && $pin == "$have" ]] || fail "Xcode build is '$have', this release is pinned to '$pin' (Support/toolchain)"
-certificate=$(awk '$1 == "signing-certificate" { print $2 }' Support/toolchain)
-[[ $certificate =~ ^[0-9A-F]{40}$ ]] || fail "Support/toolchain pins no signing-certificate"
-if ((!adhoc_only)); then
-  # Captured first: grep -q closing the pipe early would fail the pipeline under pipefail.
-  identities=$(security find-identity -p codesigning 2>/dev/null || true)
-  [[ $identities == *"$certificate"* ]] || fail "the signing certificate $certificate is not in this keychain: a release signed with another one would make every user grant Full Disk Access again"
-fi
 
 epoch=$(git log -1 --format=%ct "$commit")
 number=$(git rev-list --count "$commit")
@@ -81,25 +71,6 @@ build_zip() {
   echo "$zip"
 }
 
-# The ad hoc zip's app signed with the pinned certificate, CLI first, as bundle.sh signs. Prints the zip path.
-sign_zip() {
-  local adhoc=$1 dir=$2 app zip requirement
-  rm -rf "$dir"
-  mkdir -p "$dir"
-  ditto -x -k "$adhoc" "$dir" || fail "could not unpack $adhoc"
-  app=$dir/Agencil.app
-  codesign --force --timestamp=none --sign "$certificate" "$app/Contents/Resources/agencil" >&2 || fail "could not sign the CLI"
-  codesign --force --timestamp=none --sign "$certificate" "$app" >&2 || fail "could not sign the app"
-  codesign --verify --strict --deep "$app" || fail "the signed app does not verify"
-  requirement=$(codesign -d -r- "$app" 2>&1)
-  [[ $requirement == *"certificate leaf = H\"$(tr 'A-F' 'a-f' <<< "$certificate")\""* ]] \
-    || fail "the signed app's designated requirement does not name the pinned certificate"
-  zip=$dir/Agencil-$version.zip
-  pack "$app" "$zip" || fail "could not pack $zip"
-  [[ -s $zip ]] || fail "$zip is empty"
-  echo "$zip"
-}
-
 first=$(build_zip "$scratch/a")
 if ((verify)); then
   second=$(build_zip "$scratch/b")
@@ -109,16 +80,7 @@ fi
 
 mkdir -p "$out"
 cp "$first" "$out/Agencil-$version-adhoc.zip"
-if ((adhoc_only)); then
-  # No Agencil-X.Y.Z.zip at all: a leftover from an earlier run must not sit beside these sums.
-  rm -f "$out/Agencil-$version.zip"
-  (cd "$out" && shasum -a 256 "Agencil-$version-adhoc.zip" > SHA256SUMS)
-  echo "release: $out/Agencil-$version-adhoc.zip (reproducible; not signed, not for publishing)"
-else
-  signed=$(sign_zip "$first" "$scratch/signed")
-  cp "$signed" "$out/Agencil-$version.zip"
-  (cd "$out" && shasum -a 256 "Agencil-$version.zip" "Agencil-$version-adhoc.zip" > SHA256SUMS)
-  echo "release: $out/Agencil-$version.zip (signed), $out/Agencil-$version-adhoc.zip (reproducible)"
-fi
+(cd "$out" && shasum -a 256 "Agencil-$version-adhoc.zip" > SHA256SUMS)
+echo "release: $out/Agencil-$version-adhoc.zip (reproducible)"
 cat "$out/SHA256SUMS"
 [[ $ref == "v$version" ]] || echo "release: NOT A RELEASE: built from $ref, not the tag v$version" >&2
