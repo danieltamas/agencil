@@ -1,0 +1,86 @@
+import SwiftUI
+
+/// Every number and size a view may use. Views name a token, never a literal (docs/DESIGN.md "Tokens").
+struct HouseFont {
+    let eyebrow = Font.system(size: 9.5, weight: .semibold)
+    let badge = Font.system(size: 10.5, weight: .semibold).monospacedDigit()
+    let meta = Font.system(size: 11)
+    let control = Font.system(size: 12, weight: .semibold)
+    let body = Font.system(size: 12.5)
+    let rowTitle = Font.system(size: 13, weight: .medium)
+    let header = Font.system(size: 15, weight: .semibold)
+    let sectionTitle = Font.system(size: 18, weight: .semibold)
+    let modalTitle = Font.system(size: 20, weight: .semibold)
+    let paneTitle = Font.system(size: 24, weight: .semibold)
+    let statSmall = Font.system(size: 17, weight: .semibold, design: .rounded)
+    let statValue = Font.system(size: 26, weight: .semibold, design: .rounded)
+    let mono = Font.system(size: 11.5, design: .monospaced)
+}
+
+extension Font {
+    static let house = HouseFont()
+}
+
+enum Radius {
+    static let bezel: CGFloat = 3
+    static let tile: CGFloat = 7
+    static let row: CGFloat = 8
+    static let control: CGFloat = 10
+    static let smallCard: CGFloat = 14
+    static let card: CGFloat = 16
+}
+
+enum Space {
+    static let xxs: CGFloat = 2
+    static let xs: CGFloat = 4
+    static let s: CGFloat = 6
+    static let m: CGFloat = 8
+    static let l: CGFloat = 12
+    static let xl: CGFloat = 16
+    static let xxl: CGFloat = 22
+    static let pane: CGFloat = 28
+    /// Panel horizontal inset; the footer uses the same value.
+    static let panelInset: CGFloat = 14
+}
+
+enum Size {
+    /// Every interactive control that sits in a row: one height, fixed, measured by a test.
+    static let control: CGFloat = 28
+    static let iconButton: CGFloat = 28
+    static let chip: CGFloat = 20
+    static let tabIsland: CGFloat = 34
+    static let settingsRow: CGFloat = 34
+    static let menuBarGlyph: CGFloat = 18
+    static let panelWidth: CGFloat = 404
+    static let panelMaxHeight: CGFloat = 780
+    static let settingsMin = CGSize(width: 760, height: 540)
+    static let settingsSidebar: CGFloat = 196
+    static let modalWidth: CGFloat = 520
+}
+
+/// Named opacities; literal opacities live only in `Kit/`.
+struct HouseOpacity {
+    let faint = 0.04
+    let wash = 0.07
+    let tint = 0.14
+    let lift = 0.16
+    let ring = 0.5
+    let dim = 0.58
+}
+
+/// Springs only: nothing snaps or eases linearly.
+enum Motion {
+    static let spring = Animation.spring(response: 0.42, dampingFraction: 0.82)
+    static let snappy = Animation.spring(response: 0.28, dampingFraction: 0.86)
+    static let gentle = Animation.spring(response: 0.7, dampingFraction: 0.9)
+    /// `RiseIn` delay per index, capped at index 10.
+    static let riseDelay = 0.035
+    static let riseIndexCap = 10
+}
+
+extension Color {
+    init(hex: UInt32, opacity: Double = 1) {
+        self.init(.sRGB, red: Double((hex >> 16) & 0xFF) / 255, green: Double((hex >> 8) & 0xFF) / 255,
+                  blue: Double(hex & 0xFF) / 255, opacity: opacity)
+    }
+}

@@ -1,0 +1,2 @@
+content.foregroundStyle(Theme.textPrimary)
+Theme.color(for: status)

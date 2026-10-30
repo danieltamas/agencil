@@ -1,0 +1,1 @@
+struct Wrapper: View { var body: some View { content.sheet(item: $item) { ModalFrame {} } } }

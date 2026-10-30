@@ -1,0 +1,1 @@
+AsyncPillButton { store.load() }

@@ -1,0 +1,1 @@
+func start() { withAnimation { for item in items { update(item) } } }

@@ -1,0 +1,1 @@
+content.environment(\.colorScheme, .dark).preferredColorScheme(.dark)

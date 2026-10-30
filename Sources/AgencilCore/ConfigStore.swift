@@ -11,7 +11,7 @@ public struct ConfigSnapshot: Sendable, Equatable {
 /// Writers cooperate through config.lock; a process of the same user that deliberately replaces the lock or
 /// the file is outside what this guards (docs: a same-user process is not a boundary), but it is detected
 /// and refused wherever the file system lets us see it.
-public struct ConfigStore {
+public struct ConfigStore: Sendable {
     public enum Failure: Error, Equatable, LocalizedError {
         case staleRevision
         case malformed

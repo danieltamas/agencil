@@ -1,0 +1,1 @@
+Slider("Value", value: $value)
