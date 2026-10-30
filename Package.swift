@@ -11,7 +11,9 @@ let package = Package(
         // Installed as `agencil`. Named AgencilCLI because `agencil` collides with `Agencil` on a
         // case-insensitive disk; scripts/bundle.sh renames the binary.
         .executableTarget(name: "AgencilCLI", dependencies: ["AgencilCore"]),
-        .testTarget(name: "AgencilCoreTests", dependencies: ["AgencilCore"]),
+        .executableTarget(name: "ConfigWriterFixture", dependencies: ["AgencilCore"],
+                          path: "Tests/Fixtures/ConfigWriterFixture"),
+        .testTarget(name: "AgencilCoreTests", dependencies: ["AgencilCore", "ConfigWriterFixture"]),
         .testTarget(name: "AgencilTests", dependencies: ["Agencil"]),
     ]
 )
