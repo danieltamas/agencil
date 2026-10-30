@@ -1,0 +1,79 @@
+// Generated from catalog.json by scripts/sync-catalog.sh; scripts/check.sh fails when the two differ.
+enum CatalogData {
+    static let json = #"""
+{
+  "entries": [
+    {
+      "kind": "claude",
+      "executable": "claude",
+      "versionArguments": ["--version"],
+      "status": {
+        "arguments": ["auth", "status"],
+        "signedInOutput": "\"loggedIn\":true",
+        "signedInExitCode": 0,
+        "signedOutOutput": "\"loggedIn\":false",
+        "signedOutExitCode": 1
+      },
+      "chainNotes": "Chain probe not defined yet: needs the harness's own way to launch a stdio MCP server; confirmed by live-smoke.",
+      "installHint": "https://docs.claude.com/en/docs/claude-code/setup"
+    },
+    {
+      "kind": "codex",
+      "executable": "codex",
+      "versionArguments": ["--version"],
+      "status": {
+        "arguments": ["login", "status"],
+        "signedInOutput": "Logged in using",
+        "signedInExitCode": 0,
+        "signedOutOutput": "Not logged in",
+        "signedOutExitCode": 1
+      },
+      "chainNotes": "Chain probe not defined yet: needs the harness's own way to launch a stdio MCP server; confirmed by live-smoke.",
+      "installHint": "/opt/homebrew/bin/brew install codex, or npm install -g @openai/codex"
+    },
+    {
+      "kind": "opencode",
+      "executable": "opencode",
+      "versionArguments": ["--version"],
+      "chainNotes": "No known non-interactive status command, so sign-in stays unknown. Chain probe not defined yet.",
+      "installHint": "/opt/homebrew/bin/brew install sst/tap/opencode, or https://opencode.ai"
+    },
+    {
+      "kind": "hermes",
+      "executable": "hermes",
+      "versionArguments": ["--version"],
+      "chainNotes": "No known non-interactive status command, so sign-in stays unknown. Chain probe not defined yet.",
+      "installHint": "https://github.com/NousResearch/hermes-agent"
+    },
+    {
+      "kind": "gemini",
+      "executable": "gemini",
+      "versionArguments": ["--version"],
+      "chainNotes": "No known non-interactive status command, so sign-in stays unknown. Chain probe not defined yet.",
+      "installHint": "/opt/homebrew/bin/brew install gemini-cli, or npm install -g @google/gemini-cli"
+    },
+    {
+      "kind": "aider",
+      "executable": "aider",
+      "versionArguments": ["--version"],
+      "chainNotes": "Keys come from the environment, there is no sign-in state. Chain probe not defined yet.",
+      "installHint": "https://aider.chat/docs/install.html"
+    },
+    {
+      "kind": "goose",
+      "executable": "goose",
+      "versionArguments": ["--version"],
+      "chainNotes": "No known non-interactive status command, so sign-in stays unknown. Chain probe not defined yet.",
+      "installHint": "/opt/homebrew/bin/brew install block-goose-cli, or https://block.github.io/goose"
+    },
+    {
+      "kind": "ollama",
+      "executable": "ollama",
+      "versionArguments": ["--version"],
+      "chainNotes": "Not a harness: answers a plain chat completion, runs no MCP children.",
+      "installHint": "/opt/homebrew/bin/brew install ollama, or https://ollama.com/download"
+    }
+  ]
+}
+"""#
+}

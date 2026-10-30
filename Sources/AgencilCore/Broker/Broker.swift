@@ -17,6 +17,8 @@ public final class Broker: @unchecked Sendable {
     let environment: [String: String]
     let ledger: Ledger
     let store: LaunchStore
+    let threads: ThreadStore
+    let discovery = DiscoveryCache()
     let socketPath: String
     /// The `agencil` CLI that seats are launched through: this process in `serve`, the bundled CLI inside the app.
     let launcherExecutable: String?
@@ -27,6 +29,9 @@ public final class Broker: @unchecked Sendable {
     let tracking = NSLock()
     var tracked: [String: TrackedRun] = [:]
     var waiting: [String: PendingLaunch] = [:]
+    /// Launch id to the file its stdout goes to (an answer); only a seat started by this broker has one.
+    var outputs: [String: String] = [:]
+    var stoppedThreads: Set<String> = []
     private var connections = 0
 
     /// Takes the exclusive lock first: only the holder may remove a stale socket or touch the ledger's runs.
@@ -47,6 +52,7 @@ public final class Broker: @unchecked Sendable {
             throw error
         }
         store = LaunchStore(ledger: ledger)
+        threads = ThreadStore(ledger: ledger)
     }
 
     deinit { close(lockDescriptor) }
@@ -56,6 +62,7 @@ public final class Broker: @unchecked Sendable {
         signal(SIGPIPE, SIG_IGN)
         Thread.detachNewThread { [self] in monitorLoop() }
         recoverOpenLaunches()
+        try? threads.failUnfinished(reason: "the broker restarted before the seat answered")
         unlink(socketPath)
         listener = try UnixSocket.listen(at: socketPath)
         Thread.detachNewThread { [self] in acceptLoop() }
@@ -134,11 +141,15 @@ public final class Broker: @unchecked Sendable {
                 return try launch(request)
             case "status": return try status(request)
             case "stop": return try stop(request)
-            case "ask", "wake":
+            case "ask": return ask(request)
+            case "wake":
                 try? store.recordRequest(peer: peer)
                 let target = (request["target"] as? String) ?? (request["council"] as? String) ?? "?"
                 return Self.failure("refused: no route from \(peer.map { "pid \($0)" } ?? "unknown caller") to \(target)", exit: 3)
-            case "result", "dispose":
+            case "result":
+                if let reply = result(request) { return reply }
+                return Self.failure("unknown id \((request["id"] as? String) ?? "?")", exit: 64)
+            case "dispose":
                 return Self.failure("unknown id \((request["id"] as? String) ?? "?")", exit: 64)
             case "seats", "councils", "routes", "harnesses", "models", "findings", "leaderboard", "list_targets":
                 return ["ok": true, "data": [op: [Any]()], "data_note": Self.note]
@@ -157,6 +168,7 @@ public final class Broker: @unchecked Sendable {
     }
 
     private func status(_ request: [String: Any]) throws -> [String: Any] {
+        if let id = request["id"] as? String, id.hasPrefix("th_") { return try threadStatus(id) }
         guard let id = request["run"] as? String ?? request["id"] as? String,
               let launch = try store.launch(id: id) else {
             throw Failure(message: "unknown id \((request["run"] as? String) ?? (request["id"] as? String) ?? "?")")

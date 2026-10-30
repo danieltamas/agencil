@@ -31,6 +31,9 @@ public struct HarnessCatalog: Decodable, Sendable {
 
     public let entries: [Entry]
 
+    /// The catalog compiled into the binary (`CatalogData.swift`, generated from catalog.json).
+    public static func embedded() throws -> HarnessCatalog { try decode(Data(CatalogData.json.utf8)) }
+
     public static func decode(_ data: Data) throws -> HarnessCatalog {
         try JSONDecoder().decode(HarnessCatalog.self, from: data)
     }

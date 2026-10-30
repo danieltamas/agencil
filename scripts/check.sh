@@ -92,6 +92,7 @@ lint_size
 lint_ascii
 lint_readme
 lint_forbidden_names
+scripts/sync-catalog.sh --check || fail "the embedded catalog is stale"
 
 if ((!lint_only)); then
   cd "$repo"

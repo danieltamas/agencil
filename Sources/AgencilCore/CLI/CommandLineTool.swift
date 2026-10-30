@@ -76,7 +76,7 @@ public struct CommandLineTool: Sendable {
     }
 
     private func ask(_ verb: String, _ parsed: Parsed, json: Bool) throws -> Int32 {
-        var request: [String: Any] = ["op": verb]
+        var request: [String: Any] = ["op": verb, "caller": "owner"]
         if let wait = parsed.value("--wait") {
             guard let seconds = Int(wait), (0...3600).contains(seconds) else { throw Usage(message: "--wait takes whole seconds") }
             request["wait_seconds"] = seconds
@@ -84,7 +84,10 @@ public struct CommandLineTool: Sendable {
         for (flag, key) in [("--thread", "thread"), ("--as", "as")] {
             if let value = parsed.value(flag) { request[key] = value }
         }
-        if let files = parsed.options["--file"] { request["files"] = files }
+        if let files = parsed.options["--file"] {
+            // The broker runs elsewhere, so a relative path would resolve against the wrong directory.
+            request["files"] = files.map { URL(fileURLWithPath: $0).standardizedFileURL.path }
+        }
         for flag in ["--full", "--probe", "--open"] where parsed.flags.contains(flag) { request[String(flag.dropFirst(2))] = true }
         switch verb {
         case "ask":
@@ -111,7 +114,11 @@ public struct CommandLineTool: Sendable {
         let data = reply["data"] ?? reply.filter { $0.key != "ok" }
         print(json ? Envelope.text(Envelope.make(data: data, note: reply["data_note"] as? String ?? Broker.note))
                    : Self.human(data))
-        return 0
+        switch (data as? [String: Any])?["state"] as? String {
+        case "pending": return 2
+        case "failed": return 4
+        default: return 0
+        }
     }
 
     /// A brief names a change kind and a question, and for code a diff range; anything less is a usage error.
@@ -157,6 +164,9 @@ public struct CommandLineTool: Sendable {
     }
 
     private static func human(_ data: Any) -> String {
+        if let object = data as? [String: Any], let answer = object["answer"] as? String {
+            return [object["substituted"] as? String, answer].compactMap { $0 }.joined(separator: "\n\n")
+        }
         if let object = data as? [String: Any], object.count == 1, let list = object.values.first as? [Any], list.isEmpty {
             return "none configured"
         }

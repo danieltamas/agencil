@@ -55,5 +55,16 @@ enum LedgerSchema {
             env TEXT NOT NULL, reserved_seconds INTEGER NOT NULL, state TEXT NOT NULL, reserved INTEGER NOT NULL,
             pid INTEGER, pgid INTEGER, start_time REAL, registered_at REAL, created_at REAL NOT NULL, ended_at REAL);
         """,
+        // Asks: how a request ended, the leader's exit status, and threads with their exchanges. A thread is also
+        // a `runs` row (kind 'thread'); its exchanges are the follow-ups, in order.
+        """
+        ALTER TABLE requests ADD COLUMN outcome TEXT;
+        ALTER TABLE launches ADD COLUMN exit_status INTEGER;
+        CREATE TABLE threads (id TEXT PRIMARY KEY, requested TEXT NOT NULL, seat TEXT NOT NULL, caller TEXT NOT NULL,
+            substituted TEXT, created_at TEXT NOT NULL) WITHOUT ROWID;
+        CREATE TABLE exchanges (thread_id TEXT NOT NULL REFERENCES threads(id), seq INTEGER NOT NULL,
+            question TEXT NOT NULL, answer TEXT, state TEXT NOT NULL, reason TEXT, launch_id TEXT,
+            created_at TEXT NOT NULL, PRIMARY KEY (thread_id, seq)) WITHOUT ROWID;
+        """,
     ]
 }

@@ -19,7 +19,14 @@ public enum Launcher {
               let env = reply["env"] as? [String: String] else { return fail("the broker did not release this seat") }
         close(descriptor)
         if let cwd = reply["cwd"] as? String, chdir(cwd) != 0 { return fail("cannot enter \(cwd)") }
+        if let output = reply["stdout"] as? String {
+            let file = open(output, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW, 0o600)
+            guard file >= 0, dup2(file, 1) == 1 else { return fail("cannot open the answer file \(output)") }
+            close(file)
+        }
         guard let executable = resolve(program, path: env["PATH"] ?? "/usr/bin:/bin") else { return fail("\(program) not found") }
+        // The broker ignores these while it serves, and an ignored signal stays ignored across exec.
+        for number in [SIGTERM, SIGINT, SIGPIPE] { signal(number, SIG_DFL) }
         let argvC = argv.map { strdup($0) } + [nil]
         let envC = env.map { strdup("\($0.key)=\($0.value)") } + [nil]
         execve(executable, argvC, envC)

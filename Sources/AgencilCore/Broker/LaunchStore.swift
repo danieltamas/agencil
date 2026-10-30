@@ -16,6 +16,7 @@ public struct Launch: Sendable, Equatable {
     public var pgid: Int32?
     public var startTime: Double?
     public var registeredAt: Double?
+    public var exitStatus: Int32?
 }
 
 /// The durable side of the launch handshake: the intent is written before anything is spawned, the identity
@@ -25,7 +26,7 @@ public struct LaunchStore: Sendable {
 
     public init(ledger: Ledger) { self.ledger = ledger }
 
-    private static let columns = "id, nonce, argv, cwd, env, reserved_seconds, state, reserved, pid, pgid, start_time, registered_at"
+    private static let columns = "id, nonce, argv, cwd, env, reserved_seconds, state, reserved, pid, pgid, start_time, registered_at, exit_status"
 
     public func createIntent(argv: [String], cwd: String, env: [String: String], reservedSeconds: Int) throws -> Launch {
         let id = UUID().uuidString, nonce = Self.randomNonce()
@@ -51,10 +52,10 @@ public struct LaunchStore: Sendable {
     }
 
     /// Ends the launch and releases its reservation. Callers prove the group empty first.
-    public func finish(id: String, state: Launch.State) throws {
+    public func finish(id: String, state: Launch.State, exitStatus: Int32? = nil) throws {
         try ledger.locked {
-            try ledger.run("UPDATE launches SET state = ?, reserved = 0, ended_at = ? WHERE id = ? AND reserved = 1;",
-                           [state.rawValue, String(Date().timeIntervalSince1970), id])
+            try ledger.run("UPDATE launches SET state = ?, reserved = 0, ended_at = ?, exit_status = ? WHERE id = ? AND reserved = 1;",
+                           [state.rawValue, String(Date().timeIntervalSince1970), exitStatus.map { String($0) }, id])
         }
     }
 
@@ -89,7 +90,8 @@ public struct LaunchStore: Sendable {
                 id: text(0) ?? "", nonce: text(1) ?? "", argv: Self.decode(text(2)) ?? [], cwd: text(3) ?? "",
                 env: Self.decode(text(4)) ?? [:], reservedSeconds: Int(text(5) ?? "") ?? 0,
                 state: Launch.State(rawValue: text(6) ?? "") ?? .interrupted, reserved: text(7) == "1",
-                pid: integer(8), pgid: integer(9), startTime: real(10), registeredAt: real(11))
+                pid: integer(8), pgid: integer(9), startTime: real(10), registeredAt: real(11),
+                exitStatus: integer(12))
         }
     }
 

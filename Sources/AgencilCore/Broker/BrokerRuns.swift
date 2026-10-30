@@ -15,6 +15,13 @@ final class TrackedRun: @unchecked Sendable {
     /// reservation ran out plus the time to kill it. A reused pid or group id starts outside it.
     let window: ClosedRange<Double>
     var termSentAt: Double?
+    private let statusLock = NSLock()
+    private var leader: Int32?
+    /// The leader's exit code (128 + signal when killed), once it has been reaped; nil while it runs.
+    var leaderStatus: Int32? {
+        get { statusLock.withLock { leader } }
+        set { statusLock.withLock { leader = newValue } }
+    }
     private let recordedStart: Double
     private var proven: Set<Int32> = []
 
@@ -65,6 +72,7 @@ extension Broker {
         guard reservation > 0 else { throw Failure(message: "launch needs a reservation in seconds") }
         let launch = try store.createIntent(argv: argv, cwd: request["cwd"] as? String ?? directory.path,
                                             env: request["env"] as? [String: String] ?? [:], reservedSeconds: reservation)
+        if let output = request["stdout"] as? String { tracking.withLock { outputs[launch.id] = output } }
         let pending = PendingLaunch()
         tracking.withLock { waiting[launch.nonce] = pending }
         defer { tracking.withLock { _ = waiting.removeValue(forKey: launch.nonce) } }
@@ -126,17 +134,20 @@ extension Broker {
         var env = environment.filter { !$0.key.hasPrefix("AGENCIL_TEST_") }
         env.merge(launch.env) { _, new in new }
         env[Self.runMarker] = launch.id
-        return ["ok": true, "go": true, "argv": launch.argv, "cwd": launch.cwd, "env": env]
+        var go: [String: Any] = ["ok": true, "go": true, "argv": launch.argv, "cwd": launch.cwd, "env": env]
+        if let output = tracking.withLock({ outputs[launch.id] }) { go["stdout"] = output }
+        return go
     }
 
     func stop(_ request: [String: Any]) throws -> [String: Any] {
+        if let id = request["id"] as? String, id.hasPrefix("th_") { return try stopThread(id) }
         guard let id = request["run"] as? String ?? request["id"] as? String,
               let launch = try store.launch(id: id) else { throw Failure(message: "unknown id") }
         if let run = tracking.withLock({ tracked[id] }) { terminate(run) }
         return ["ok": true, "run": launch.id, "stopping": launch.reserved]
     }
 
-    private func terminate(_ run: TrackedRun) {
+    func terminate(_ run: TrackedRun) {
         guard run.termSentAt == nil else { return }
         run.termSentAt = Date().timeIntervalSince1970
         killpg(run.pgid, SIGTERM)
@@ -184,12 +195,15 @@ extension Broker {
     private func watch(_ run: TrackedRun) {
         if run.spawnedHere {
             var status: Int32 = 0
-            waitpid(run.pid, &status, WNOHANG)
+            if waitpid(run.pid, &status, WNOHANG) == run.pid {
+                // WIFEXITED / WIFSIGNALED, spelled out because the macros are not imported.
+                run.leaderStatus = (status & 0x7f) == 0 ? (status >> 8) & 0xff : 128 + (status & 0x7f)
+            }
         }
         // A failed look is not an empty group: the run stays reserved until the kernel answers.
         guard let members = run.members() else { return }
         if members.isEmpty {
-            do { try store.finish(id: run.id, state: run.recovered ? .interrupted : .exited) } catch { return }
+            do { try store.finish(id: run.id, state: run.recovered ? .interrupted : .exited, exitStatus: run.leaderStatus) } catch { return }
             tracking.withLock { _ = tracked.removeValue(forKey: run.id) }
             return
         }
