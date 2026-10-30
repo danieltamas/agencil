@@ -16,7 +16,11 @@ struct AgencilApp: App {
 
     var body: some Scene {
         MenuBarExtra("Agencil", systemImage: "circle.hexagongrid") {
-            Text(MenuTitle.text(version: AgencilVersion.current()))
+            PanelView()
+        }
+        .menuBarExtraStyle(.window)
+        Settings {
+            SettingsView()
         }
     }
 }

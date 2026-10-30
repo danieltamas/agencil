@@ -15,6 +15,7 @@ struct HouseFont {
     let statSmall = Font.system(size: 17, weight: .semibold, design: .rounded)
     let statValue = Font.system(size: 26, weight: .semibold, design: .rounded)
     let mono = Font.system(size: 11.5, design: .monospaced)
+    let metaStrong = Font.system(size: 11, weight: .semibold)
 }
 
 extension Font {
@@ -56,6 +57,8 @@ enum Size {
     static let settingsMin = CGSize(width: 760, height: 540)
     static let settingsSidebar: CGFloat = 196
     static let modalWidth: CGFloat = 520
+    static let bentoSide: CGFloat = 140
+    static let sidebarGlyph: CGFloat = 24
 }
 
 /// Named opacities; literal opacities live only in `Kit/`.

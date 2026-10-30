@@ -36,6 +36,14 @@ enum ScreenshotCommand {
             for look in looks {
                 let name = looks.count == 1 ? "kit-gallery.png" : "kit-gallery-\(look.rawValue).png"
                 try HouseRender.write(KitGallery(), to: directory.appendingPathComponent(name), look: look, scale: scale)
+                let suffix = looks.count == 1 ? "" : "-\(look.rawValue)"
+                for tab in ["threads", "sittings", "findings", "seats"] {
+                    try HouseRender.write(PanelView(tab: tab), to: directory.appendingPathComponent("panel-\(tab)\(suffix).png"), look: look, scale: scale)
+                }
+                for pane in [SettingsPane.general, .seats, .access] {
+                    try HouseRender.write(SettingsView(pane: pane).frame(width: Size.settingsMin.width, height: Size.settingsMin.height),
+                                          to: directory.appendingPathComponent("settings-\(pane.rawValue)\(suffix).png"), look: look, scale: scale)
+                }
             }
             return 0
         } catch {
