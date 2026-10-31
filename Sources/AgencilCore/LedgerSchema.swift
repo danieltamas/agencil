@@ -104,5 +104,14 @@ enum LedgerSchema {
         CREATE TRIGGER trigger_fires_no_delete BEFORE DELETE ON trigger_fires
         BEGIN SELECT RAISE(ABORT, 'trigger_fires rows are never deleted'); END;
         """,
+        // Outcomes and scoring read claims, evidence and outcomes by claim, and seat runs by sitting.
+        """
+        CREATE INDEX claims_seat_run ON claims(seat_run_id);
+        CREATE INDEX claims_run ON claims(run_id, kind, file, line);
+        CREATE INDEX assessments_claim ON assessments(claim_id);
+        CREATE INDEX outcomes_claim ON outcomes(claim_id);
+        CREATE INDEX evidence_claim ON evidence(claim_id);
+        CREATE INDEX seat_runs_run ON seat_runs(run_id);
+        """,
     ]
 }
