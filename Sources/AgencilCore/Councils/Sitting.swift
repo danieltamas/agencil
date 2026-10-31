@@ -53,16 +53,22 @@ extension Broker {
             let snapshot = try Snapshot.take(repo: repo, uncommitted: request["uncommitted"] as? Bool ?? false, question: question,
                                              commit: try pinnedCommit(request["commit"], repo: repo))
             let author = authorVendor(request["author_vendor"] as? String, parent: parent, config: config)
-            let slots = council.seats.compactMap { config.seat(named: $0) }.map { seat -> Slot in
+            let chosen = try Self.chosenSeats(request["seats"], council: council)
+            let cap = try Self.capOverride(request["cap_seconds"])
+            func shortened(_ seat: Seat) -> Seat { cap.map { seat.capped(at: $0) } ?? seat }
+            let slots = chosen.compactMap { config.seat(named: $0) }.map(shortened).map { seat -> Slot in
                 let slot = Slot(seat: seat)
                 if author != "unknown", seat.vendor == author { slot.phase = .recused; slot.reason = "same vendor as the author" }
                 return slot
             }
-            let spares = council.spares.compactMap { config.seat(named: $0) }.filter { author == "unknown" || $0.vendor != author }
+            let spares = council.spares.compactMap { config.seat(named: $0) }.map(shortened).filter { author == "unknown" || $0.vendor != author }
             let councilRoute = Route(callers: route.callers, target: route.target, hopLimit: route.hopLimit, fallbacks: [],
                                      localOnly: route.localOnly || council.localOnly, requires: route.requires)
+            let seatsLine = (request["seats"] as? [String]).map { "seats: \($0.joined(separator: ","))" }
+            let capLine = cap.map { "cap: \($0)" }
             let brief = ["change_kind: \(kind)", "question: \(question)", request["diff"].flatMap { $0 as? String }.map { "diff: \($0)" },
-                         "author_vendor: \(author)"].compactMap { $0 }.joined(separator: "\n") + "\n"
+                         "author_vendor: \(author)",
+                         seatsLine, capLine].compactMap { $0 }.joined(separator: "\n") + "\n"
             let opened = try sittingRows.open(council: council.name, snapshot: snapshot, authorVendor: author, brief: brief)
             let sitting = SittingRun(id: opened.id, number: opened.number, council: council, config: config, route: councilRoute,
                                      caller: caller, parent: parent, snapshot: snapshot, changeKind: kind,
@@ -272,5 +278,26 @@ extension Broker {
         live.stop()
         for thread in live.locked({ live.running }) { _ = try? stopThread(thread) }
         return ["ok": true, "run": id, "stopping": true]
+    }
+}
+
+extension Broker {
+    /// The seats of `council` that a `seats` override keeps, in the council's own order; no override keeps them all.
+    static func chosenSeats(_ value: Any?, council: Council) throws -> [String] {
+        guard let value, !(value is NSNull) else { return council.seats }
+        guard let names = value as? [String], !names.isEmpty, Set(names).count == names.count,
+              names.allSatisfy(council.seats.contains) else {
+            throw Refusal(exit: 64, message: "usage: seats must be seats of the council")
+        }
+        return council.seats.filter(names.contains)
+    }
+
+    static func capOverride(_ value: Any?) throws -> Int? {
+        guard let value, !(value is NSNull) else { return nil }
+        guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
+              number.doubleValue == number.doubleValue.rounded(), (1...86_400).contains(number.intValue) else {
+            throw Refusal(exit: 64, message: "usage: cap must be a whole number of seconds")
+        }
+        return number.intValue
     }
 }

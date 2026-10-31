@@ -185,3 +185,11 @@ public struct SeatConfig: Sendable {
         return map
     }
 }
+
+extension Seat {
+    /// The same seat with its per-call cap shortened to `seconds`; an override never lengthens a configured cap.
+    func capped(at seconds: Int) -> Seat {
+        Seat(name: name, harness: harness, model: model, endpoint: endpoint, pin: pin, role: role, hardening: hardening,
+             capSeconds: min(capSeconds, seconds), capTokens: capTokens, price: price, hosted: hosted, vendor: vendor)
+    }
+}

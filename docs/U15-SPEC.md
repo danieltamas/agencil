@@ -11,6 +11,10 @@ reproduces them. This unit lands the first half and records why the second half 
 - Scenarios: `default` (default panel, exit 0), `override` (seat-list environment override and cap, exit 0), `degraded` (a thin seat
   retried once, exit 3), `probe-spare` and `probe-all-dead` (probe-only output, spare swap and dropped seats), `codex-limit`
   (the codex seat swapped for a claude seat), `no-brief` (exit 2).
+- `scripts/council-wrapper.sh` is the `council.sh` interface over `agencil wake` (U15b: `--seats`, `--cap`; the per-seat report
+  files are rendered from the verdict's claims and votes). `Tests/Acceptance/U15/test_wrapper.sh` checks it against a stub `agencil`
+  (seven cases: argv, files, banners, exit codes). A literal argv match with the old fixtures is impossible because Agencil calls
+  harnesses through its own adapters.
 - `Tests/Acceptance/U15/test_council_parity.sh <script>` replays the scenarios and diffs against the fixtures;
   `--capture <old-script>` regenerates them. Run against the old script it prints `council parity: ok`, so the capture is reproducible.
   The old script is not in this repository (it is the owner's); the fixtures hold only stub output.

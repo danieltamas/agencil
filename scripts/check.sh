@@ -101,6 +101,7 @@ if ((!lint_only)); then
   # Serial: the suites start real processes and sockets and probe against short deadlines, which parallel load flakes.
   swift test --skip-build --no-parallel --scratch-path "$scratch" || fail "tests failed"
   python3 -I -B -m unittest discover -s Tests/Leaderboard || fail "leaderboard script tests failed"
+  bash Tests/Acceptance/U15/test_wrapper.sh || fail "council wrapper test failed"
 fi
 
 ((!failed)) && echo "check: ok"

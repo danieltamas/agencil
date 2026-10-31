@@ -21,7 +21,7 @@ public struct CommandLineTool: Sendable {
         "version": Spec(positionals: 0...0),
         "ask": Spec(positionals: 2...2, valued: ["--file", "--thread", "--wait", "--as", "--repo"]),
         "result": Spec(positionals: 1...1, valued: ["--wait"], switches: ["--json", "--full"]),
-        "wake": Spec(positionals: 1...1, valued: ["--brief", "--repo", "--diff", "--wait", "--author-vendor"]),
+        "wake": Spec(positionals: 1...1, valued: ["--brief", "--repo", "--diff", "--wait", "--author-vendor", "--seats", "--cap"]),
         "status": Spec(positionals: 1...1), "stop": Spec(positionals: 1...1),
         "budgets": Spec(positionals: 0...0),
         "seats": Spec(positionals: 0...0), "councils": Spec(positionals: 0...0), "triggers": Spec(positionals: 0...0), "panel": Spec(positionals: 0...0), "routes": Spec(positionals: 0...0),
@@ -98,6 +98,15 @@ public struct CommandLineTool: Sendable {
         case "wake":
             request["council"] = parsed.positionals[0]
             request.merge(try Self.brief(parsed)) { _, new in new }
+            if let seats = parsed.value("--seats") {
+                let names = seats.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
+                guard names.allSatisfy({ !$0.isEmpty }) else { throw Usage(message: "--seats takes a comma-separated list of seat names") }
+                request["seats"] = names
+            }
+            if let cap = parsed.value("--cap") {
+                guard let seconds = Int(cap) else { throw Usage(message: "--cap takes a whole number of seconds") }
+                request["cap_seconds"] = seconds
+            }
         case "result", "status", "stop":
             request["id"] = parsed.positionals[0]
         case "dispose":
