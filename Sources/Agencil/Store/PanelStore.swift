@@ -8,6 +8,8 @@ import SwiftUI
 @MainActor @Observable final class PanelStore {
     private(set) var data: PanelData?
     private(set) var stopping: Set<String> = []
+    @ObservationIgnored private var deciding: Set<String> = []
+    private(set) var decided: Set<String> = []
     private(set) var seen: Set<String> = []
     private(set) var problem: String?
     private(set) var readAt: Date?
@@ -81,6 +83,22 @@ import SwiftUI
 
     func stopAction(_ id: String) -> () async -> Void { { [self] in await stop(id) } }
 
+    /// The owner's Confirm or Dismiss of one finding: one broker call, then a fresh read.
+    func decideAction(_ id: String, confirm: Bool) -> () async -> Void {
+        { [self] in
+            // One decision at a time per finding, whichever button; a decided finding leaves the list at once.
+            guard let client, !deciding.contains(id), !decided.contains(id) else { return }
+            deciding.insert(id)
+            defer { deciding.remove(id) }
+            var failure: String?
+            do {
+                _ = try await client.call("dispose", ["id": id, "disposition": confirm ? "confirm" : "dismiss"])
+                decided.insert(id)
+            } catch { failure = error.localizedDescription }
+            await refresh()
+            if let failure { problem = failure }
+        }
+    }
     func open(sitting id: String) { seen.insert(id) }
 
     private func syncStopping(_ data: PanelData) {
@@ -141,7 +159,7 @@ import SwiftUI
     }
 
     func findings(search: String) -> [DemoPanel.Finding] {
-        (data?.findings ?? []).filter { $0.disposition == "open" }.map(DemoPanel.Finding.init)
+        (data?.findings ?? []).filter { $0.disposition == "open" && !decided.contains($0.id) }.map(DemoPanel.Finding.init)
             .filter { Self.matches(search, [$0.claim, $0.place]) }
     }
 

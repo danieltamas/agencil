@@ -148,7 +148,7 @@ struct PanelView: View {
             case "findings":
                 let items = store.findings(search: search)
                 if items.isEmpty { EmptyState(symbol: "checkmark.seal", title: "Nothing to decide", detail: "Claims from a sitting wait here for your call.") }
-                ForEach(items) { FindingRow(finding: $0) }
+                ForEach(items) { item in FindingRow(finding: item, confirm: store.decideAction(item.id, confirm: true), dismiss: store.decideAction(item.id, confirm: false)) }
             default:
                 let items = store.seats(search: search)
                 if items.isEmpty { EmptyState(symbol: "person.2.wave.2", title: "No seats configured", detail: "Add a seat in Settings to start.") }
