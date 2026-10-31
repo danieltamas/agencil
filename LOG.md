@@ -1,5 +1,6 @@
 ## Unreleased
 
+- U9: settings (seats, councils and routes created from sheets that validate the whole config and write it atomically, scalars saved as they change, notification kinds, seats at once, Agent access switch plus per-harness MCP install read back from the harness file; the broker picks edits up without a restart).
 - U7a: sittings (wake_council runs a numbered sitting: frozen snapshot of the commit and tracked changes, blind then optional rebuttal, challenge and synthesis rounds, spares for unplaceable or silent seats, recusal by author vendor, quorum, independence flags, refutation by distinct vendors, PASS/BLOCK/INCOMPLETE verdict with minority report, stop, status and restart reconcile, sittings and verdicts in the ledger).
 - U7b: triggers (paths, pr_label via gh, schedule; deferral order running, quiet hours, debounce; state consumed before the wake and restored on refusal, source errors defer instead of firing, pinned-commit wake, `agencil triggers`).
 - U8: panel (live `panel` read of threads, sittings, findings, seats and week spend; bento counts only what needs the owner; notifications on verdict, BLOCK, seat down, 80% budget and failed thread, never on the first read; Stop shows "Stopping..." at once and presses once; `notify` config key).

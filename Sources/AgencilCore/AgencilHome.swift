@@ -4,6 +4,9 @@ import Foundation
 public struct AgencilHome: Sendable {
     public let directory: URL
 
+    /// A home that is already there: the app and its panes use this after the broker created it.
+    init(existing directory: URL) { self.directory = directory }
+
     /// `AGENCIL_HOME` in `environment` wins over `directory`.
     public init(directory: URL, environment: [String: String]) throws {
         if let override = environment["AGENCIL_HOME"], !override.isEmpty {

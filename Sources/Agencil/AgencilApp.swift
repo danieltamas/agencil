@@ -23,7 +23,7 @@ struct AgencilApp: App {
         }
         .menuBarExtraStyle(.window)
         Settings {
-            SettingsView()
+            SettingsView(store: SettingsStore.launch())
         }
     }
 }

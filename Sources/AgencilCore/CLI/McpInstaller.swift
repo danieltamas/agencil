@@ -20,7 +20,19 @@ struct McpInstaller {
     private var recordURL: URL { home.directory.appendingPathComponent("installed.json") }
     private var command: String { "\(NSHomeDirectory())/.local/bin/agencil" }
 
+    /// Whether `installed.json` records a claude entry written by Agencil.
+    var recordsClaude: Bool { ((try? readRecord()) ?? [:])["claude"] != nil }
+
     func run(harness: String, caller: String?, dryRun: Bool, uninstall: Bool) throws -> Int32 {
+        do { return try perform(harness: harness, caller: caller, dryRun: dryRun, uninstall: uninstall) }
+        catch let refusal as Refusal {
+            FileHandle.standardError.write(Data("agencil: \(refusal.message)\n".utf8))
+            return 3
+        }
+    }
+
+    /// The install or removal itself; a refusal is thrown, so a caller other than the CLI can show its message.
+    func perform(harness: String, caller: String?, dryRun: Bool, uninstall: Bool) throws -> Int32 {
         guard ["claude", "codex", "opencode", "hermes"].contains(harness) else {
             throw CommandLineTool.Usage(message: "install-mcp supports claude, codex, opencode and hermes")
         }
@@ -30,19 +42,14 @@ struct McpInstaller {
         let lock = open(home.directory.appendingPathComponent("install.lock").path, O_RDWR | O_CREAT | O_CLOEXEC, 0o600)
         guard lock >= 0, flock(lock, LOCK_EX) == 0 else { throw Refusal(message: "cannot take the install lock") }
         defer { close(lock) }
-        do {
-            return harness == "claude"
-                ? try runClaude(caller: caller ?? "claude", dryRun: dryRun, uninstall: uninstall)
-                : try runFile(harness, caller: caller ?? harness, dryRun: dryRun, uninstall: uninstall)
-        } catch let refusal as Refusal {
-            FileHandle.standardError.write(Data("agencil: \(refusal.message)\n".utf8))
-            return 3
-        }
+        return harness == "claude"
+            ? try runClaude(caller: caller ?? "claude", dryRun: dryRun, uninstall: uninstall)
+            : try runFile(harness, caller: caller ?? harness, dryRun: dryRun, uninstall: uninstall)
     }
 
     // MARK: file-based harnesses (codex TOML, opencode JSON)
 
-    private func location(_ harness: String) -> URL {
+    func location(_ harness: String) -> URL {
         if let base = environment["AGENCIL_MCP_CONFIG_DIR"], !base.isEmpty {
             return URL(fileURLWithPath: base).appendingPathComponent(harness == "codex" ? "codex/config.toml" : "opencode/opencode.json")
         }
@@ -133,13 +140,13 @@ struct McpInstaller {
         }
     }
 
-    private func parses(_ harness: String, _ text: String) -> Bool {
+    func parses(_ harness: String, _ text: String) -> Bool {
         if harness == "codex" { return TomlCheck.parses(text) }
         if text.allSatisfy({ $0.isWhitespace }) { return true }
         return (try? JSONSerialization.jsonObject(with: Data(text.utf8))) is [String: Any]
     }
 
-    private func declaresAgencil(_ harness: String, _ text: String) -> Bool {
+    func declaresAgencil(_ harness: String, _ text: String) -> Bool {
         if harness == "codex" { return ConfigText.tomlDeclaresAgencil(text) }
         let root = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any]
         return (root?["mcp"] as? [String: Any])?["agencil"] != nil

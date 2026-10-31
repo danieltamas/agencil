@@ -1,36 +1,35 @@
 import AgencilCore
 import SwiftUI
 
-/// The pane bodies on demo data. Scalar rows save as they change once the store is wired (U9).
+/// The pane bodies. Scalar rows save through the store as they change; lists and sheets come from the config.
 struct SettingsPaneView: View {
+    @Bindable var store: SettingsStore
     let pane: SettingsPane
     @State private var look = Appearance.shared.look
-    @State private var login = true
-    @State private var verdicts = true
-    @State private var blocks = true
-    @State private var access = true
-    @State private var publish = false
-    @State private var sheet: NewObject?
-    @State private var atOnce = "3"
+
+    init(store: SettingsStore, pane: SettingsPane) {
+        self.store = store
+        self.pane = pane
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.xxl) {
             PaneHeader(symbol: pane.symbol, eyebrow: pane.title, color: pane.tint.color, title: pane.title, detail: Self.detail(pane))
+            if let problem = store.configProblem { ProblemText(text: problem) }
             switch pane {
             case .general: general
-            case .seats: list("New seat", rows: DemoPanel.seatRows.map { seat in DemoPanel.ListRow(name: seat.id, detail: seat.model, up: seat.up) })
-            case .councils: list("New council", rows: DemoPanel.councils)
-            case .routes: list("New route", rows: DemoPanel.routes)
-            case .harnesses: harnesses
+            case .seats: list(.seat, rows: store.seatRows)
+            case .councils: list(.council, rows: store.councilRows)
+            case .routes: list(.route, rows: store.routeRows)
             case .access: accessPane
-            case .leaderboard: leaderboard
             case .about: about
             default: placeholder
             }
         }
-        .houseSheet(item: $sheet, title: { object in object.title }, detail: { object in object.detail }, footer: { _ in
-            ModalFooter(secondary: .init(title: "Cancel") { sheet = nil }, primary: .init(title: "Create") { sheet = nil })
-        }) { object in NewObjectForm(object: object) }
+        .houseSheet(item: $store.presenting, title: { kind in kind.title }, detail: { kind in kind.detail }, footer: { kind in
+            ModalFooter(secondary: .init(title: "Cancel") { store.presenting = nil },
+                        primary: .init(title: "Create") { if store.save(kind) { store.presenting = nil } })
+        }) { kind in NewObjectForm(store: store, kind: kind, problems: store.problems) }
     }
 
     static func detail(_ pane: SettingsPane) -> String {
@@ -63,24 +62,30 @@ struct SettingsPaneView: View {
                 .padding(.vertical, Space.m)
             }
             SettingsCard(title: "Running") {
-                SwitchRow(title: "Open at login", isOn: $login)
+                SwitchRow(title: "Open at login", isOn: Binding(get: { store.openAtLogin }, set: { store.setOpenAtLogin($0) }))
                 RowDivider()
                 SettingsRow(title: "Seats at once", detail: "Councils wait when this many are thinking.") {
-                    GlassField(placeholder: "3", text: $atOnce).frame(width: SettingsMetrics.fieldWidth)
+                    GlassField(placeholder: "3", text: Binding(get: { store.seatsAtOnce }, set: { store.setSeatsAtOnce($0) }))
+                        .frame(width: SettingsMetrics.fieldWidth)
                 }
+                if let problem = store.limitsProblem { ProblemText(text: problem) }
             }
             SettingsCard(title: "Notifications", detail: "Never on the first read after launch.") {
-                SwitchRow(title: "Verdicts", isOn: $verdicts)
-                RowDivider()
-                SwitchRow(title: "BLOCK verdicts", isOn: $blocks)
+                ForEach(Array(NotifySettings.kinds.sorted().enumerated()), id: \.element) { index, kind in
+                    if index > 0 { RowDivider() }
+                    SwitchRow(title: kind.capitalized, isOn: Binding(get: { store.notifies(kind) }, set: { store.setNotify(kind, $0) }))
+                }
             }
         }
     }
 
-    private func list(_ newTitle: String, rows: [DemoPanel.ListRow]) -> some View {
+    private func list(_ kind: SheetKind, rows: [DemoPanel.ListRow]) -> some View {
         VStack(alignment: .leading, spacing: Space.l) {
-            HStack { Spacer(); PillButton(title: newTitle, symbol: "plus") { sheet = NewObject(kind: newTitle) } }
+            HStack { Spacer(); PillButton(title: kind.title, symbol: "plus") { store.startSheet(kind); store.presenting = kind } }
             SettingsCard(title: "Configured") {
+                if rows.isEmpty {
+                    SettingsRow(title: "Nothing yet", detail: "Create the first one with the button above.") { EmptyView() }
+                }
                 ForEach(rows) { row in
                     if row.id != rows.first?.id { RowDivider() }
                     SettingsRow(title: row.name, detail: row.detail) {
@@ -91,35 +96,32 @@ struct SettingsPaneView: View {
         }
     }
 
-    private var harnesses: some View {
-        SettingsCard(title: "Detected") {
-            ForEach(DemoPanel.harnesses) { row in
-                if row.id != DemoPanel.harnesses.first?.id { RowDivider() }
-                SettingsRow(title: row.name, detail: row.detail) {
-                    Chip(text: row.up ? "signed in" : "missing", color: Theme.color(for: row.up ? .ok : .unknown))
-                }
-            }
-        }
-    }
-
     private var accessPane: some View {
         VStack(spacing: Space.xxl) {
             SettingsCard(title: "MCP server", detail: "Off by default. Agents are refused while it is off.") {
-                SwitchRow(title: "Agent access", isOn: $access)
+                SwitchRow(title: "Agent access", isOn: Binding(get: { store.agentAccessOn }, set: { store.setAgentAccess($0) }))
             }
             SettingsCard(title: "Per harness") {
-                SettingsRow(title: "codex", detail: "~/.codex/config.toml") { ChipButton(title: "Uninstall") {} }
-                RowDivider()
-                SettingsRow(title: "claude", detail: "not installed") { ChipButton(title: "Install for claude") {} }
-                RowDivider()
-                SettingsRow(title: "opencode", detail: "~/.config/opencode/opencode.json") { ChipButton(title: "Install for opencode") {} }
+                ForEach(Array(["claude", "codex", "opencode"].enumerated()), id: \.element) { index, harness in
+                    if index > 0 { RowDivider() }
+                    accessRow(harness)
+                }
+                if let problem = store.accessProblem { ProblemText(text: problem) }
             }
         }
     }
 
-    private var leaderboard: some View {
-        SettingsCard(title: "Publishing", detail: "Shows only seat names, counts and intervals.") {
-            SwitchRow(title: "Publish the leaderboard", isOn: $publish)
+    private func accessRow(_ harness: String) -> some View {
+        let state = store.access[harness]
+        let installed = state?.installed ?? false
+        return VStack(alignment: .leading, spacing: Space.s) {
+            SettingsRow(title: harness, detail: state?.path ?? (installed ? "installed" : "not installed")) {
+                AsyncPress(id: "access:\(harness)", action: store.installAction(harness, uninstall: installed)) { running, press in
+                    ChipButton(title: running ? "Working..." : installed ? "Uninstall" : "Install for \(harness)", destructive: installed, action: press)
+                }
+            }
+            if let entry = state?.entry { Text(entry).font(.house.mono).foregroundStyle(Theme.textTertiary).textSelection(.enabled) }
+            if let problem = state?.problem { ProblemText(text: problem) }
         }
     }
 
@@ -130,6 +132,6 @@ struct SettingsPaneView: View {
     }
 
     private var placeholder: some View {
-        EmptyState(symbol: pane.symbol, title: "\(pane.title) lands with its unit", detail: "This pane is laid out in the design standard.")
+        EmptyState(symbol: pane.symbol, title: "\(pane.title) lands with its unit", detail: "Nothing here is saved yet.")
     }
 }

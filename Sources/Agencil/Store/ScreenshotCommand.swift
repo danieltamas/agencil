@@ -41,7 +41,7 @@ enum ScreenshotCommand {
                     try HouseRender.write(PanelView(store: PanelStore.demo(), tab: tab), to: directory.appendingPathComponent("panel-\(tab)\(suffix).png"), look: look, scale: scale)
                 }
                 for pane in [SettingsPane.general, .seats, .access] {
-                    try HouseRender.write(SettingsView(pane: pane).frame(width: Size.settingsMin.width, height: Size.settingsMin.height),
+                    try HouseRender.write(SettingsView(store: SettingsStore.demo(), pane: pane).frame(width: Size.settingsMin.width, height: Size.settingsMin.height),
                                           to: directory.appendingPathComponent("settings-\(pane.rawValue)\(suffix).png"), look: look, scale: scale)
                 }
             }

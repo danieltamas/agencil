@@ -37,15 +37,20 @@ enum SettingsPane: String, CaseIterable, Identifiable {
 }
 
 struct SettingsView: View {
+    let store: SettingsStore
     @State private var pane: SettingsPane
 
-    init(pane: SettingsPane = .general) { _pane = State(initialValue: pane) }
+    init(store: SettingsStore, pane: SettingsPane = .general) {
+        self.store = store
+        _pane = State(initialValue: pane)
+    }
 
     var body: some View {
         HStack(spacing: 0) {
             sidebar
             ScrollView {
-                SettingsPaneView(pane: pane)
+                SettingsPaneView(store: store, pane: pane)
+                    .environment(\.inFlight, store.inFlight)
                     .id(pane)
                     .transition(.opacity)
                     .padding(Space.pane)

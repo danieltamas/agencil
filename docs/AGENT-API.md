@@ -123,7 +123,8 @@ is off by default, and routes default to refuse.
 | `status <id>` | State, seats, elapsed time, cost |
 | `stop <id>` | Stops a thread or sitting; seats are killed by process group |
 | `seats`, `councils`, `routes`, `triggers` | The configuration, read-only. `triggers` also shows each trigger's last fire and sitting (docs/U7-SPEC.md "Triggers") |
-| `panel` | CLI only, read-only: the snapshot the app panel shows (threads, sittings, findings, seats, week spend); no MCP tool (docs/U8-SPEC.md) || `harnesses [--probe]` | Detected harnesses: path, version, signed in, chain support, last probe |
+| `panel` | CLI only, read-only: the snapshot the app panel shows (threads, sittings, findings, seats, week spend); no MCP tool (docs/U8-SPEC.md) |
+| `harnesses [--probe]` | Detected harnesses: path, version, signed in, chain support, last probe |
 | `models` | Providers and Ollama endpoints with health and models |
 | `findings [--open]`, `dispose <claim-id> confirm|dismiss|will-fix` | Findings and the owner's disposition |
 | `leaderboard preview|publish` | `docs/LEADERBOARD.md` |

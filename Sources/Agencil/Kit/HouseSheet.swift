@@ -59,6 +59,15 @@ private struct ModalFooterView: View {
 }
 
 extension ModalFrame {
+    /// A frame around a view that is already built, for renders that measure the real sheet content.
+    init(title: String, detail: String? = nil, width: CGFloat = Size.modalWidth, content: Content, footer: ModalFooter) {
+        self.title = title
+        self.detail = detail
+        self.width = width
+        self.content = content
+        self.footer = footer
+    }
+
     init(title: String, detail: String? = nil, width: CGFloat = Size.modalWidth, footer: ModalFooter,
          @ViewBuilder content: () -> Content) {
         self.title = title
