@@ -19,6 +19,7 @@ import Observation
     private(set) var targets: [Target] = []
     private(set) var previewText: String?
     private(set) var problem: String?
+    private(set) var lastCleanup = "never"
 
     @ObservationIgnored private let client: PanelClient?
 
@@ -62,6 +63,8 @@ import Observation
             }
             let data = try await client.call("data")
             retentionDays = String(data["retention_days"] as? Int ?? 0)
+            let run = ((data["jobs"] as? [String: Any])?["prune"] as? [String: Any])?["last_run"] as? Double
+            lastCleanup = run.map { Date(timeIntervalSince1970: $0).formatted(date: .abbreviated, time: .shortened) } ?? "never"
             databaseBytes = (data["database_bytes"] as? NSNumber)?.int64Value ?? 0
             rawBytes = (data["raw_bytes"] as? NSNumber)?.int64Value ?? 0
             targets = (data["memory_targets"] as? [[String: Any]] ?? []).map {

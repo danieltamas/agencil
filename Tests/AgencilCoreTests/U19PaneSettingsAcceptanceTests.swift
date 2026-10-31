@@ -136,7 +136,7 @@ struct U19PaneSettingsAcceptanceTests {
         try raw(home, "sizes/nested/b", "12345", at: .distantPast)
         for caller in ["owner", "codex"] {
             let data = try success(home, "data", caller: caller)
-            #expect(Set(data.keys) == ["retention_days", "database_bytes", "raw_bytes", "total_bytes", "memory_targets"])
+            #expect(Set(data.keys) == ["retention_days", "database_bytes", "raw_bytes", "total_bytes", "memory_targets", "jobs"])
             #expect(data["retention_days"] as? Int == 7)
             #expect(data["raw_bytes"] as? Int == 8)
             var database = 0

@@ -9,6 +9,7 @@ extension Broker {
             let targets = try MemoryExport(ledger: ledger, directory: directory).targets()
             return ["ok": true, "data_note": Self.note, "data": [
                 "retention_days": days, "database_bytes": size.database, "raw_bytes": size.rawOutputs, "total_bytes": size.total,
+                "jobs": Maintenance(ledger: ledger, directory: directory, githubFor: { GhClient(repo: $0) }).jobs(),
                 "memory_targets": targets.map { ["repo": $0.repo, "folder": $0.folder, "enabled": $0.enabled] as [String: Any] }]]
         } catch let error as DataError {
             throw ConfigProblem(key: "data", problem: error.message)
@@ -23,5 +24,19 @@ extension Broker {
         let report = try Retention(ledger: ledger, directory: directory).prune(now: Date())
         return ["ok": true, "data_note": Self.note, "data": [
             "files_deleted": report.filesDeleted, "bytes_freed": report.bytesFreed, "exchanges_cleared": report.exchangesCleared]]
+    }
+}
+
+extension Broker {
+    /// Runs the due background jobs once a minute; each job gates itself (docs/U20-SPEC.md).
+    func startMaintenanceLoop() {
+        let seconds = environment["AGENCIL_TEST_SEAMS"] == "1" ? environment["AGENCIL_MAINTENANCE_SECONDS"].flatMap(Double.init) ?? 60 : 60
+        let maintenance = Maintenance(ledger: ledger, directory: directory, githubFor: { GhClient(repo: $0) })
+        Thread.detachNewThread {
+            while true {
+                Thread.sleep(forTimeInterval: seconds)
+                maintenance.run(now: Date())
+            }
+        }
     }
 }

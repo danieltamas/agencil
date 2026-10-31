@@ -128,7 +128,7 @@ extension SettingsPaneView {
                         .frame(width: SettingsMetrics.fieldWidth)
                 }
                 RowDivider()
-                SettingsRow(title: "Size", detail: "Ledger \(PaneStore.size(panes.databaseBytes)), raw output \(PaneStore.size(panes.rawBytes)).") {
+                SettingsRow(title: "Size", detail: "Ledger \(PaneStore.size(panes.databaseBytes)), raw output \(PaneStore.size(panes.rawBytes)). Last cleanup: \(panes.lastCleanup).") {
                     AsyncPress(id: "prune", action: panes.pruneAction()) { running, press in
                         ChipButton(title: running ? "Deleting..." : "Delete old now", destructive: true, action: press)
                     }

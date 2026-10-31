@@ -88,6 +88,7 @@ public final class Broker: @unchecked Sendable {
         listener = try UnixSocket.listen(at: socketPath)
         Thread.detachNewThread { [self] in acceptLoop() }
         startTriggerLoop()
+        startMaintenanceLoop()
     }
 
     /// The headless broker: serves until SIGTERM or SIGINT; never returns normally.
