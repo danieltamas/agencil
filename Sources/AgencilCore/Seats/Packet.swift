@@ -9,11 +9,11 @@ struct Packet {
 
 extension Broker {
     func packet(seat: Seat, runDirectory: URL, repo: String?, question: String, files: [(path: String, text: String)],
-                transcript: [(asked: String, answered: String)]) throws -> Packet {
+                transcript: [(asked: String, answered: String)], snapshot: Snapshot? = nil, verbatim: Bool = false) throws -> Packet {
         var copy: URL?
         if let repo {
             let target = runDirectory.appendingPathComponent("copy")
-            try RepoCopy.export(repo: repo, to: target)
+            try RepoCopy.export(repo: repo, commit: snapshot?.commit ?? "HEAD", patch: snapshot?.patch, to: target)
             copy = target
         }
         var shown = files
@@ -26,10 +26,10 @@ extension Broker {
         }
         let briefsRoot = copy ?? (Adapter.restrictsExternalDirectories(seat.harness) ? runDirectory : nil)
         guard let briefsRoot, !shown.isEmpty else {
-            return Packet(prompt: Adapter.prompt(question: question, files: shown, transcript: transcript, withheld: withheld), copy: copy)
+            return Packet(prompt: Adapter.prompt(question: question, files: shown, transcript: transcript, withheld: withheld, verbatim: verbatim), copy: copy)
         }
         let names = try RepoCopy.writeBriefs(shown, into: briefsRoot)
-        return Packet(prompt: Adapter.prompt(question: question, files: [], transcript: transcript, attached: names, withheld: withheld),
+        return Packet(prompt: Adapter.prompt(question: question, files: [], transcript: transcript, attached: names, withheld: withheld, verbatim: verbatim),
                       copy: copy)
     }
 

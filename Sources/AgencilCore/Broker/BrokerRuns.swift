@@ -149,6 +149,7 @@ extension Broker {
 
     func stop(_ request: [String: Any]) throws -> [String: Any] {
         if let id = request["id"] as? String, id.hasPrefix("th_") { return try stopThread(id) }
+        if let id = request["id"] as? String, id.hasPrefix("sit_") { return try stopSitting(id) }
         guard let id = request["run"] as? String ?? request["id"] as? String,
               let launch = try store.launch(id: id) else { throw Failure(message: "unknown id") }
         if let run = tracking.withLock({ tracked[id] }) { terminate(run) }

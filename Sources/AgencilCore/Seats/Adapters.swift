@@ -73,10 +73,11 @@ public enum Adapter {
     /// The labelled evidence a seat is shown: the question, the files, never instructions from them. `attached` names
     /// briefs already written under the working directory; `withheld` counts files the redaction rules kept back.
     public static func prompt(question: String, files: [(path: String, text: String)], transcript: [(asked: String, answered: String)],
-                              attached: [String] = [], withheld: Int = 0) -> String {
+                              attached: [String] = [], withheld: Int = 0, verbatim: Bool = false) -> String {
         var parts: [String] = []
         for exchange in transcript { parts.append("ASKED:\n\(exchange.asked)\nANSWERED:\n\(exchange.answered)") }
-        parts.append("QUESTION:\n\(question)")
+        // A sitting builds its whole prompt, labels included.
+        parts.append(verbatim ? question : "QUESTION:\n\(question)")
         for file in files { parts.append("FILE \(file.path):\n\(file.text)") }
         for name in attached { parts.append("FILE \(name): attached") }
         if withheld > 0 { parts.append("[\(withheld) file(s) withheld by the redaction rules]") }

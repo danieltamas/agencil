@@ -174,7 +174,7 @@ acting call:
 | `list_targets` | none | The seats and councils this caller has a route to, with health and the route's limits |
 | `ask` | `target`, `question`, `files?` (paths inside the caller's repo), `thread?`, `wait_seconds?` (default 60, max 600) | `thread`, `state` (`answered`, `pending`, `failed`, `refused`), `answer?`, `seat`, `fallback?`, `cost`, `seconds` |
 | `ask_result` | `thread`, `wait_seconds?` | As `ask` |
-| `wake_council` | `council`, `brief`, `repo?`, `diff?`, `change_kind`, `wait_seconds?` | `sitting`, `state`, `verdict?` |
+| `wake_council` | `council`, `brief`, `repo?`, `diff?`, `change_kind`, `author_vendor?`, `uncommitted?`, `wait_seconds?` | `sitting`, `state`, `verdict?` |
 | `sitting_status` | `sitting` | Seats, rounds, claims so far |
 | `sitting_verdict` | `sitting`, `wait_seconds?` | `verdict`, `claims` (with ids, `file:line`, severity, backers, dissenters, `minority`), `independence` flags |
 | `stop` | `id` | `stopped` |

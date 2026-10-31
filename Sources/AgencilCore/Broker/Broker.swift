@@ -19,6 +19,7 @@ public final class Broker: @unchecked Sendable {
     let store: LaunchStore
     let threads: ThreadStore
     let budgets: BudgetStore
+    let sittingRows: SittingStore
     let capacity = Capacity()
     let discovery = DiscoveryCache()
     let socketPath: String
@@ -38,6 +39,8 @@ public final class Broker: @unchecked Sendable {
     /// Exchange keys ("<thread>-<seq>") that were asked to stop, and the Ollama requests that can be cancelled.
     var stoppedThreads: Set<String> = []
     var ollamaTasks: [String: URLSessionTask] = [:]
+    /// Sittings that are running, by id; a finished sitting is read from the ledger.
+    var sittings: [String: SittingRun] = [:]
     /// Launches a dead predecessor left running; each holds a place until its group is gone.
     var startupOrphans: Set<String> = []
     private var connections = 0
@@ -62,6 +65,7 @@ public final class Broker: @unchecked Sendable {
         store = LaunchStore(ledger: ledger)
         threads = ThreadStore(ledger: ledger)
         budgets = BudgetStore(ledger: ledger)
+        sittingRows = SittingStore(ledger: ledger)
     }
 
     deinit { close(lockDescriptor) }
@@ -73,6 +77,7 @@ public final class Broker: @unchecked Sendable {
         recoverOpenLaunches()
         startupOrphans = Set(try store.open().map(\.id))
         try? budgets.settleOrphans()
+        try? sittingRows.failRunning(reason: "the broker restarted during the sitting")
         reconcileExchanges()
         unlink(socketPath)
         listener = try UnixSocket.listen(at: socketPath)
@@ -157,9 +162,11 @@ public final class Broker: @unchecked Sendable {
             case "budgets": return budgetsOp()
             case "wake":
                 try? store.recordRequest(peer: peer)
-                let target = (request["target"] as? String) ?? (request["council"] as? String) ?? "?"
-                return Self.failure("refused: no route from \(peer.map { "pid \($0)" } ?? "unknown caller") to \(target)", exit: 3)
+                return wake(request, peer: peer, peerStart: peerStart)
             case "result":
+                if let id = request["id"] as? String, id.hasPrefix("sit_") {
+                    return sittingReply(id, wait: waitSeconds(request, fallback: 0))
+                }
                 if let reply = result(request) { return reply }
                 return Self.failure("unknown id \((request["id"] as? String) ?? "?")", exit: 64)
             case "dispose":
@@ -182,6 +189,7 @@ public final class Broker: @unchecked Sendable {
 
     private func status(_ request: [String: Any]) throws -> [String: Any] {
         if let id = request["id"] as? String, id.hasPrefix("th_") { return try threadStatus(id) }
+        if let id = request["id"] as? String, id.hasPrefix("sit_") { return try sittingStatus(id) }
         guard let id = request["run"] as? String ?? request["id"] as? String,
               let launch = try store.launch(id: id) else {
             throw Failure(message: "unknown id \((request["run"] as? String) ?? (request["id"] as? String) ?? "?")")

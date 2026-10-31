@@ -21,7 +21,7 @@ public struct CommandLineTool: Sendable {
         "version": Spec(positionals: 0...0),
         "ask": Spec(positionals: 2...2, valued: ["--file", "--thread", "--wait", "--as", "--repo"]),
         "result": Spec(positionals: 1...1, valued: ["--wait"], switches: ["--json", "--full"]),
-        "wake": Spec(positionals: 1...1, valued: ["--brief", "--repo", "--diff", "--wait"]),
+        "wake": Spec(positionals: 1...1, valued: ["--brief", "--repo", "--diff", "--wait", "--author-vendor"]),
         "status": Spec(positionals: 1...1), "stop": Spec(positionals: 1...1),
         "budgets": Spec(positionals: 0...0),
         "seats": Spec(positionals: 0...0), "councils": Spec(positionals: 0...0), "routes": Spec(positionals: 0...0),
@@ -117,6 +117,12 @@ public struct CommandLineTool: Sendable {
         let data = reply["data"] ?? reply.filter { $0.key != "ok" }
         print(json ? Envelope.text(Envelope.make(data: data, note: reply["data_note"] as? String ?? Broker.note))
                    : Self.human(data))
+        // A sitting that reached a verdict exits by it: PASS 0, BLOCK 1, INCOMPLETE 2.
+        switch (data as? [String: Any])?["verdict"] as? String {
+        case "BLOCK": return 1
+        case "INCOMPLETE": return 2
+        default: break
+        }
         switch (data as? [String: Any])?["state"] as? String {
         case "pending": return 2
         case "failed": return 4
@@ -137,7 +143,11 @@ public struct CommandLineTool: Sendable {
         guard let question = fields["question"], !question.isEmpty else { throw Usage(message: "the brief must carry a question") }
         let diff = parsed.value("--diff") ?? fields["diff"]
         if kind == "code" && (diff ?? "").isEmpty { throw Usage(message: "a code brief needs a diff range (--diff)") }
-        return ["change_kind": kind, "question": question, "diff": diff ?? NSNull(), "repo": parsed.value("--repo") ?? NSNull()]
+        var brief: [String: Any] = ["change_kind": kind, "question": question, "diff": diff ?? NSNull(),
+                                    "repo": parsed.value("--repo") ?? fields["repo"] ?? NSNull(),
+                                    "uncommitted": fields["uncommitted"]?.lowercased() == "true"]
+        if let author = parsed.value("--author-vendor") ?? fields["author_vendor"] { brief["author_vendor"] = author }
+        return brief
     }
 
     private static func parse(_ arguments: [String], _ spec: Spec) throws -> Parsed {

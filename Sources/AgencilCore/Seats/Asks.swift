@@ -130,11 +130,11 @@ extension Broker {
 
     // MARK: running one exchange
 
-    private func run(_ resolved: Resolved, caller: String, chain: [String], parent: CapabilityRun?, requested: String, question: String,
+    func run(_ resolved: Resolved, caller: String, chain: [String], parent: CapabilityRun?, requested: String, question: String,
                      files: [(path: String, text: String)], repo: String?, thread existing: ThreadRecord?, limits: Limits,
-                     wait: Int) throws -> [String: Any] {
+                     wait: Int, placeWait: Int? = nil, snapshot: Snapshot? = nil, verbatim: Bool = false) throws -> [String: Any] {
         guard let admitted = resolved.admitted else { throw Failure(message: "the ask was not admitted") }
-        try awaitSeat(admitted, limits: limits, wait: wait)
+        try awaitSeat(admitted, limits: limits, wait: placeWait ?? wait)
         let thread = try existing ?? threads.createThread(requested: requested, seat: resolved.seat.name, caller: caller,
                                                          substituted: resolved.substituted)
         guard let (exchange, transcript) = try threads.beginExchange(thread: thread.id, question: question, chain: chain) else {
@@ -147,7 +147,7 @@ extension Broker {
             try budgets.bind(admitted.id, thread: thread.id, seq: exchange.seq)
             try threads.recordRequest(caller: caller, outcome: "accepted", runID: thread.id)
             // A follow-up that waited for a place may now repeat more than the reservation was sized for.
-            let actual = Self.quote(resolved.seat, prompt: Adapter.prompt(question: question, files: files, transcript: transcript))
+            let actual = Self.quote(resolved.seat, prompt: Adapter.prompt(question: question, files: files, transcript: transcript, verbatim: verbatim))
             if actual.tokens > admitted.quote.tokens || actual.dollars > admitted.quote.dollars {
                 finishExchange(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil,
                                reason: "the thread changed while the ask waited for a place; ask again")
@@ -157,7 +157,8 @@ extension Broker {
             try FileManager.default.createDirectory(at: runDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             let answerFile = runDirectory.appendingPathComponent("answer.txt").path
             let seat = resolved.seat
-            let packet = try packet(seat: seat, runDirectory: runDirectory, repo: repo, question: question, files: files, transcript: transcript)
+            let packet = try packet(seat: seat, runDirectory: runDirectory, repo: repo, question: question, files: files, transcript: transcript,
+                                snapshot: snapshot, verbatim: verbatim)
             let prompt = packet.prompt
 
             func fail(_ reason: String) -> [String: Any] {
@@ -285,7 +286,7 @@ extension Broker {
         }
     }
 
-    private func lastLine(ofLog launchID: String) -> String? {
+    func lastLine(ofLog launchID: String) -> String? {
         let log = directory.appendingPathComponent("runs/\(launchID).log")
         guard let text = try? String(contentsOf: log, encoding: .utf8) else { return nil }
         return text.split(separator: "\n").last.map { String($0.prefix(200)) }
@@ -293,7 +294,7 @@ extension Broker {
 
     // MARK: replies
 
-    private func reply(_ thread: ThreadRecord, awaiting seq: Int, wait: Int) -> [String: Any] {
+    func reply(_ thread: ThreadRecord, awaiting seq: Int, wait: Int) -> [String: Any] {
         let deadline = Date().addingTimeInterval(Double(wait))
         var exchange = (try? threads.exchanges(thread: thread.id))?.first { $0.seq == seq }
         while exchange?.state == .asking, Date() < deadline {
@@ -308,11 +309,11 @@ extension Broker {
         return ["ok": true, "data": data]
     }
 
-    private static func stateName(_ state: Exchange.State) -> String {
+    static func stateName(_ state: Exchange.State) -> String {
         state == .asking ? "pending" : state.rawValue
     }
 
-    private func waitSeconds(_ request: [String: Any], fallback: Int = defaultWait) -> Int {
+    func waitSeconds(_ request: [String: Any], fallback: Int = defaultWait) -> Int {
         min(max(request["wait_seconds"] as? Int ?? fallback, 0), 3600)
     }
 

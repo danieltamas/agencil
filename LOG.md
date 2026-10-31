@@ -1,5 +1,7 @@
 ## Unreleased
 
+- U7a: sittings (wake_council runs a numbered sitting: frozen snapshot of the commit and tracked changes, blind then optional rebuttal, challenge and synthesis rounds, spares for unplaceable or silent seats, recusal by author vendor, quorum, independence flags, refutation by distinct vendors, PASS/BLOCK/INCOMPLETE verdict with minority report, stop, status and restart reconcile, sittings and verdicts in the ledger).
+
 - U6d: confinement and residency (seats[].hosted, routes[].residency and requires checked per candidate before a reservation, ask --repo exports HEAD to a per-run copy removed on every exit, redaction of secret-named, ignored and credential-bearing files and attachments for hosted seats, sandbox-exec profile that denies everything outside the copy and run directory and fails closed, attachments as briefs under .agencil/briefs).
 
 - U6c: budgets and capacity (hard and estimated budgets by route, root and vendor, atomic reservations that survive a restart, bounded Ollama worst case, usage reconciliation, seats-at-once with parked ancestors, process cap, memory floor, `budgets` op and CLI verb). Seats now start in their own session.

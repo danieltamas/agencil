@@ -85,5 +85,13 @@ enum LedgerSchema {
             PRIMARY KEY (reservation_id, budget)) WITHOUT ROWID;
         CREATE INDEX reservation_budgets_budget ON reservation_budgets (budget);
         """,
+        // Sittings: the numbered sitting a council holds (AG-<no>-<k> claim ids), and where each assessment was made.
+        """
+        CREATE TABLE sittings (id TEXT PRIMARY KEY, no INTEGER NOT NULL UNIQUE, council TEXT NOT NULL, state TEXT NOT NULL,
+            round TEXT NOT NULL, author_vendor TEXT NOT NULL, snapshot_id TEXT NOT NULL, reason TEXT, verdict TEXT,
+            created_at TEXT NOT NULL, ended_at TEXT) WITHOUT ROWID;
+        ALTER TABLE assessments ADD COLUMN run_id TEXT REFERENCES runs(id);
+        ALTER TABLE assessments ADD COLUMN snapshot_id TEXT REFERENCES snapshots(id);
+        """,
     ]
 }

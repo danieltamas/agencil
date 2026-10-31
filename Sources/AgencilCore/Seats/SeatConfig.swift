@@ -14,6 +14,8 @@ public struct Seat: Equatable, Sendable {
     public let price: Price
     /// Whether the seat's model runs on someone else's machine: what it is shown leaves this Mac.
     public var hosted = true
+    /// Who trained the model: recusal and the independence flags compare vendors, never harnesses.
+    public var vendor = ""
 }
 
 /// Who may reach what: callers (ids or `any`), a target (seat, council or alias) and its limits.
@@ -45,12 +47,14 @@ public struct SeatConfig: Sendable {
     public let aliases: [String: String]
     public let budgets: [Budget]
     public let limits: Limits
+    public let councils: [Council]
 
     public init(values: [String: String]) throws {
         seats = try Self.parseSeats(values["seats"])
         let names = Set(seats.map(\.name))
         routes = try Self.parseRoutes(values["routes"], seatNames: names)
         aliases = try Self.parseAliases(values["aliases"], seatNames: names)
+        councils = try Self.parseCouncils(values["councils"], seats: seats, aliases: aliases)
         budgets = try Self.parseBudgets(values["budgets"])
         limits = try Self.parseLimits(values["limits"])
     }
@@ -124,11 +128,15 @@ public struct SeatConfig: Sendable {
             if let tokens = cap["tokens"], !(whole(tokens).map { (1...10_000_000).contains($0) } ?? false) { throw fail("seat \(name) has a bad cap.tokens") }
             if let hosted = item["hosted"], Self.flag(hosted) == nil { throw fail("seat \(name) has a bad hosted flag") }
             let endpoint = item["endpoint"] as? String
+            if let vendor = item["vendor"], vendor as? String == nil || (vendor as? String)?.range(of: "^[a-z0-9][a-z0-9-]{0,39}$", options: .regularExpression) == nil {
+                throw fail("seat \(name) has a bad vendor")
+            }
             return Seat(name: name, harness: harness, model: model, endpoint: endpoint,
                         pin: item["pin"] as? String, role: role, hardening: item["hardening"] as? [String] ?? [],
                         capSeconds: seconds, capTokens: whole(cap["tokens"]),
                         price: try parsePrice(item["price"], seat: name) ?? .free,
-                        hosted: Self.flag(item["hosted"]) ?? (harness != "ollama" || !isLoopback(endpoint)))
+                        hosted: Self.flag(item["hosted"]) ?? (harness != "ollama" || !isLoopback(endpoint)),
+                        vendor: item["vendor"] as? String ?? vendor(of: harness))
         }
     }
 
