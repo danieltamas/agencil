@@ -6,6 +6,16 @@ extension Broker {
                                                       "moonshot", "zhipu", "xai"]
     static let defaultSittingWait = 60
 
+    /// A `commit` is a full lowercase sha that names a commit of the repo; it pins the snapshot instead of `HEAD`.
+    private func pinnedCommit(_ value: Any?, repo: String?) throws -> String? {
+        if value == nil || value is NSNull { return nil }
+        guard let sha = value as? String, sha.range(of: "^[0-9a-f]{40}$", options: .regularExpression) != nil, let repo,
+              RepoCopy.output(["-C", repo, "rev-parse", "--verify", sha + "^{commit}"]) == sha else {
+            throw Refusal(exit: 64, message: "usage: commit must be the full sha of a commit in the repo")
+        }
+        return sha
+    }
+
     func wake(_ request: [String: Any], peer: Int32?, peerStart: Double?) -> [String: Any] {
         let socketCaller = request["caller"] as? String ?? "unknown"
         let origin: Origin
@@ -40,7 +50,8 @@ extension Broker {
         if (parent?.chain.count ?? 0) > route.hopLimit { return settle(Refusal(exit: 3, message: "refused: hop limit")) }
         do {
             let repo = try repository(request["repo"])
-            let snapshot = try Snapshot.take(repo: repo, uncommitted: request["uncommitted"] as? Bool ?? false, question: question)
+            let snapshot = try Snapshot.take(repo: repo, uncommitted: request["uncommitted"] as? Bool ?? false, question: question,
+                                             commit: try pinnedCommit(request["commit"], repo: repo))
             let author = authorVendor(request["author_vendor"] as? String, parent: parent, config: config)
             let slots = council.seats.compactMap { config.seat(named: $0) }.map { seat -> Slot in
                 let slot = Slot(seat: seat)

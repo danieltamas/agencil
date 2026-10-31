@@ -93,5 +93,16 @@ enum LedgerSchema {
         ALTER TABLE assessments ADD COLUMN run_id TEXT REFERENCES runs(id);
         ALTER TABLE assessments ADD COLUMN snapshot_id TEXT REFERENCES snapshots(id);
         """,
+        // Triggers: what each one has already seen (mutable), and every attempt it made (appended, never changed).
+        """
+        CREATE TABLE trigger_state (trigger TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL,
+            PRIMARY KEY (trigger, key)) WITHOUT ROWID;
+        CREATE TABLE trigger_fires (id TEXT PRIMARY KEY, trigger TEXT NOT NULL, key TEXT NOT NULL, outcome TEXT NOT NULL,
+            sitting TEXT, detail TEXT, fired_at TEXT NOT NULL);
+        CREATE TRIGGER trigger_fires_no_update BEFORE UPDATE ON trigger_fires
+        BEGIN SELECT RAISE(ABORT, 'trigger_fires rows are never overwritten'); END;
+        CREATE TRIGGER trigger_fires_no_delete BEFORE DELETE ON trigger_fires
+        BEGIN SELECT RAISE(ABORT, 'trigger_fires rows are never deleted'); END;
+        """,
     ]
 }

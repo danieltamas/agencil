@@ -20,6 +20,8 @@ public final class Broker: @unchecked Sendable {
     let threads: ThreadStore
     let budgets: BudgetStore
     let sittingRows: SittingStore
+    let triggerRows: TriggerStore
+    let triggerLock = NSLock()
     let capacity = Capacity()
     let discovery = DiscoveryCache()
     let socketPath: String
@@ -66,6 +68,7 @@ public final class Broker: @unchecked Sendable {
         threads = ThreadStore(ledger: ledger)
         budgets = BudgetStore(ledger: ledger)
         sittingRows = SittingStore(ledger: ledger)
+        triggerRows = TriggerStore(ledger: ledger)
     }
 
     deinit { close(lockDescriptor) }
@@ -82,6 +85,7 @@ public final class Broker: @unchecked Sendable {
         unlink(socketPath)
         listener = try UnixSocket.listen(at: socketPath)
         Thread.detachNewThread { [self] in acceptLoop() }
+        startTriggerLoop()
     }
 
     /// The headless broker: serves until SIGTERM or SIGINT; never returns normally.
@@ -163,6 +167,11 @@ public final class Broker: @unchecked Sendable {
             case "wake":
                 try? store.recordRequest(peer: peer)
                 return wake(request, peer: peer, peerStart: peerStart)
+            case "triggers": return try triggersOp()
+            case "tick":
+                guard environment["AGENCIL_TEST_SEAMS"] == "1" else { return Self.failure("unknown op tick", exit: 64) }
+                let now = (request["now"] as? String).flatMap { ISO8601DateFormatter().date(from: $0) } ?? Date()
+                return try tick(now: now)
             case "result":
                 if let id = request["id"] as? String, id.hasPrefix("sit_") {
                     return sittingReply(id, wait: waitSeconds(request, fallback: 0))
@@ -176,6 +185,8 @@ public final class Broker: @unchecked Sendable {
             default:
                 return Self.failure("unknown op \(op)", exit: 64)
             }
+        } catch let problem as ConfigProblem {
+            return Self.failure(problem.message, exit: 4)
         } catch let error as Failure {
             return Self.failure(error.message, exit: 64)
         } catch {

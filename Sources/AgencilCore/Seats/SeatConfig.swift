@@ -48,6 +48,7 @@ public struct SeatConfig: Sendable {
     public let budgets: [Budget]
     public let limits: Limits
     public let councils: [Council]
+    public let triggers: [Trigger]
 
     public init(values: [String: String]) throws {
         seats = try Self.parseSeats(values["seats"])
@@ -55,6 +56,7 @@ public struct SeatConfig: Sendable {
         routes = try Self.parseRoutes(values["routes"], seatNames: names)
         aliases = try Self.parseAliases(values["aliases"], seatNames: names)
         councils = try Self.parseCouncils(values["councils"], seats: seats, aliases: aliases)
+        triggers = try Self.parseTriggers(values["triggers"], councils: councils)
         budgets = try Self.parseBudgets(values["budgets"])
         limits = try Self.parseLimits(values["limits"])
     }

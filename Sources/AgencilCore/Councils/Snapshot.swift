@@ -19,12 +19,12 @@ struct Snapshot: Equatable {
         return (["core.fsmonitor=false"] + keys.map { $0 + "=" }).flatMap { ["-c", $0] }
     }
 
-    /// Resolves `HEAD` once and, with `uncommitted`, captures `git diff HEAD`. Without a repo the commit is `none`.
-    static func take(repo: String?, uncommitted: Bool, question: String) throws -> Snapshot {
+    /// Resolves `HEAD` (or the pinned commit) once and, with `uncommitted`, captures `git diff HEAD`. Without a repo the commit is `none`.
+    static func take(repo: String?, uncommitted: Bool, question: String, commit pinned: String? = nil) throws -> Snapshot {
         var commit = "none"
         var patch: Data?
         if let repo {
-            guard let head = RepoCopy.output(["-C", repo, "rev-parse", "--verify", "HEAD^{commit}"]), !head.isEmpty else {
+            guard let head = RepoCopy.output(["-C", repo, "rev-parse", "--verify", (pinned ?? "HEAD") + "^{commit}"]), !head.isEmpty else {
                 throw Refusal(exit: 4, message: "failed: repo \(repo) has no commit to copy")
             }
             commit = head

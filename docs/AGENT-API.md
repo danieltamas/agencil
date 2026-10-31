@@ -122,7 +122,7 @@ is off by default, and routes default to refuse.
 | `wake <council> --brief <file> [--repo <path>] [--diff <range>] [--wait <s>]` | Starts a sitting. The brief must name a change kind, a question and, for code, a diff range, or the call exits 64 |
 | `status <id>` | State, seats, elapsed time, cost |
 | `stop <id>` | Stops a thread or sitting; seats are killed by process group |
-| `seats`, `councils`, `routes` | The configuration, read-only |
+| `seats`, `councils`, `routes`, `triggers` | The configuration, read-only. `triggers` also shows each trigger's last fire and sitting (docs/U7-SPEC.md "Triggers") |
 | `harnesses [--probe]` | Detected harnesses: path, version, signed in, chain support, last probe |
 | `models` | Providers and Ollama endpoints with health and models |
 | `findings [--open]`, `dispose <claim-id> confirm|dismiss|will-fix` | Findings and the owner's disposition |

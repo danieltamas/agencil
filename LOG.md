@@ -1,6 +1,7 @@
 ## Unreleased
 
 - U7a: sittings (wake_council runs a numbered sitting: frozen snapshot of the commit and tracked changes, blind then optional rebuttal, challenge and synthesis rounds, spares for unplaceable or silent seats, recusal by author vendor, quorum, independence flags, refutation by distinct vendors, PASS/BLOCK/INCOMPLETE verdict with minority report, stop, status and restart reconcile, sittings and verdicts in the ledger).
+- U7b: triggers (paths, pr_label via gh, schedule; deferral order running, quiet hours, debounce; state consumed before the wake and restored on refusal, source errors defer instead of firing, pinned-commit wake, `agencil triggers`).
 
 - U6d: confinement and residency (seats[].hosted, routes[].residency and requires checked per candidate before a reservation, ask --repo exports HEAD to a per-run copy removed on every exit, redaction of secret-named, ignored and credential-bearing files and attachments for hosted seats, sandbox-exec profile that denies everything outside the copy and run directory and fails closed, attachments as briefs under .agencil/briefs).
 

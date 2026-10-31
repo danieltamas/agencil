@@ -6,10 +6,10 @@ enum RepoCopy {
     private static let exportSeconds = 300.0
     /// The repo's text is untrusted: no user or system git configuration is read on its behalf.
     private static let environment = ["PATH": "/usr/bin:/bin", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1",
-                                      "GIT_TERMINAL_PROMPT": "0"]
+                                      "GIT_TERMINAL_PROMPT": "0", "GIT_NO_LAZY_FETCH": "1"]
 
     /// Ends helpers that are still running: asked politely first, then for good.
-    private static func stop(_ processes: [Process]) {
+    static func stop(_ processes: [Process]) {
         for process in processes where process.isRunning { process.terminate() }
         let grace = Date().addingTimeInterval(2)
         while processes.contains(where: \.isRunning), Date() < grace { usleep(10_000) }
@@ -30,6 +30,22 @@ enum RepoCopy {
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         return process.terminationStatus == 0 ? data : nil
+    }
+
+    /// The exit status of a git call, or nil when it could not run or was ended by the deadline.
+    static func status(_ arguments: [String]) -> Int32? {
+        let process = Process()
+        process.executableURL = git
+        process.arguments = arguments
+        process.environment = environment
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return nil }
+        let deadline = DispatchWorkItem { stop([process]) }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 30, execute: deadline)
+        process.waitUntilExit()
+        deadline.cancel()
+        return process.terminationReason == .exit ? process.terminationStatus : nil
     }
 
     static func output(_ arguments: [String]) -> String? {

@@ -165,5 +165,69 @@ only a stopped or internally broken sitting.
 
 ## Triggers (U7b)
 
-Config key `triggers`: list of `{"council": name, "paths": [glob]?, "pr_label": str?, "schedule": "every <n>m|h"?,
-"debounce_seconds": int?, "quiet_hours": "HH:MM-HH:MM"?, "repo": abs path}`. Specified when U7b starts.
+A trigger wakes a council by itself. Config key `triggers` (in `config.json`, validated like `councils`; any invalid
+entry makes the whole config invalid, error text names the trigger):
+
+```
+{"name": str, "council": council-name, "repo": abs path of a git work tree,
+ "paths": [glob]?, "pr_label": str?, "schedule": "every <n>m" | "every <n>h"?,
+ "debounce_seconds": int 0...86400 (default 300), "quiet_hours": "HH:MM-HH:MM"?,
+ "change_kind": design|code|... (default "code"), "question": str (default "Review the change since the last sitting."),
+ "author_vendor": str?}
+```
+
+`name` is unique and matches the council-name charset. At least one of `paths`, `pr_label`, `schedule` is required.
+`council` must exist, `repo` must be absolute. `quiet_hours` is the Mac's local time and may wrap midnight
+(`22:00-07:00`). A schedule is `every <n>m` or `every <n>h` with `n` in 1...10000.
+
+Each trigger wakes its council as caller `trigger`, so a route from `trigger` (or `any`) to the council must exist; with no
+route the wake is refused like any other and the attempt is recorded (`refused`), never silently skipped.
+
+### Evaluation
+
+The broker evaluates all triggers every 30 seconds (`AGENCIL_TRIGGER_SECONDS` overrides it under
+`AGENCIL_TEST_SEAMS=1`) and, under the same seam, on the op `tick` with optional `now` (ISO 8601 UTC) which evaluates once
+at that instant and replies `{"fired": [{"trigger", "council", "key", "sitting"}], "deferred": [{"trigger", "reason"}]}`.
+Evaluation is serialised and every trigger is judged independently. Per trigger, in this order:
+
+1. Find the candidate: `paths`, `pr_label` and `schedule` each yield at most one candidate per evaluation; a trigger with
+   several kinds fires at most once per evaluation (first kind in the order paths, pr_label, schedule).
+2. If its previous sitting is still running: deferred, reason `running`.
+3. If inside `quiet_hours`: deferred, reason `quiet_hours`.
+4. If less than `debounce_seconds` have passed since the trigger last fired: deferred, reason `debounce`.
+5. Otherwise it fires: the candidate's state is consumed first (one transaction), then the wake is made. A refused
+   or failed wake puts the state back exactly as it was and is recorded in `trigger_fires` with outcome `refused`/`failed`; the same
+   candidate is tried again at the next evaluation after the debounce window.
+A deferred candidate is never dropped: the state is not consumed, so one later fire covers everything that accumulated.
+
+### Candidates
+
+- **paths**: the first evaluation only records the repo's `HEAD` sha as the baseline (no fire). Later, when `HEAD` differs from the
+  baseline and `git diff --name-only <baseline> <HEAD>` lists a file matching any glob, the candidate has key
+  `<HEAD sha>`; the wake carries `repo`, `diff: "<baseline>..<HEAD>"`, and snapshots that HEAD. When `HEAD` moved but nothing matches, the baseline
+  moves silently to the new `HEAD`. If the baseline commit no longer exists (rebase), the baseline resets to `HEAD` without firing.
+  Globs: `*` matches within one path segment, `**` any number of segments, `?` one character; patterns match the whole
+  repo-relative path.
+- **pr_label**: `gh pr list --state open --label <label> --json number,headRefOid --limit 100` run with the repo as its working directory.
+  Output that is not the expected JSON, a non-zero exit, a missing `gh` or a timeout (20 s) makes the trigger deferred with reason
+  `gh_unavailable` (fail closed: no fire, no state change). A PR whose `headRefOid` is not the last one sat for that PR number
+  (`pr:<number>` state) is a candidate with key `pr<number>@<headRefOid>`; the oldest number goes first and the rest wait for
+  later evaluations. If the commit is not present in the repo, deferred with reason `commit_missing`. The wake snapshots that commit
+  (the wake op accepts an optional `commit`, a full 40-hex sha that must resolve to a commit in the repo, else usage error) with
+  `diff: "pr<number>@<first 12 of sha>"`. **No timestamp is ever a key**: `updatedAt`, label times and verdict labels
+  are not read, so a sitting that labels the PR cannot cause another fire (Bton invariant 11); only a new head sha does.
+- **schedule**: the first evaluation records the current time as the last fire (no fire). It is a candidate when `now - last >= interval`,
+  key `schedule@<epoch seconds of now>`; consuming sets the last fire to `now` (never to a time anyone else moves).
+  The wake carries `repo`, `diff: "HEAD"`, and snapshots HEAD.
+
+### Ledger and surfaces
+
+Migration 7: `trigger_state (trigger TEXT, key TEXT, value TEXT, PRIMARY KEY (trigger, key)) WITHOUT ROWID` (mutable) and
+`trigger_fires (id TEXT PRIMARY KEY, trigger TEXT NOT NULL, key TEXT NOT NULL, outcome TEXT NOT NULL, sitting TEXT,
+detail TEXT, fired_at TEXT NOT NULL)` (a rowid table so attempts have a stable order; rows are appended, never changed). State keys: `head` (paths baseline), `pr:<n>`,
+`schedule`, `last_fire` (epoch seconds, set on an accepted wake). State survives a broker restart; a broker that restarts mid-way
+never fires the same key twice, because the state is consumed before the wake; a broker that dies between the two loses that fire instead.
+
+The op and CLI verb `triggers` list each trigger: `{"name", "council", "kinds": ["paths","pr_label","schedule"], "last_fired": iso|null,
+"last_sitting": id|null}` (config order). `agencil triggers` exits 0; with no triggers it prints `none configured`.
+A trigger never edits the repo, labels a PR or posts anywhere; the verdict is read with `result`.
