@@ -207,6 +207,7 @@ struct ProposalItem: Identifiable, Equatable {
     let detail: String
     let status: String
     let endorsed: Bool
+    var needsReview: Bool { status == "proposed" }
 
     init?(_ row: [String: Any]) {
         guard let id = row["id"] as? String, let kind = row["kind"] as? String, let council = row["council"] as? String else { return nil }

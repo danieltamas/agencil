@@ -151,7 +151,8 @@ struct PanelView: View {
                 ForEach(items) { item in FindingRow(finding: item, confirm: store.decideAction(item.id, confirm: true), dismiss: store.decideAction(item.id, confirm: false)) }
             default:
                 ForEach(store.proposals) { item in
-                    ProposalRow(proposal: item, approve: store.learnAction(item.id, "approve"), reject: store.learnAction(item.id, "reject"))
+                    ProposalRow(proposal: item, approve: store.learnAction(item.id, "approve"), reject: store.learnAction(item.id, "reject"),
+                                review: store.learnAction(item.id, "review"))
                 }
                 if store.canRollback {
                     AsyncPress(id: "rollback", action: store.learnAction(nil, "rollback")) { running, press in

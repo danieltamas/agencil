@@ -34,6 +34,8 @@ public final class Broker: @unchecked Sendable {
     private let idleSeconds = 30
     private var listener: Int32 = -1
     let tracking = NSLock()
+    /// Proposals whose review is being asked now (docs/U23-SPEC.md): a second review of one proposal is refused.
+    var reviewing: Set<String> = []
     var tracked: [String: TrackedRun] = [:]
     var waiting: [String: PendingLaunch] = [:]
     /// Launch id to the file its stdout goes to (an answer); only a seat started by this broker has one.

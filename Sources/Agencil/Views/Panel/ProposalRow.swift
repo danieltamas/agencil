@@ -5,6 +5,7 @@ struct ProposalRow: View {
     let proposal: ProposalItem
     let approve: () async -> Void
     let reject: () async -> Void
+    let review: () async -> Void
 
     var body: some View {
         HoverCard(accent: proposal.endorsed ? Theme.ok : Theme.warn, action: nil) {
@@ -17,6 +18,11 @@ struct ProposalRow: View {
                 Text(proposal.detail).font(.house.meta).foregroundStyle(Theme.textTertiary).detailLines()
                 HStack(spacing: Space.s) {
                     Spacer(minLength: 0)
+                    if proposal.needsReview {
+                        AsyncPress(id: "review:\(proposal.id)", action: review) { running, press in
+                            ChipButton(title: running ? "Reviewing..." : "Review", action: press)
+                        }
+                    }
                     AsyncPress(id: "reject:\(proposal.id)", action: reject) { running, press in
                         ChipButton(title: running ? "..." : "Reject", action: press)
                     }

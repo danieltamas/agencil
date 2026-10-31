@@ -97,6 +97,7 @@ extension LearnLoop {
             guard found.status == "reviewed", let reviewed = found.reviewRevision else {
                 throw LearnError(message: "proposal \(proposal) is \(found.status): it needs a review first")
             }
+            guard found.verdict == .endorse else { throw LearnError(message: "proposal \(proposal) was not endorsed by its reviewer") }
             let snapshot = try store.read()
             guard snapshot.revision == reviewed else {
                 throw LearnError(message: "config.json changed since the review; review it again")
