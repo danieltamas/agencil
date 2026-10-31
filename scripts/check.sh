@@ -93,12 +93,14 @@ lint_ascii
 lint_readme
 lint_forbidden_names
 scripts/sync-catalog.sh --check || fail "the embedded catalog is stale"
+scripts/sync-public-models.sh --check || fail "the embedded public model list is stale"
 
 if ((!lint_only)); then
   cd "$repo"
   swift build --build-tests --scratch-path "$scratch" || fail "build failed"
   # Serial: the suites start real processes and sockets and probe against short deadlines, which parallel load flakes.
   swift test --skip-build --no-parallel --scratch-path "$scratch" || fail "tests failed"
+  python3 -I -B -m unittest discover -s Tests/Leaderboard || fail "leaderboard script tests failed"
 fi
 
 ((!failed)) && echo "check: ok"

@@ -1,0 +1,43 @@
+name: leaderboard
+
+# Renders the public seat leaderboard. The data lives on the `leaderboard` branch (written by the app); the renderer
+# is trusted code from `main`. A failed validation turns the run red and leaves the previous card in place.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 4 * * *'
+
+concurrency:
+  group: leaderboard
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: main
+          path: main
+          persist-credentials: false
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: leaderboard
+          path: data
+      - name: Validate and render
+        run: bash main/scripts/leaderboard/run-render.sh main data "$(date -u +%F)"
+      - name: Commit the rendered files
+        working-directory: data
+        run: |
+          git add -A
+          if git diff --cached --quiet; then
+            echo "nothing changed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: render the leaderboard"
+          git push origin HEAD:leaderboard

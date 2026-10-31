@@ -11,7 +11,7 @@ public struct SeatScore: Equatable, Sendable {
     public let medianSeconds: Double?
 }
 
-private struct SeatRun {
+struct SeatRun {
     let sitting: String
     let council: String
     let seat: String
@@ -36,7 +36,7 @@ extension OutcomeBook {
     /// Calls `visit` once per finding with its council, sitting, credited seats and decided status. Claims arrive
     /// ordered by sitting, kind, file, line, and a claim that joins its neighbour shares its finding, so each
     /// finding is one run of consecutive claims and the pass needs no per-finding storage.
-    private func judged(now: Date, _ visit: (_ council: String, _ sitting: String, _ seats: [String], _ status: FindingStatus) -> Void) throws {
+    func judged(now: Date, _ visit: (_ council: String, _ sitting: String, _ seats: [String], _ status: FindingStatus) -> Void) throws {
         let states = try ledger.locked { try loadClaims(now: now) }
         var seats: [String] = []
         var first = 0, owner = -1, confirmed = false, refuted = false, pending = false
@@ -80,7 +80,7 @@ extension OutcomeBook {
     }
 
 
-    private func seatRuns() throws -> [SeatRun] {
+    func seatRuns() throws -> [SeatRun] {
         let formatter = Self.clock
         return try ledger.locked {
             try ledger.query("""

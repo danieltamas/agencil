@@ -1,0 +1,12 @@
+{
+  "harnesses": [
+    "claude",
+    "codex",
+    "opencode",
+    "hermes",
+    "gemini",
+    "aider",
+    "goose",
+    "ollama"
+  ]
+}

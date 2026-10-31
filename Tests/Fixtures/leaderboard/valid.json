@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "generated_at": "2025-01-01T00:00:00Z",
+  "window": {"from": "2024-12-01T00:00:00Z", "to": "2025-01-01T00:00:00Z"},
+  "outcomes_total": 20,
+  "min_n": 20,
+  "cells": [{"model": "gpt-5.x-codex", "harness": "codex", "change_kind": "auth", "n": 20, "confirmed": 10, "refuted": 10, "unresolved": 3, "confirmed_share": 0.5, "confirmed_share_ci": [0.3, 0.7], "coverage": 1, "coverage_ci": [0.72, 1], "golden_n": 0, "median_seconds": 10, "cost_per_confirmed_usd": 0.2}]
+}
