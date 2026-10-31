@@ -451,7 +451,7 @@ automatic loop over an unproven score would tune toward noise).
 | D1 | Shared kit | Vendored `Kit/` folder; a shared Swift package used by all four apps | Vendored now, with no app imports, so extraction is mechanical; extract when a second app adopts it |
 | D2 | Ledger store | SQLite only; Markdown only; both | SQLite is the truth; Markdown export to Bton memory (U13) for agent search |
 | D3 | Broker | In the app plus `agencil serve`; a LaunchAgent daemon | In the app plus `serve`; a daemon only if headless use becomes common |
-| D4 | Logo concept | Ring and core; converging arcs; council table | Owner picks from the renders |
+| D4 | Logo concept | Ring and core; converging arcs; council table | Owner chose "generate one": concept 1, ring and core, drawn in `Brand/icon-app.svg` and `Brand/icon-menubar.svg` |
 | D5 | Caller identity | Caller id from the MCP install args; axon identity when axon runs | Install args now; read the axon identity when present, as a refinement, not a requirement |
 | D6 | Minimum macOS | 14; 15 | 14, like Bton and RMJ |
 | D7 | Bundle id | `ro.danieltamas.agencil` | As listed |
