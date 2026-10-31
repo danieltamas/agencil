@@ -19,6 +19,14 @@ final class DiscoveryCache: @unchecked Sendable {
                              ollamaProblem: { OllamaClient.problem(for: $0) })
     }
 
+    /// Every catalog harness in catalog order. `force` probes again; otherwise the cache serves while it is fresh.
+    func snapshot(environment: [String: String], home: URL, force: Bool) -> [HarnessProbe] {
+        guard let catalog = try? HarnessCatalog.embedded() else { return [] }
+        let fresh = lock.withLock { taken.map { Date().timeIntervalSince($0) < Self.lifetime } ?? false }
+        if force || !fresh { refresh(catalog, environment: environment, home: home) }
+        return lock.withLock { catalog.entries.compactMap { probes[$0.kind] } }
+    }
+
     private func refresh(_ catalog: HarnessCatalog, environment: [String: String], home: URL) {
         var directories = (environment["PATH"] ?? "/usr/bin:/bin").split(separator: ":").map { URL(fileURLWithPath: String($0)) }
         let user = FileManager.default.homeDirectoryForCurrentUser

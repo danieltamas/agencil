@@ -181,7 +181,8 @@ public final class Broker: @unchecked Sendable {
                 return Self.failure("unknown id \((request["id"] as? String) ?? "?")", exit: 64)
             case "dispose":
                 return Self.failure("unknown id \((request["id"] as? String) ?? "?")", exit: 64)
-            case "seats", "councils", "routes", "harnesses", "models", "findings", "leaderboard", "list_targets":
+            case "harnesses": return harnessesOp(request)
+            case "seats", "councils", "routes", "models", "findings", "leaderboard", "list_targets":
                 return ["ok": true, "data": [op: [Any]()], "data_note": Self.note]
             default:
                 return Self.failure("unknown op \(op)", exit: 64)

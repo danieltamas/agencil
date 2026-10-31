@@ -20,7 +20,7 @@ A wrapper cannot reproduce the fixtures yet; the engine lacks these, each a deci
 1. `agencil wake` takes a configured council. The old script's `COUNCIL_SEATS` override and `COUNCIL_CAP` have no wake flag.
 2. A sitting returns a verdict. The old script leaves one report file per seat (`<label>.md`, the raw stdout, the codex trace);
    the wrapper would need a per-seat answer export from the ledger.
-3. `harnesses --probe` is a stub in the broker (`"harnesses"` returns an empty list); the old probe-only mode also swaps dead
+3. (done in U15a: `harnesses --probe` reports real probes; the spare swap remains) `harnesses --probe` was a stub in the broker (`"harnesses"` returns an empty list); the old probe-only mode also swaps dead
    opencode seats for spares, which Agencil expresses as route fallbacks, not as a probe side effect.
 4. The old banner lines and exit 3 for a degraded council map to a sitting's `INCOMPLETE` (exit 2) in the CLI contract.
 Once 1 to 3 exist, the wrapper is `council.sh` forwarding to `agencil wake`, checked by `test_council_parity.sh`.

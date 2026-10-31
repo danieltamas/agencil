@@ -180,6 +180,13 @@ public struct CommandLineTool: Sendable {
         if let object = data as? [String: Any], let answer = object["answer"] as? String {
             return [object["substituted"] as? String, answer].compactMap { $0 }.joined(separator: "\n\n")
         }
+        if let object = data as? [String: Any], let rows = object["harnesses"] as? [[String: Any]], !rows.isEmpty {
+            return rows.map { row in
+                let signedIn = ["yes": "signed in", "no": "signed out"][row["signed_in"] as? String ?? ""] ?? "unknown"
+                return "\(row["kind"] as? String ?? "?")  \(row["found"] as? Bool == true ? "found" : "missing")  "
+                    + "\(row["version"] as? String ?? "-")  \(signedIn)"
+            }.joined(separator: "\n")
+        }
         if let object = data as? [String: Any], object.count == 1, let list = object.values.first as? [Any], list.isEmpty {
             return "none configured"
         }
