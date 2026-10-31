@@ -1,5 +1,5 @@
+import AgencilCore
 import Foundation
-
 /// Made-up panel content for the preview and the screenshots; the live store replaces it in U8.
 enum DemoPanel {
     struct Thread: Identifiable { let id: String; let caller: String; let seat: String; let question: String; let state: String; let live: Bool; let failed: Bool }
@@ -49,4 +49,32 @@ enum DemoPanel {
         ListRow(name: "opencode", detail: "1.8.0", up: true), ListRow(name: "hermes", detail: "not installed", up: false),
     ]
     static let polls = "probed 40s, box-qwen3 12s"
+}
+
+extension DemoPanel {
+    /// The demo rows as a read, for the preview, the screenshots and the layout tests.
+    static var data: PanelData? {
+        let start = DemoStore.now
+        func stamp(_ offset: Double) -> String { ISO8601DateFormatter().string(from: start.addingTimeInterval(offset)) }
+        let json: [String: Any] = [
+            "configured": true,
+            "seats": ["total": 5, "up": 4, "thinking": 1, "items": seatRows.map { ["name": $0.id, "model": $0.model, "up": $0.up, "thinking": $0.id == "codex-gpt"] }],
+            "threads": [
+                ["id": "t1", "caller": "claude", "seat": "codex-gpt", "question": threads[0].question, "state": "asking", "started": stamp(-30)],
+                ["id": "t2", "caller": "opencode", "seat": "claude-opus", "question": threads[1].question, "state": "answered",
+                 "started": stamp(-300), "ended": stamp(-259)],
+                ["id": "t3", "caller": "owner", "seat": "box-qwen3", "question": threads[2].question, "state": "failed",
+                 "reason": "endpoint closed the connection", "started": stamp(-600), "ended": stamp(-590)],
+            ],
+            "sittings": [
+                ["id": "s1", "no": 214, "council": "code-review", "state": "running", "round": "blind", "started": stamp(-130), "cost_usd": 0.42],
+                ["id": "s2", "no": 213, "council": "security", "state": "BLOCK", "round": "verdict", "started": stamp(-3600), "ended": stamp(-3238),
+                 "cost_usd": 1.1, "verdict": "BLOCK"],
+            ],
+            "findings": findings.map { ["id": $0.id, "severity": $0.severity.lowercased(), "file": $0.place, "line": 1, "body": $0.claim,
+                                         "backers": $0.backers, "dissenters": $0.dissent, "minority": $0.dissent > 0, "disposition": "open"] },
+            "proposals_pending": 1, "week": ["spend_usd": 6.4, "budget_usd": 20], "live": 2,
+        ]
+        return try? PanelData(json: json)
+    }
 }

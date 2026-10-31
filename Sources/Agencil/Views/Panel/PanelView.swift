@@ -1,21 +1,27 @@
 import AgencilCore
 import SwiftUI
 
-/// The menu bar panel, on demo data until U8 wires the live store. Layout follows docs/DESIGN.md "Panel".
+/// The menu bar panel, rendered from the store. Layout follows docs/DESIGN.md "Panel".
 struct PanelView: View {
+    let store: PanelStore
     @State private var tab: String
     @State private var search = ""
     @State private var filter = "All"
     @Environment(\.openSettings) private var openSettings
 
-    init(tab: String = "threads") { _tab = State(initialValue: tab) }
+    init(store: PanelStore, tab: String = "threads") {
+        self.store = store
+        _tab = State(initialValue: tab)
+    }
 
-    private let tabs = [
-        TabItem(id: "threads", title: "Threads", symbol: "bubble.left.and.bubble.right"),
-        TabItem(id: "sittings", title: "Sittings", symbol: "circle.hexagongrid", badge: 1),
-        TabItem(id: "findings", title: "Findings", symbol: "exclamationmark.bubble", badge: DemoPanel.findings.count),
-        TabItem(id: "seats", title: "Seats", symbol: "person.2.wave.2"),
-    ]
+    private var tabs: [TabItem] {
+        [
+            TabItem(id: "threads", title: "Threads", symbol: "bubble.left.and.bubble.right"),
+            TabItem(id: "sittings", title: "Sittings", symbol: "circle.hexagongrid", badge: store.liveSittings),
+            TabItem(id: "findings", title: "Findings", symbol: "exclamationmark.bubble", badge: store.openFindings),
+            TabItem(id: "seats", title: "Seats", symbol: "person.2.wave.2"),
+        ]
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -41,13 +47,13 @@ struct PanelView: View {
         HStack(spacing: Space.m) {
             BrandGlyph()
             Text("Agencil").font(.house.header).foregroundStyle(Theme.textPrimary)
-            Chip(text: "4/5 seats up", color: Theme.ok)
+            Chip(text: store.seatChip, color: store.data == nil ? Theme.unknown : Theme.ok)
             Spacer(minLength: 0)
-            AsyncIconButton(symbol: "arrow.clockwise", help: "Refresh", id: "refresh", action: DemoPanel.refresh)
+            AsyncIconButton(symbol: "arrow.clockwise", help: "Refresh", id: "refresh", action: store.refresh)
             IconButton(symbol: "gearshape", help: "Settings") { openSettings() }
             HStack(spacing: Space.xs) {
-                PulseDot()
-                Text("1 live").font(.house.meta).foregroundStyle(Theme.textSecondary).lineLimit(1)
+                PulseDot(live: store.liveCount > 0)
+                Text("\(store.liveCount) live").font(.house.meta).foregroundStyle(Theme.textSecondary).lineLimit(1)
             }
         }
         .panelHeaderInsets()
@@ -55,17 +61,38 @@ struct PanelView: View {
 
     private var bento: some View {
         Bento {
-            BentoTile(eyebrow: "Needs you", value: "4", tint: Theme.accent, big: true) {
-                HStack(spacing: Space.s) {
-                    ChipButton(title: "3 findings") { tab = "findings" }
-                    ChipButton(title: "1 stopped") { tab = "sittings" }
+            bigTile
+        } top: {
+            BentoTile(eyebrow: "Seats", value: store.data.map { "\($0.seats.up) of \($0.seats.total)" } ?? "...") { EmptyView() }
+        } bottom: {
+            BentoTile(eyebrow: "This week", value: store.weekSpend) {
+                if let share = store.weekShare { Text(share).font(.house.meta).foregroundStyle(Theme.textTertiary) }
+            }
+        }
+    }
+
+    @ViewBuilder private var bigTile: some View {
+        switch store.bento {
+        case .none:
+            BentoTile(eyebrow: "Needs you", value: "...", tint: Theme.accent, big: true) { EmptyView() }
+        case .firstStep:
+            BentoTile(eyebrow: "First step", value: "Add a seat", tint: Theme.accent, big: true) {
+                VStack(alignment: .leading, spacing: Space.s) {
+                    Text("A council needs seats and a council type.").font(.house.meta).foregroundStyle(Theme.textTertiary)
+                    ChipButton(title: "Open Settings") { openSettings() }
                 }
             }
-        } top: {
-            BentoTile(eyebrow: "Seats", value: "4 of 5") { EmptyView() }
-        } bottom: {
-            BentoTile(eyebrow: "This week", value: "$6.40") {
-                Text("32% of budget").font(.house.meta).foregroundStyle(Theme.textTertiary)
+        case .council:
+            BentoTile(eyebrow: "In session", value: "Sitting", tint: Theme.running, big: true) {
+                ChipButton(title: "Show sittings") { tab = "sittings" }
+            }
+        case .needsYou(let count, let findings, let proposals, let stopped):
+            BentoTile(eyebrow: "Needs you", value: "\(count)", tint: Theme.accent, big: true) {
+                HStack(spacing: Space.s) {
+                    if findings > 0 { ChipButton(title: "\(findings) findings") { tab = "findings" } }
+                    if proposals > 0 { ChipButton(title: "\(proposals) proposals") { tab = "seats" } }
+                    if stopped > 0 { ChipButton(title: "\(stopped) stopped") { tab = "sittings" } }
+                }
             }
         }
     }
@@ -86,21 +113,50 @@ struct PanelView: View {
     }
 
     @ViewBuilder private var content: some View {
-        FittingScroll {
-            VStack(spacing: Space.m) {
-                switch tab {
-                case "threads": ForEach(DemoPanel.threads) { ThreadRow(thread: $0) }
-                case "sittings": ForEach(DemoPanel.sittings) { SittingRow(sitting: $0) }
-                case "findings": ForEach(DemoPanel.findings) { FindingRow(finding: $0) }
-                default: ForEach(DemoPanel.seatRows) { SeatScoreRow(seat: $0) }
-                }
+        if store.data == nil {
+            WaitingState(title: waiting)
+        } else {
+            FittingScroll { rows }
+        }
+    }
+
+    private var waiting: String {
+        switch tab {
+        case "threads": "Reading threads..."
+        case "sittings": "Reading sittings..."
+        case "findings": "Reading findings..."
+        default: "Reading seats..."
+        }
+    }
+
+    @ViewBuilder private var rows: some View {
+        VStack(spacing: Space.m) {
+            switch tab {
+            case "threads":
+                let items = store.threads(filter: filter, search: search)
+                if items.isEmpty { EmptyState(symbol: "bubble.left.and.bubble.right", title: "No threads yet", detail: "Agents ask a seat through Agencil and the exchange lands here.") }
+                ForEach(items) { ThreadRow(thread: $0) }
+            case "sittings":
+                let items = store.sittings(search: search)
+                if items.isEmpty { EmptyState(symbol: "circle.hexagongrid", title: "No sittings yet", detail: "A council sits when an agent or a trigger wakes it.") }
+                ForEach(items) { item in SittingRow(sitting: item, stopping: store.stopping.contains(item.id), stop: store.stopAction(item.id),
+                                         open: { store.open(sitting: item.id) }) }
+            case "findings":
+                let items = store.findings(search: search)
+                if items.isEmpty { EmptyState(symbol: "checkmark.seal", title: "Nothing to decide", detail: "Claims from a sitting wait here for your call.") }
+                ForEach(items) { FindingRow(finding: $0) }
+            default:
+                let items = store.seats(search: search)
+                if items.isEmpty { EmptyState(symbol: "person.2.wave.2", title: "No seats configured", detail: "Add a seat in Settings to start.") }
+                ForEach(items) { SeatScoreRow(seat: $0) }
             }
         }
     }
 
     private var footer: some View {
         HStack(spacing: Space.m) {
-            Text(DemoPanel.polls).font(.house.meta).foregroundStyle(Theme.textTertiary).lineLimit(1)
+            Text(store.problem ?? store.footer).font(.house.meta)
+                .foregroundStyle(store.problem == nil ? Theme.textTertiary : Theme.crit).lineLimit(1)
             Spacer(minLength: 0)
             ChipButton(title: "Restart") {}
             ChipButton(title: "Quit") { NSApplication.shared.terminate(nil) }

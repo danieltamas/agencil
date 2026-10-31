@@ -90,6 +90,6 @@ extension Color {
 }
 
 extension View {
-    /// A second line of detail: at most two lines, then it ends in an ellipsis.
-    func detailLines() -> some View { lineLimit(2) }
+    /// Detail text wraps to every line it needs: a reason is never cut short.
+    func detailLines() -> some View { fixedSize(horizontal: false, vertical: true) }
 }

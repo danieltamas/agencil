@@ -17,7 +17,7 @@ struct ThreadRow: View {
                     }
                     .foregroundStyle(Theme.textSecondary)
                     Text(thread.question).font(.house.rowTitle).foregroundStyle(Theme.textPrimary).titleLines()
-                    Text(thread.state).font(.house.meta).foregroundStyle(thread.failed ? Theme.crit : Theme.textTertiary).lineLimit(1)
+                    Text(thread.state).font(.house.meta).foregroundStyle(thread.failed ? Theme.crit : Theme.textTertiary).detailLines()
                 }
                 Spacer(minLength: 0)
             }
@@ -27,11 +27,14 @@ struct ThreadRow: View {
 
 struct SittingRow: View {
     let sitting: DemoPanel.Sitting
+    var stopping = false
+    var stop: (() async -> Void)?
+    var open: () -> Void = {}
 
     private var tone: Signal { sitting.state == "BLOCK" ? .crit : sitting.state == "PASS" ? .ok : .running }
 
     var body: some View {
-        HoverCard(accent: Theme.councilHue(sitting.hue), action: {}) {
+        HoverCard(accent: Theme.councilHue(sitting.hue), action: open) {
             VStack(alignment: .leading, spacing: Space.s) {
                 HStack(spacing: Space.s) {
                     Chip(text: sitting.kind, color: Theme.councilHue(sitting.hue))
@@ -40,12 +43,16 @@ struct SittingRow: View {
                 }
                 Text(sitting.target).font(.house.rowTitle).foregroundStyle(Theme.textPrimary).titleLines()
                 HStack(spacing: Space.s) {
-                    Text("woken by \(sitting.wokenBy)").lineLimit(1)
-                    Text("·"); Text("\(sitting.seats) seats")
-                    Text("·"); Text(sitting.elapsed)
-                    Text("·"); Text(sitting.cost)
+                    if !sitting.wokenBy.isEmpty { Text("woken by \(sitting.wokenBy)").lineLimit(1); Text("-") }
+                    if sitting.seats > 0 { Text("\(sitting.seats) seats"); Text("-") }
+                    Text(sitting.elapsed)
+                    Text("-"); Text(sitting.cost)
                     Spacer(minLength: 0)
-                    if sitting.live { ChipButton(title: "Stop", destructive: true) {} }
+                    if sitting.live {
+                        AsyncPress(id: "stop:\(sitting.id)", action: stop ?? {}) { running, press in
+                            ChipButton(title: running || stopping ? "Stopping..." : "Stop", destructive: true, action: press)
+                        }
+                    }
                 }
                 .font(.house.meta).foregroundStyle(Theme.textTertiary)
             }
@@ -71,9 +78,6 @@ struct FindingRow: View {
                 HStack(spacing: Space.s) {
                     Text("\(finding.backers) back, \(finding.dissent) dissent").font(.house.meta).foregroundStyle(Theme.textTertiary)
                     Spacer(minLength: 0)
-                    ChipButton(title: "Confirm") {}
-                    ChipButton(title: "Dismiss") {}
-                    ChipButton(title: "Will fix") {}
                 }
             }
         }

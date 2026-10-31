@@ -57,6 +57,7 @@ public struct SeatConfig: Sendable {
         aliases = try Self.parseAliases(values["aliases"], seatNames: names)
         councils = try Self.parseCouncils(values["councils"], seats: seats, aliases: aliases)
         triggers = try Self.parseTriggers(values["triggers"], councils: councils)
+        _ = try NotifySettings(values: values)
         budgets = try Self.parseBudgets(values["budgets"])
         limits = try Self.parseLimits(values["limits"])
     }
