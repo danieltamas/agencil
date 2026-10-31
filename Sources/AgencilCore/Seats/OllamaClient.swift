@@ -2,6 +2,8 @@ import Foundation
 
 /// The two Ollama requests a seat needs: is the model there, and one non-streaming chat.
 enum OllamaClient {
+    /// Token counts above this are not believed; sums of them stay far from overflow.
+    static let countLimit = 1_000_000_000_000
     static func problem(for seat: Seat) -> String? {
         guard let endpoint = seat.endpoint else { return "seat \(seat.name) has no endpoint" }
         guard (try? EndpointPolicy.validate(endpoint)) != nil else { return "endpoint \(endpoint) is not allowed" }
@@ -12,14 +14,20 @@ enum OllamaClient {
         return names.contains(seat.model) ? nil : "model \(seat.model) not loaded at \(endpoint)"
     }
 
-    /// The answer text, or the reason the chat failed.
-    static func chat(seat: Seat, prompt: String, onTask: (URLSessionTask) -> Void = { _ in }) -> Result<String, Refusal> {
+    /// The answer, with the token counts the server reported (nil when it reported none).
+    struct Reply {
+        let text: String
+        let tokens: (prompt: Int, output: Int)?
+    }
+
+    /// The answer, or the reason the chat failed. The output is always capped: `num_predict` is the seat's cap.
+    static func chat(seat: Seat, prompt: String, onTask: (URLSessionTask) -> Void = { _ in }) -> Result<Reply, Refusal> {
         guard let endpoint = seat.endpoint else { return .failure(Refusal(exit: 4, message: "failed: seat \(seat.name) has no endpoint")) }
         guard (try? EndpointPolicy.validate(endpoint)) != nil else {
             return .failure(Refusal(exit: 4, message: "failed: endpoint \(endpoint) is not allowed"))
         }
         var body: [String: Any] = ["model": seat.model, "messages": [["role": "user", "content": prompt]], "stream": false]
-        if let tokens = seat.capTokens { body["options"] = ["num_predict": tokens] }
+        body["options"] = ["num_predict": seat.capTokens ?? Broker.unboundedOutputTokens]
         guard let data = try? JSONSerialization.data(withJSONObject: body),
               let reply = request("\(endpoint)/api/chat", body: data, timeout: Double(seat.capSeconds), onTask: onTask),
               let object = (try? JSONSerialization.jsonObject(with: reply)) as? [String: Any],
@@ -29,7 +37,13 @@ enum OllamaClient {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return .failure(Refusal(exit: 4, message: "failed: \(endpoint) answered nothing"))
         }
-        return .success(text)
+        // Both counts or neither: a partial report would hide the unreported side, so the reservation stays in full.
+        var tokens: (prompt: Int, output: Int)?
+        if let input = SeatConfig.whole(object["prompt_eval_count"]), let output = SeatConfig.whole(object["eval_count"]),
+           (0...Self.countLimit).contains(input), (0...Self.countLimit).contains(output) {
+            tokens = (input, output)
+        }
+        return .success(Reply(text: text, tokens: tokens))
     }
 
     /// A session that follows no redirect, so a validated endpoint cannot hand the question to another host.

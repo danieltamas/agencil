@@ -166,3 +166,75 @@ presents it afterwards, from any process, gets `refused: capability expired`.
 
 Stub seats reach the broker through the real `AgencilCLI ask` and through `AgencilCLI mcp` (JSON-RPC over stdio,
 `tools/call` `ask`, with `agent_access` on in config). Both are bounded exactly alike.
+
+## U6c contract (budgets and capacity)
+
+Fills `Resolution.reserve` (step 5, budget part). Black-box observable through the broker ops and the ledger as
+described; no Swift API is assumed by tests.
+
+### Config (new keys, each JSON text like `seats`; invalid -> `failed: config <key> is invalid: <problem>`)
+
+- `seats[].price`: optional `{"input_per_mtok": number >= 0, "output_per_mtok": number >= 0}` (dollars per million
+  tokens). An `ollama` seat without a price has price 0/0.
+- `budgets`: array of `{"name": str (unique), "scope": "route"|"root"|"vendor", "key": str, "window": "run"|"week"|"lifetime",
+  "dollars": number?, "tokens": int?, "hard": bool}`. `route`: key is the route target as configured (the requested name
+  before alias resolution); `root`: key is the root caller id of the chain (the owner caller, or a root process caller id);
+  `vendor`: key is a harness kind, window normally `week` (weeks start Monday 00:00 UTC). At least one of `dollars`
+  and `tokens`. A request falls under every budget whose scope and key match. No budgets configured = nothing to
+  reserve against, never an error.
+- `limits`: object `{"seats_at_once": int 1...16 (default 4), "process_cap": int (default seats_at_once + 4),
+  "memory_floor_mb": int >= 0 (default 0)}`. Read on every ask like the other keys.
+
+### Bounded and unbounded seats
+
+A seat is bounded only when it makes exactly one model request: `ollama` seats. Every process seat (claude, codex,
+opencode, hermes) is unbounded in 0.1.0. Worst case of a bounded seat =
+`utf8 byte count of the final prompt / 1e6 * input_per_mtok + max_tokens / 1e6 * output_per_mtok` dollars and
+`prompt bytes + max_tokens` tokens, where `max_tokens` is the seat's `cap.tokens`, or 4096 when unset; the request
+carries `options.num_predict = max_tokens` (U6a). An unbounded seat's reservation is its estimate: dollars 0 and tokens
+`prompt bytes / 4 + 4096`, seconds `cap.seconds`.
+
+### Admission (all before any spawn or request, fail closed)
+
+In this order, each a refusal with exit 3 and the reply text exactly:
+
+1. `refused: busy` when the number of live seat processes (running or parked) is at `process_cap`. Never waits.
+2. `refused: budget` when, for any matching budget, `hard` is true and the seat is unbounded and the budget has a
+   `dollars` limit; or when `spent + reserved + this reservation` would exceed a hard `dollars` or `tokens` limit
+   (tokens compare against the reservation's tokens; an unbounded seat's token estimate counts for a hard `tokens` limit).
+   An estimated (`hard: false`) budget never refuses; it records `estimated`.
+3. `refused: memory` when free memory (pages free + inactive, in MB) is under `memory_floor_mb`. Test seam: with
+   `AGENCIL_TEST_SEAMS=1`, `AGENCIL_TEST_FREE_MEMORY_MB=<n>` in the broker environment replaces the measured value.
+4. Seats at once: when the number of running, unparked seats is at `seats_at_once`, the request waits up to its
+   `wait_seconds` (default 120) for a slot, then `refused: busy`. `wait_seconds` 0 refuses at once.
+
+Refusals 1 to 3 write a refused `requests` row, no `runs` or `reservations` rows, and run nothing. Reservation and the
+comparison happen in one ledger transaction (`BEGIN IMMEDIATE`), so two concurrent asks over a budget that fits one:
+exactly one succeeds and the other is `refused: budget`. A fallback is admitted separately, with its own reservation,
+before it spawns; a substituted seat that is refused at admission makes the next fallback be tried, and when none is
+admitted the original failure stands.
+
+### Parked ancestors
+
+A seat run is **parked** while it has a child exchange (a nested ask it made, attributed by U6b) in `asking`. Parked
+runs hold no "seats at once" slot but do count against `process_cap`. With `seats_at_once` 1 the chain A asks B asks C
+completes.
+
+### Reconciliation
+
+- A reservation row exists from admission until the run ends and survives a broker restart (released when the run is
+  proven closed, as launches are).
+- At the end of an exchange the charge becomes the actual usage when reported, else stays the full reservation
+  (`estimated, unreported`): process seats report usage by writing `<runDirectory>/usage.json`
+  `{"dollars": number, "tokens": int}` before exiting 0 or not; Ollama reports `prompt_eval_count + eval_count` tokens
+  and its dollars follow from the price. A report larger than the reservation is capped at the reservation for
+  accounting of a hard budget (a bounded seat cannot exceed it; an unbounded one is charged `max(report, reservation)`
+  only on estimated budgets).
+- A chain charges every exchange to the root's budgets (`scope: root`) cumulatively, and to the budgets of each
+  exchange's own route and vendor.
+
+### Observability
+
+Broker op `budgets` (CLI `agencil budgets [--json]`): `data.budgets` = array of `{name, scope, key, window, hard,
+dollars_limit, tokens_limit, spent_dollars, spent_tokens, reserved_dollars, reserved_tokens}`. The ask/result data gain
+`reserved` = `{dollars, tokens, seconds}` and `cost` = `{dollars, tokens, basis: "reserved"|"provider"}` once finished.

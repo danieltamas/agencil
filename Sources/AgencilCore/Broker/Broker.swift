@@ -18,6 +18,8 @@ public final class Broker: @unchecked Sendable {
     let ledger: Ledger
     let store: LaunchStore
     let threads: ThreadStore
+    let budgets: BudgetStore
+    let capacity = Capacity()
     let discovery = DiscoveryCache()
     let socketPath: String
     /// The `agencil` CLI that seats are launched through: this process in `serve`, the bundled CLI inside the app.
@@ -36,6 +38,8 @@ public final class Broker: @unchecked Sendable {
     /// Exchange keys ("<thread>-<seq>") that were asked to stop, and the Ollama requests that can be cancelled.
     var stoppedThreads: Set<String> = []
     var ollamaTasks: [String: URLSessionTask] = [:]
+    /// Launches a dead predecessor left running; each holds a place until its group is gone.
+    var startupOrphans: Set<String> = []
     private var connections = 0
 
     /// Takes the exclusive lock first: only the holder may remove a stale socket or touch the ledger's runs.
@@ -57,6 +61,7 @@ public final class Broker: @unchecked Sendable {
         }
         store = LaunchStore(ledger: ledger)
         threads = ThreadStore(ledger: ledger)
+        budgets = BudgetStore(ledger: ledger)
     }
 
     deinit { close(lockDescriptor) }
@@ -66,6 +71,8 @@ public final class Broker: @unchecked Sendable {
         signal(SIGPIPE, SIG_IGN)
         Thread.detachNewThread { [self] in monitorLoop() }
         recoverOpenLaunches()
+        startupOrphans = Set(try store.open().map(\.id))
+        try? budgets.settleOrphans()
         reconcileExchanges()
         unlink(socketPath)
         listener = try UnixSocket.listen(at: socketPath)
@@ -147,6 +154,7 @@ public final class Broker: @unchecked Sendable {
             case "status": return try status(request)
             case "stop": return try stop(request)
             case "ask": return ask(request, peer: peer, peerStart: peerStart)
+            case "budgets": return budgetsOp()
             case "wake":
                 try? store.recordRequest(peer: peer)
                 let target = (request["target"] as? String) ?? (request["council"] as? String) ?? "?"

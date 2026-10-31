@@ -38,6 +38,12 @@ extension Broker {
             let world = discovery.world(environment: environment, home: directory)
             var existing: ThreadRecord?
             var resolved: Resolved
+            var prompt = Adapter.prompt(question: question, files: files, transcript: [])
+            // Budgets match the route the thread was opened through, whichever name a follow-up uses.
+            var routeKey = target
+            func admit(_ seat: Seat) throws -> Admitted {
+                try self.admit(seat, requested: routeKey, caller: caller, parent: parent, prompt: prompt, config: config)
+            }
             if let id = request["thread"] as? String {
                 guard let thread = try threads.thread(id: id) else { throw Failure(message: "unknown id \(id)") }
                 guard [thread.seat, thread.requested].contains(target) else {
@@ -54,22 +60,30 @@ extension Broker {
                 case .failure(let problem): return settle(Refusal(exit: 4, message: "failed: \(problem.reason)"))
                 }
                 existing = thread
+                routeKey = thread.requested
+                prompt = Adapter.prompt(question: question, files: files, transcript: try threads.transcript(thread: thread.id))
             } else {
-                resolved = try Resolver.resolve(config: config, caller: caller, alsoKnownAs: kinds, target: target, world: world)
+                resolved = try Resolver.resolve(config: config, caller: caller, alsoKnownAs: kinds, target: target, world: world, admit: admit)
             }
-            // The cycle comes first: a seat already in the chain is refused at any hop limit.
-            if parentChain.contains(resolved.seat.name) {
-                throw Refusal(exit: 3, message: "refused: cycle " + (parentChain + [resolved.seat.name]).joined(separator: " -> "))
+            do {
+                if existing != nil { resolved.admitted = try admit(resolved.seat) }
+                // The cycle comes first: a seat already in the chain is refused at any hop limit.
+                if parentChain.contains(resolved.seat.name) {
+                    throw Refusal(exit: 3, message: "refused: cycle " + (parentChain + [resolved.seat.name]).joined(separator: " -> "))
+                }
+                if parentChain.count > resolved.route.hopLimit { throw Refusal(exit: 3, message: "refused: hop limit") }
+                // A follow-up keeps the chain its thread started with, whoever asks it.
+                let chain = try existing.flatMap { try threads.exchanges(thread: $0.id).first?.chain } ?? parentChain + [resolved.seat.name]
+                // A seat may only continue a thread that already sits at its own place in the chain.
+                if existing != nil, parent != nil, chain != parentChain + [resolved.seat.name] {
+                    throw Refusal(exit: 3, message: "refused: ancestry unknown")
+                }
+                return try run(resolved, caller: caller, chain: chain, parent: parent, requested: target, question: question, files: files,
+                               thread: existing, limits: config.limits, wait: waitSeconds(request))
+            } catch {
+                if let held = resolved.admitted { abandon(held) }
+                throw error
             }
-            if parentChain.count > resolved.route.hopLimit { throw Refusal(exit: 3, message: "refused: hop limit") }
-            // A follow-up keeps the chain its thread started with, whoever asks it.
-            let chain = try existing.flatMap { try threads.exchanges(thread: $0.id).first?.chain } ?? parentChain + [resolved.seat.name]
-            // A seat may only continue a thread that already sits at its own place in the chain.
-            if existing != nil, parent != nil, chain != parentChain + [resolved.seat.name] {
-                throw Refusal(exit: 3, message: "refused: ancestry unknown")
-            }
-            return try run(resolved, caller: caller, chain: chain, parent: parent, requested: target, question: question, files: files,
-                           thread: existing, wait: waitSeconds(request))
         } catch let refusal as Refusal {
             return settle(refusal)
         } catch let failure as Failure {
@@ -111,27 +125,39 @@ extension Broker {
     // MARK: running one exchange
 
     private func run(_ resolved: Resolved, caller: String, chain: [String], parent: CapabilityRun?, requested: String, question: String,
-                     files: [(path: String, text: String)], thread existing: ThreadRecord?, wait: Int) throws -> [String: Any] {
+                     files: [(path: String, text: String)], thread existing: ThreadRecord?, limits: Limits, wait: Int) throws -> [String: Any] {
+        guard let admitted = resolved.admitted else { throw Failure(message: "the ask was not admitted") }
+        try awaitSeat(admitted, limits: limits, wait: wait)
         let thread = try existing ?? threads.createThread(requested: requested, seat: resolved.seat.name, caller: caller,
                                                          substituted: resolved.substituted)
         guard let (exchange, transcript) = try threads.beginExchange(thread: thread.id, question: question, chain: chain) else {
             throw Failure(message: "thread \(thread.id) is still waiting for an answer")
         }
         let key = "\(thread.id)-\(exchange.seq)"
+        capacity.bind(admitted.id, exchange: key)
         do {
+            // The reservation is tied to the exchange before anything runs, or nothing runs.
+            try budgets.bind(admitted.id, thread: thread.id, seq: exchange.seq)
             try threads.recordRequest(caller: caller, outcome: "accepted", runID: thread.id)
             let prompt = Adapter.prompt(question: question, files: files, transcript: transcript)
+            // A follow-up that waited for a place may now repeat more than the reservation was sized for.
+            let actual = Self.quote(resolved.seat, prompt: prompt)
+            if actual.tokens > admitted.quote.tokens || actual.dollars > admitted.quote.dollars {
+                finishExchange(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil,
+                               reason: "the thread changed while the ask waited for a place; ask again")
+                return reply(thread, awaiting: exchange.seq, wait: 0)
+            }
             let runDirectory = directory.appendingPathComponent("runs").appendingPathComponent("\(thread.id)-\(exchange.seq)")
             try FileManager.default.createDirectory(at: runDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             let answerFile = runDirectory.appendingPathComponent("answer.txt").path
             let seat = resolved.seat
 
             func fail(_ reason: String) -> [String: Any] {
-                try? threads.finish(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil, reason: reason)
+                finishExchange(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil, reason: reason)
                 return reply(thread, awaiting: exchange.seq, wait: 0)
             }
             if seat.harness == "ollama" {
-            if let parent, (try? threads.capability(launch: parent.launchID))??.live != true { return fail("refused: capability expired") }
+                if let parent, (try? threads.capability(launch: parent.launchID))??.live != true { return fail("refused: capability expired") }
                 Thread.detachNewThread { [self] in
                     let result = OllamaClient.chat(seat: seat, prompt: prompt) { task in
                         tracking.withLock {
@@ -144,13 +170,19 @@ extension Broker {
                         return stoppedThreads.remove(key) != nil
                     }
                     if stopped {
-                        try? threads.finish(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil, reason: "stopped")
+                        finishExchange(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil, reason: "stopped")
                         return
                     }
                     switch result {
-                    case .success(let text): try? threads.finish(thread: thread.id, seq: exchange.seq, state: .answered, answer: text, reason: nil)
-                    case .failure(let refusal): try? threads.finish(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil,
-                                                                     reason: String(refusal.message.dropFirst("failed: ".count)))
+                    case .success(let answer):
+                        let spent = answer.tokens.map { counts in
+                            (dollars: Double(counts.prompt) / 1e6 * seat.price.inputPerMillion + Double(counts.output) / 1e6 * seat.price.outputPerMillion,
+                             tokens: counts.prompt + counts.output)
+                        }
+                        finishExchange(thread: thread.id, seq: exchange.seq, state: .answered, answer: answer.text, reason: nil, usage: spent)
+                    case .failure(let refusal):
+                        finishExchange(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil,
+                                       reason: String(refusal.message.dropFirst("failed: ".count)))
                     }
                 }
                 return reply(thread, awaiting: exchange.seq, wait: wait)
@@ -166,26 +198,26 @@ extension Broker {
                                                 "env": invocation.environment.merging(["PWD": workingDirectory]) { _, mine in mine },
                                                 "reservation": ["seconds": seat.capSeconds]]
             if invocation.stdoutIsAnswer { launchRequest["stdout"] = answerFile }
-        // The token reaches the seat's environment but never the ledger, which keeps launch environments in clear.
-        let capability = ThreadStore.newCapability()
-        launchRequest["secret_env"] = ["AGENCIL_CAP": capability]
+            // The token reaches the seat's environment but never the ledger, which keeps launch environments in clear.
+            let capability = ThreadStore.newCapability()
+            launchRequest["secret_env"] = ["AGENCIL_CAP": capability]
             let began = Date()
             let started: [String: Any]
             // The exchange is tied to its launch before the seat can start, so a crash never orphans a running group.
             var attached: String?
             do {
                 started = try launch(launchRequest, onIntent: { id in
-                // The parent's authority ends with its exchange: admission is rechecked at the last moment.
-                if let parent, (try self.threads.capability(launch: parent.launchID))?.live != true {
-                    throw Failure(message: "refused: capability expired")
-                }
+                    // The parent's authority ends with its exchange: admission is rechecked at the last moment.
+                    if let parent, (try self.threads.capability(launch: parent.launchID))?.live != true {
+                        throw Failure(message: "refused: capability expired")
+                    }
                     try self.threads.attach(launch: id, thread: thread.id, seq: exchange.seq)
-                try self.threads.issueCapability(capability, launch: id, thread: thread.id, seq: exchange.seq)
+                    try self.threads.issueCapability(capability, launch: id, thread: thread.id, seq: exchange.seq)
                     attached = id
                 })
             } catch {
                 if let id = attached { failWhenClosed(thread: thread.id, seq: exchange.seq, launch: id, reason: "the seat could not be started: \(error.localizedDescription)") }
-                else { try? threads.finish(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil, reason: "the seat could not be started") }
+                else { finishExchange(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil, reason: "the seat could not be started") }
                 return reply(thread, awaiting: exchange.seq, wait: 0)
             }
             guard let launchID = started["run"] as? String else { return fail("the seat could not be started") }
@@ -195,7 +227,7 @@ extension Broker {
             return reply(thread, awaiting: exchange.seq, wait: wait)
         } catch {
             // Setup failed before any seat ran: the exchange must not stay asking and block every follow-up.
-            try? threads.finish(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil,
+            finishExchange(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil,
                                 reason: "the seat could not be set up: \(error.localizedDescription)")
             throw error
         }
@@ -224,20 +256,20 @@ extension Broker {
         }
         let stopped = tracking.withLock { stoppedThreads.remove("\(thread.id)-\(seq)") != nil }
         if stopped {
-            try? threads.finish(thread: thread.id, seq: seq, state: .failed, answer: nil, reason: "stopped")
+            finishExchange(thread: thread.id, seq: seq, state: .failed, answer: nil, reason: "stopped")
         } else if ranFor >= Double(seat.capSeconds) {
-            try? threads.finish(thread: thread.id, seq: seq, state: .failed, answer: nil, reason: "\(seat.harness) ran past its \(seat.capSeconds) second cap")
+            finishExchange(thread: thread.id, seq: seq, state: .failed, answer: nil, reason: "\(seat.harness) ran past its \(seat.capSeconds) second cap")
         } else if status == 0 {
             let text = ((try? String(contentsOfFile: answerFile, encoding: .utf8)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             if text.isEmpty {
-                try? threads.finish(thread: thread.id, seq: seq, state: .failed, answer: nil, reason: "\(seat.harness) answered nothing")
+                finishExchange(thread: thread.id, seq: seq, state: .failed, answer: nil, reason: "\(seat.harness) answered nothing")
             } else {
-                try? threads.finish(thread: thread.id, seq: seq, state: .answered, answer: text, reason: nil)
+                finishExchange(thread: thread.id, seq: seq, state: .answered, answer: text, reason: nil)
             }
         } else {
             let detail = lastLine(ofLog: launchID).map { ": \($0)" } ?? ""
             let code = status.map { "status \($0)" } ?? "an unknown status"
-            try? threads.finish(thread: thread.id, seq: seq, state: .failed, answer: nil, reason: "\(seat.harness) exited with \(code)\(detail)")
+            finishExchange(thread: thread.id, seq: seq, state: .failed, answer: nil, reason: "\(seat.harness) exited with \(code)\(detail)")
         }
     }
 
@@ -258,6 +290,7 @@ extension Broker {
         }
         var data: [String: Any] = ["thread": thread.id, "seat": thread.seat, "chain": exchange?.chain ?? [], "substituted": thread.substituted ?? NSNull(),
                                    "state": Self.stateName(exchange?.state ?? .asking)]
+        data.merge(costFields(thread: thread.id, seq: seq)) { _, mine in mine }
         if let answer = exchange?.answer { data["answer"] = answer }
         if let reason = exchange?.reason { data["reason"] = reason }
         return ["ok": true, "data": data]
@@ -295,8 +328,8 @@ extension Broker {
             for item in open {
                 let waitFor = item.launchID.map { [$0] } ?? Array(startup)
                 waitUntilClosed(waitFor)
-                try? threads.finish(thread: item.thread, seq: item.seq, state: .failed, answer: nil,
-                                    reason: "the broker restarted before the seat answered")
+                finishExchange(thread: item.thread, seq: item.seq, state: .failed, answer: nil,
+                                    reason: "the broker restarted before the seat answered", runStatus: "interrupted")
             }
         }
     }
@@ -305,7 +338,7 @@ extension Broker {
     func failWhenClosed(thread: String, seq: Int, launch: String, reason: String) {
         Thread.detachNewThread { [self] in
             waitUntilClosed([launch])
-            try? threads.finish(thread: thread, seq: seq, state: .failed, answer: nil, reason: reason)
+            finishExchange(thread: thread, seq: seq, state: .failed, answer: nil, reason: reason)
         }
     }
 

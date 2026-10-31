@@ -23,6 +23,7 @@ public struct CommandLineTool: Sendable {
         "result": Spec(positionals: 1...1, valued: ["--wait"], switches: ["--json", "--full"]),
         "wake": Spec(positionals: 1...1, valued: ["--brief", "--repo", "--diff", "--wait"]),
         "status": Spec(positionals: 1...1), "stop": Spec(positionals: 1...1),
+        "budgets": Spec(positionals: 0...0),
         "seats": Spec(positionals: 0...0), "councils": Spec(positionals: 0...0), "routes": Spec(positionals: 0...0),
         "harnesses": Spec(positionals: 0...0, switches: ["--json", "--probe"]), "models": Spec(positionals: 0...0),
         "findings": Spec(positionals: 0...0, switches: ["--json", "--open"]),

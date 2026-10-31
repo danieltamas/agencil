@@ -11,6 +11,7 @@ public struct Seat: Equatable, Sendable {
     public let hardening: [String]
     public let capSeconds: Int
     public let capTokens: Int?
+    public let price: Price
 }
 
 /// Who may reach what: callers (ids or `any`), a target (seat, council or alias) and its limits.
@@ -36,12 +37,16 @@ public struct SeatConfig: Sendable {
     public let seats: [Seat]
     public let routes: [Route]
     public let aliases: [String: String]
+    public let budgets: [Budget]
+    public let limits: Limits
 
     public init(values: [String: String]) throws {
         seats = try Self.parseSeats(values["seats"])
         let names = Set(seats.map(\.name))
         routes = try Self.parseRoutes(values["routes"], seatNames: names)
         aliases = try Self.parseAliases(values["aliases"], seatNames: names)
+        budgets = try Self.parseBudgets(values["budgets"])
+        limits = try Self.parseLimits(values["limits"])
     }
 
     public func seat(named name: String) -> Seat? { seats.first { $0.name == name } }
@@ -65,13 +70,13 @@ public struct SeatConfig: Sendable {
     // MARK: parsing
 
     /// A JSON whole number; booleans, fractions and text are not numbers here.
-    private static func whole(_ value: Any?) -> Int? {
+    static func whole(_ value: Any?) -> Int? {
         guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
               number.doubleValue == number.doubleValue.rounded() else { return nil }
         return number.intValue
     }
 
-    private static func array(_ text: String?, _ key: String) throws -> [[String: Any]] {
+    static func array(_ text: String?, _ key: String) throws -> [[String: Any]] {
         guard let text, !text.isEmpty else { return [] }
         guard let parsed = try? JSONSerialization.jsonObject(with: Data(text.utf8)) else {
             throw ConfigProblem(key: key, problem: "not valid JSON")
@@ -104,10 +109,11 @@ public struct SeatConfig: Sendable {
             guard let seconds = whole(cap["seconds"]) ?? (cap.isEmpty ? 120 : nil), (1...3600).contains(seconds) else {
                 throw fail("seat \(name) needs cap.seconds from 1 to 3600")
             }
-            if let tokens = cap["tokens"], !(whole(tokens).map { $0 > 0 } ?? false) { throw fail("seat \(name) has a bad cap.tokens") }
+            if let tokens = cap["tokens"], !(whole(tokens).map { (1...10_000_000).contains($0) } ?? false) { throw fail("seat \(name) has a bad cap.tokens") }
             return Seat(name: name, harness: harness, model: model, endpoint: item["endpoint"] as? String,
                         pin: item["pin"] as? String, role: role, hardening: item["hardening"] as? [String] ?? [],
-                        capSeconds: seconds, capTokens: whole(cap["tokens"]))
+                        capSeconds: seconds, capTokens: whole(cap["tokens"]),
+                        price: try parsePrice(item["price"], seat: name) ?? .free)
         }
     }
 

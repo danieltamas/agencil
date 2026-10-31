@@ -8,6 +8,8 @@ public struct Resolved: Sendable {
     public let substituted: String?
     /// The harness executable; nil for a seat that is a request (ollama).
     public let executable: String?
+    /// The reservation taken for this seat, when the caller admits candidates.
+    public var admitted: Admitted?
 }
 
 public struct Refusal: Error, Equatable, Sendable {
@@ -25,27 +27,39 @@ public struct ResolverWorld: Sendable {
 }
 
 public enum Resolver {
-    /// Steps 1 to 4 of the contract; the reservation (step 5) is a seam filled by the budget piece.
+    /// Steps 1 to 5 of the contract. `admit` takes the reservation of one candidate seat (the primary, then each
+    /// fallback in turn) and throws a refusal when it is not admitted.
     public static func resolve(config: SeatConfig, caller: String, alsoKnownAs kinds: [String] = [], target: String,
-                               world: ResolverWorld) throws -> Resolved {
+                               world: ResolverWorld, admit: (Seat) throws -> Admitted? = { _ in nil }) throws -> Resolved {
         guard let route = config.route(from: [caller] + kinds, to: target) else {
             throw Refusal(exit: 3, message: "refused: no route from \(caller) to \(target)")
         }
         guard let seat = config.seat(named: config.resolveName(target)) else {
             throw Refusal(exit: 4, message: "failed: no seat or alias named \(target)")
         }
+        let original: Refusal
+        let reason: String
         switch usable(seat, world) {
         case .success(let executable):
-            return Resolved(seat: seat, route: route, substituted: nil, executable: executable)
-        case .failure(let first):
-            for name in route.fallbacks {
-                guard let fallback = config.seat(named: name), case .success(let executable) = usable(fallback, world) else { continue }
-                return Resolved(seat: fallback, route: route,
-                                substituted: "answered by \(fallback.name), fallback for \(seat.name): \(first.reason)",
-                                executable: executable)
+            do {
+                return Resolved(seat: seat, route: route, substituted: nil, executable: executable, admitted: try admit(seat))
+            } catch let refusal as Refusal {
+                original = refusal
+                reason = String(refusal.message.dropFirst("refused: ".count))
             }
-            throw Refusal(exit: 4, message: "failed: \(first.reason)")
+        case .failure(let first):
+            original = Refusal(exit: 4, message: "failed: \(first.reason)")
+            reason = first.reason
         }
+        for name in route.fallbacks {
+            guard let fallback = config.seat(named: name), case .success(let executable) = usable(fallback, world) else { continue }
+            do {
+                return Resolved(seat: fallback, route: route,
+                                substituted: "answered by \(fallback.name), fallback for \(seat.name): \(reason)",
+                                executable: executable, admitted: try admit(fallback))
+            } catch is Refusal { continue }
+        }
+        throw original
     }
 
     /// Whether this one seat can run now: the executable path (or nil for a request), else why not.

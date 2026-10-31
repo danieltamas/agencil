@@ -5,7 +5,7 @@ public enum Envelope {
     public static let api = 1
 
     public static func make(data: Any, note: String) -> [String: Any] {
-        ["api": api, "source": "agencil", "generated_at": ISO8601DateFormatter().string(from: Date()),
+        ["ok": true, "api": api, "source": "agencil", "generated_at": ISO8601DateFormatter().string(from: Date()),
          "data_note": note, "data": data]
     }
 

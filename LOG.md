@@ -1,5 +1,7 @@
 ## Unreleased
 
+- U6c: budgets and capacity (hard and estimated budgets by route, root and vendor, atomic reservations that survive a restart, bounded Ollama worst case, usage reconciliation, seats-at-once with parked ancestors, process cap, memory floor, `budgets` op and CLI verb). Seats now start in their own session.
+
 - U6b: chains (per-run capability hashed in the ledger, process-tree attribution through the socket peer pid, hop limit, cycle, replay and impersonation refusals, `chain` in ask and result).
 
 - U6a: seats, routes and ask (validated seat/route/alias config, resolver with fallbacks, codex/claude/opencode/hermes/ollama adapters, threads with follow-ups, result/status/stop). Known follow-up for U6b: pick the newest install that satisfies the pin, not the globally newest.

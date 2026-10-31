@@ -87,17 +87,27 @@ public struct ThreadStore: Sendable {
         }
     }
 
+    /// The answered exchanges of a thread, oldest first: what a follow-up's prompt repeats.
+    public func transcript(thread: String) throws -> [(asked: String, answered: String)] {
+        try ledger.locked {
+            try ledger.query("SELECT question, answer FROM exchanges WHERE thread_id = ? AND state = 'answered' ORDER BY seq;", [thread]) {
+                (asked: Ledger.text($0, 0) ?? "", answered: Ledger.text($0, 1) ?? "")
+            }
+        }
+    }
+
     public func attach(launch: String, thread: String, seq: Int) throws {
         try ledger.locked {
             try ledger.run("UPDATE exchanges SET launch_id = ? WHERE thread_id = ? AND seq = ?;", [launch, thread, String(seq)])
         }
     }
 
-    public func finish(thread: String, seq: Int, state: Exchange.State, answer: String?, reason: String?) throws {
+    /// `runStatus` is how the thread's run row reads when it differs from the exchange (a run cut short is `interrupted`).
+    public func finish(thread: String, seq: Int, state: Exchange.State, answer: String?, reason: String?, runStatus: String? = nil) throws {
         try ledger.locked {
             try ledger.run("UPDATE exchanges SET state = ?, answer = ?, reason = ? WHERE thread_id = ? AND seq = ? AND state = 'asking';",
                            [state.rawValue, answer, reason, thread, String(seq)])
-            try ledger.run("UPDATE runs SET status = ?, ended_at = ? WHERE id = ?;", [state.rawValue, Self.now(), thread])
+            try ledger.run("UPDATE runs SET status = ?, ended_at = ? WHERE id = ?;", [runStatus ?? state.rawValue, Self.now(), thread])
         }
     }
 

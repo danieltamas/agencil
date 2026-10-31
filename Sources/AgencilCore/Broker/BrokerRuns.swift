@@ -175,9 +175,10 @@ extension Broker {
         posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0)
         posix_spawn_file_actions_addopen(&actions, 1, log, O_WRONLY | O_CREAT | O_APPEND, 0o600)
         posix_spawn_file_actions_addopen(&actions, 2, log, O_WRONLY | O_CREAT | O_APPEND, 0o600)
-        // Own process group from birth, and no descriptor but 0-2 (the lock and the socket stay with the broker).
-        posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_CLOEXEC_DEFAULT))
-        posix_spawnattr_setpgroup(&attributes, 0)
+        // Own session (so its own process group, pgid = pid) from birth: a group in another session is never
+        // orphaned by the broker dying, so the kernel does not hang up a stopped seat. No descriptor but 0-2 (the
+        // lock and the socket stay with the broker).
+        posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETSID | POSIX_SPAWN_CLOEXEC_DEFAULT))
         let argv = [executable, "run-seat", launch.nonce]
         var env = environment.filter { !$0.key.hasPrefix("AGENCIL_TEST_") }
         env["AGENCIL_HOME"] = directory.path

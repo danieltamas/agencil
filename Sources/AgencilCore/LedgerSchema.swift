@@ -73,5 +73,17 @@ enum LedgerSchema {
         CREATE TABLE capabilities (hash TEXT PRIMARY KEY, thread_id TEXT NOT NULL, seq INTEGER NOT NULL,
             launch_id TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL) WITHOUT ROWID;
         """,
+        // Budgets: what each exchange set aside before it ran and what it was charged after. Dollars are text so a
+        // value reads back exactly as written. A reservation with no thread was never bound to an exchange.
+        """
+        CREATE TABLE reservations (id TEXT PRIMARY KEY, state TEXT NOT NULL, dollars TEXT NOT NULL, tokens INTEGER NOT NULL,
+            seconds INTEGER NOT NULL, bounded INTEGER NOT NULL, root_key TEXT NOT NULL, route_key TEXT NOT NULL,
+            vendor TEXT NOT NULL, created_at REAL NOT NULL, thread_id TEXT, seq INTEGER, charged_dollars TEXT,
+            charged_tokens INTEGER, basis TEXT) WITHOUT ROWID;
+        CREATE INDEX reservations_exchange ON reservations (thread_id, seq);
+        CREATE TABLE reservation_budgets (reservation_id TEXT NOT NULL REFERENCES reservations(id), budget TEXT NOT NULL,
+            PRIMARY KEY (reservation_id, budget)) WITHOUT ROWID;
+        CREATE INDEX reservation_budgets_budget ON reservation_budgets (budget);
+        """,
     ]
 }
