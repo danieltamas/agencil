@@ -22,4 +22,12 @@ for size in 16 32 128 256 512; do
   rsvg-convert -w "$((size * 2))" Brand/icon-app.svg -o "$iconset/icon_${size}x${size}@2x.png"
 done
 iconutil -c icns "$iconset" -o "$out/AppIcon.icns"
+
+# The menu bar synapse cycle: 14 template frames, pre-rendered once and tinted at runtime (docs/DESIGN.md "Visual layer").
+mkdir -p "$out/MenuBarFrames"
+for n in $(seq 1 14); do
+  rsvg-convert -f pdf "Brand/menubar-frames/$n.svg" -o "$out/MenuBarFrames/$n.pdf"
+done
+# The backdrop mesh, at 2x the panel size.
+rsvg-convert -w 1440 Brand/mesh.svg -o "$out/mesh.png"
 ls "$out"

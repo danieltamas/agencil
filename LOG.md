@@ -1,5 +1,6 @@
 ## Unreleased
 
+- U10: visual layer (SynapseScript decides one burst per event, once; Core Animation council ring in the in-session tile that stops with the panel and cross-fades under Reduce Motion; 14-frame menu bar synapse at 8 fps only while live, stopped on sleep and lock; backdrop mesh at 4% in the agencil look; `scripts/perf.sh` enforces the CPU budgets).
 - U9: settings (seats, councils and routes created from sheets that validate the whole config and write it atomically, scalars saved as they change, notification kinds, seats at once, Agent access switch plus per-harness MCP install read back from the harness file; the broker picks edits up without a restart).
 - U7a: sittings (wake_council runs a numbered sitting: frozen snapshot of the commit and tracked changes, blind then optional rebuttal, challenge and synthesis rounds, spares for unplaceable or silent seats, recusal by author vendor, quorum, independence flags, refutation by distinct vendors, PASS/BLOCK/INCOMPLETE verdict with minority report, stop, status and restart reconcile, sittings and verdicts in the ledger).
 - U7b: triggers (paths, pr_label via gh, schedule; deferral order running, quiet hours, debounce; state consumed before the wake and restored on refusal, source errors defer instead of firing, pinned-commit wake, `agencil triggers`).

@@ -1,6 +1,7 @@
 import AgencilCore
 import Foundation
 import Observation
+import SwiftUI
 
 /// The panel's state: the last `panel` read, what the owner has opened, and the presses in flight. Views render it
 /// and call its methods; every `Task` of the panel lives here (docs/DESIGN.md "Enforcement").
@@ -102,6 +103,14 @@ import Observation
         guard let readAt else { return "Reading..." }
         return "Updated " + readAt.formatted(date: .omitted, time: .standard)
     }
+
+    /// The ring's seats are the configured ones; its events arrive with `feedRing` as claims land.
+    var ringSeats: [String] { (data?.seats.items ?? []).map(\.name) }
+    private(set) var ringEvents: [SynapseEvent] = []
+
+    func feedRing(_ event: SynapseEvent) { ringEvents.append(event) }
+
+    var ringView: AnyView { AnyView(CouncilRingView(seats: ringSeats, events: ringEvents, live: liveSittings > 0)) }
 
     var liveSittings: Int { data?.sittings.filter { $0.state == "running" }.count ?? 0 }
     var openFindings: Int { data?.findings.filter { $0.disposition == "open" }.count ?? 0 }

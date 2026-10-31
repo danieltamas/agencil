@@ -69,6 +69,7 @@ struct Backdrop: View {
     var body: some View {
         ZStack {
             Theme.canvas
+            MeshOverlay()
             if Theme.lit {
                 RadialGradient(colors: [Theme.accent.opacity(Theme.opacity.lift), .clear],
                                center: .init(x: 0.1, y: -0.05), startRadius: 0, endRadius: 260)

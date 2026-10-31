@@ -41,6 +41,7 @@ struct PanelView: View {
         .frame(maxHeight: Size.panelMaxHeight)
         .background(Backdrop())
         .houseScheme()
+        .trackPanelVisibility()
     }
 
     private var header: some View {
@@ -84,7 +85,10 @@ struct PanelView: View {
             }
         case .council:
             BentoTile(eyebrow: "In session", value: "Sitting", tint: Theme.running, big: true) {
-                ChipButton(title: "Show sittings") { tab = "sittings" }
+                HStack(alignment: .bottom, spacing: Space.m) {
+                    ChipButton(title: "Show sittings") { tab = "sittings" }
+                    BentoRing { store.ringView }
+                }
             }
         case .needsYou(let count, let findings, let proposals, let stopped):
             BentoTile(eyebrow: "Needs you", value: "\(count)", tint: Theme.accent, big: true) {

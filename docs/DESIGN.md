@@ -318,7 +318,7 @@ because Bton's perpetual pulse once made its panel lag:
    - A pulse runs out when the question leaves and back when the answer arrives.
    - Follow-ups add a tick on the line.
 4. **Menu bar synapse** (new work on Bton's `MenuBarIcon` plumbing, 22x22, 8 fps):
-   - While live: a 14-frame cycle where the glyph's nodes light in turn.
+   - While live: a 14-frame cycle where the glyph's nodes light in turn, then a 3.25 s rest on the template frame (a burst, not a loop; drawing a status item image costs about 3 ms a frame, so a continuous 8 fps loop measured 2.6% against the 1.5% budget).
    - A verdict: one flash in the verdict hue, then back to the template.
    - Frames are pre-rendered once per look, never drawn per tick.
 5. **Seat calibration bars** (Seats rows): animate only when a new outcome changes the number, never on appear.
