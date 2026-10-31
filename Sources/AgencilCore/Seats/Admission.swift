@@ -108,6 +108,7 @@ extension Broker {
         }
         try? threads.finish(thread: thread, seq: seq, state: state, answer: answer, reason: reason, runStatus: runStatus)
         capacity.leave(exchange: "\(thread)-\(seq)")
+        removeCopy(thread: thread, seq: seq)
     }
 
     /// A process seat reports what it used in `usage.json` of its run directory; anything malformed is not a report.

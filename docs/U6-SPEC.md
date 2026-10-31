@@ -238,3 +238,68 @@ completes.
 Broker op `budgets` (CLI `agencil budgets [--json]`): `data.budgets` = array of `{name, scope, key, window, hard,
 dollars_limit, tokens_limit, spent_dollars, spent_tokens, reserved_dollars, reserved_tokens}`. The ask/result data gain
 `reserved` = `{dollars, tokens, seconds}` and `cost` = `{dollars, tokens, basis: "reserved"|"provider"}` once finished.
+
+## U6d contract (confinement, redaction, residency, briefs)
+
+Fills the residency/policy part of step 5 and the packet a seat is shown. Black-box observable through `ask`, the
+files a stub seat finds, and what its prompt contains; no Swift API is assumed by tests.
+
+### Config (new keys; invalid -> `failed: config <key> is invalid: <problem>`)
+
+- `seats[].hosted`: optional bool. Default: true for every harness except `ollama`; for `ollama` true when the
+  endpoint host is not loopback (`127.0.0.1`, `::1`, `localhost`), else false.
+- `routes[].residency`: `"any"` (default) or `"local"`.
+- `routes[].requires`: optional list of `"read_only_files" | "no_network_tools" | "no_further_mcp"`; anything else is invalid.
+
+### Admission checks per candidate (after resolution, before the budget reservation)
+
+For the requested seat and then for each fallback in turn, in this order, each a refusal with exit 3 that makes the
+next fallback be tried (reason in the substitution text) and, when none is admitted, stands as the ask's refusal:
+
+1. Residency: route `residency` is `local` and the seat is hosted -> `refused: residency (<seat> is hosted)`.
+   A hosted fallback of a local-only route is refused the same way, even when the primary is merely unusable.
+2. Policy: the required set = route `requires`, plus `read_only_files` and `no_network_tools` when the ask names a
+   `repo` and the seat is hosted. When `Adapter.enforces(harness)` lacks any of them ->
+   `refused: <harness> cannot enforce <names>` (names as above, sorted, joined with `, `). Never degrades.
+
+Refusals write a refused `requests` row, no `runs` or `reservations` rows, and run nothing.
+
+### Ask with a repo
+
+`ask ... --repo <path>` (broker field `repo`, MCP `ask.repo`): an absolute path of a git repository (else
+`failed: repo <path> is not a git repository`, exit 4). An `ollama` seat with a repo -> `failed: ollama seats cannot read a repo` (exit 4).
+
+The seat runs in a **copy** at `runs/<thread>-<seq>/copy`, exported from `HEAD` with `git archive` (so no `.git`
+directory exists in it, and uncommitted changes are absent). The copy is the seat's working directory and is removed
+when the exchange ends (any outcome). For a hosted seat, files matching the redaction rules are removed from the copy.
+
+Redaction rules (hosted seats only; local seats see everything): a file is matched when its path or any directory
+on it matches a name pattern: `.env`, `.env.*`, `*.pem`, `*.key`, `*.p12`, `*.keystore`, `id_rsa*`, `id_ed25519*`,
+`id_ecdsa*`, `.npmrc`, `.netrc`, `.git-credentials`, `credentials*`, `*secret*`, `*token*`, directories `.ssh` and
+`.aws`; or a line of `.agencilignore` at the repo root (blank lines and `#` comments skipped; a pattern with `/` at the
+end names a directory; otherwise a glob matched against the basename and the full relative path); or when it is a text
+file (at most 1 MB) containing a private key block (`-----BEGIN ... PRIVATE KEY-----`), an AWS key id
+(`AKIA[0-9A-Z]{16}`), a GitHub token (`gh[pousr]_[A-Za-z0-9]{20,}` or `github_pat_`), a Slack token (`xox[baprs]-`),
+or an `sk-` key of 20 or more key characters. `--file` attachments are matched the same way for a hosted seat: a
+matched attachment is left out of the prompt, which carries one line `[<n> file(s) withheld by the redaction rules]`
+instead and never the file's path or content.
+
+### Confinement
+
+A process seat run with a repo is started under `/usr/bin/sandbox-exec` with a generated profile (denied by default):
+reads allowed only inside the copy, the run's own directory (answer, usage, profile), the seat's executable
+directory, system directories (`/usr`, `/bin`, `/sbin`, `/System`, `/Library`, `/private/etc`, `/private/var/db`,
+`/dev`), and the harness's own config under the real home (`codex`: `~/.codex`; `claude`: `~/.claude` and
+`~/.claude.json`; `opencode`: `~/.config/opencode` and `~/.local/share/opencode`; `hermes`: `~/.hermes`). Writes allowed only in
+the run directory and a private `TMPDIR` inside it. `TMPDIR` points there. Network stays allowed (a hosted harness
+needs its API). Therefore these reads fail inside the seat: `~/.ssh/id_ed25519`, `../` outside the copy, a symlink
+in the repo pointing at `$HOME`, `.git/config` (absent), and the real repo's path. If `sandbox-exec` is missing, the ask fails
+closed: `failed: confinement unavailable`. The profile's allow-list is written by the broker, never taken from the repo.
+`HOME` is the broker's `$HOME` unless the broker environment sets `AGENCIL_TEST_SEAMS=1` and `HOME`, which replaces it.
+
+### Briefs
+
+When a run has a copy, or the harness restricts external directories (`opencode`, whose working directory is then the
+run directory), each `--file` attachment is written under `<working directory>/.agencil/briefs/<n>-<basename>` and
+the prompt names that relative path instead of embedding the text: `FILE .agencil/briefs/1-name: attached`. Attachments are
+subject to the redaction rules first when the seat is hosted. Without a copy and without that restriction, the text is embedded as before (U6a).

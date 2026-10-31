@@ -35,14 +35,16 @@ extension Broker {
             }
             let kinds = parent.flatMap { config.seat(named: $0.seat)?.harness }.map { [$0] } ?? []
             let files = try readFiles(request["files"])
+            let repo = try repository(request["repo"])
             let world = discovery.world(environment: environment, home: directory)
             var existing: ThreadRecord?
             var resolved: Resolved
             var prompt = Adapter.prompt(question: question, files: files, transcript: [])
             // Budgets match the route the thread was opened through, whichever name a follow-up uses.
             var routeKey = target
-            func admit(_ seat: Seat) throws -> Admitted {
-                try self.admit(seat, requested: routeKey, caller: caller, parent: parent, prompt: prompt, config: config)
+            func admit(_ seat: Seat, _ route: Route) throws -> Admitted {
+                if let refusal = Placement.refusal(seat: seat, route: route, hasRepo: repo != nil) { throw refusal }
+                return try self.admit(seat, requested: routeKey, caller: caller, parent: parent, prompt: prompt, config: config)
             }
             if let id = request["thread"] as? String {
                 guard let thread = try threads.thread(id: id) else { throw Failure(message: "unknown id \(id)") }
@@ -66,12 +68,16 @@ extension Broker {
                 resolved = try Resolver.resolve(config: config, caller: caller, alsoKnownAs: kinds, target: target, world: world, admit: admit)
             }
             do {
-                if existing != nil { resolved.admitted = try admit(resolved.seat) }
+                if existing != nil { resolved.admitted = try admit(resolved.seat, resolved.route) }
                 // The cycle comes first: a seat already in the chain is refused at any hop limit.
                 if parentChain.contains(resolved.seat.name) {
                     throw Refusal(exit: 3, message: "refused: cycle " + (parentChain + [resolved.seat.name]).joined(separator: " -> "))
                 }
                 if parentChain.count > resolved.route.hopLimit { throw Refusal(exit: 3, message: "refused: hop limit") }
+                if repo != nil {
+                    if resolved.seat.harness == "ollama" { throw Refusal(exit: 4, message: "failed: ollama seats cannot read a repo") }
+                    _ = try Confinement.executable(environment: environment)
+                }
                 // A follow-up keeps the chain its thread started with, whoever asks it.
                 let chain = try existing.flatMap { try threads.exchanges(thread: $0.id).first?.chain } ?? parentChain + [resolved.seat.name]
                 // A seat may only continue a thread that already sits at its own place in the chain.
@@ -79,7 +85,7 @@ extension Broker {
                     throw Refusal(exit: 3, message: "refused: ancestry unknown")
                 }
                 return try run(resolved, caller: caller, chain: chain, parent: parent, requested: target, question: question, files: files,
-                               thread: existing, limits: config.limits, wait: waitSeconds(request))
+                               repo: repo, thread: existing, limits: config.limits, wait: waitSeconds(request))
             } catch {
                 if let held = resolved.admitted { abandon(held) }
                 throw error
@@ -125,7 +131,8 @@ extension Broker {
     // MARK: running one exchange
 
     private func run(_ resolved: Resolved, caller: String, chain: [String], parent: CapabilityRun?, requested: String, question: String,
-                     files: [(path: String, text: String)], thread existing: ThreadRecord?, limits: Limits, wait: Int) throws -> [String: Any] {
+                     files: [(path: String, text: String)], repo: String?, thread existing: ThreadRecord?, limits: Limits,
+                     wait: Int) throws -> [String: Any] {
         guard let admitted = resolved.admitted else { throw Failure(message: "the ask was not admitted") }
         try awaitSeat(admitted, limits: limits, wait: wait)
         let thread = try existing ?? threads.createThread(requested: requested, seat: resolved.seat.name, caller: caller,
@@ -139,9 +146,8 @@ extension Broker {
             // The reservation is tied to the exchange before anything runs, or nothing runs.
             try budgets.bind(admitted.id, thread: thread.id, seq: exchange.seq)
             try threads.recordRequest(caller: caller, outcome: "accepted", runID: thread.id)
-            let prompt = Adapter.prompt(question: question, files: files, transcript: transcript)
             // A follow-up that waited for a place may now repeat more than the reservation was sized for.
-            let actual = Self.quote(resolved.seat, prompt: prompt)
+            let actual = Self.quote(resolved.seat, prompt: Adapter.prompt(question: question, files: files, transcript: transcript))
             if actual.tokens > admitted.quote.tokens || actual.dollars > admitted.quote.dollars {
                 finishExchange(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil,
                                reason: "the thread changed while the ask waited for a place; ask again")
@@ -151,6 +157,8 @@ extension Broker {
             try FileManager.default.createDirectory(at: runDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             let answerFile = runDirectory.appendingPathComponent("answer.txt").path
             let seat = resolved.seat
+            let packet = try packet(seat: seat, runDirectory: runDirectory, repo: repo, question: question, files: files, transcript: transcript)
+            let prompt = packet.prompt
 
             func fail(_ reason: String) -> [String: Any] {
                 finishExchange(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil, reason: reason)
@@ -188,11 +196,15 @@ extension Broker {
                 return reply(thread, awaiting: exchange.seq, wait: wait)
             }
             guard let executable = resolved.executable,
-                  let invocation = try Adapter.command(seat: seat, executable: executable, prompt: prompt, answerFile: answerFile,
+                  var invocation = try Adapter.command(seat: seat, executable: executable, prompt: prompt, answerFile: answerFile,
                                                        runDirectory: runDirectory.path) else {
                 return fail("\(seat.harness) has no adapter")
             }
-            let workingDirectory = invocation.workingDirectory ?? runDirectory.path
+            var workingDirectory = invocation.workingDirectory ?? runDirectory.path
+            if let copy = packet.copy {
+                workingDirectory = copy.path
+                invocation = try confined(invocation, copy: copy, runDirectory: runDirectory, harness: seat.harness)
+            }
             // A shell reports $PWD as inherited when it names the working directory, so it must match the path we gave.
             var launchRequest: [String: Any] = ["argv": invocation.argv, "cwd": workingDirectory,
                                                 "env": invocation.environment.merging(["PWD": workingDirectory]) { _, mine in mine },
@@ -322,7 +334,10 @@ extension Broker {
     /// so a follow-up cannot start while the old process group is still alive. An exchange with no recorded launch
     /// waits for every launch that was open at startup.
     func reconcileExchanges() {
-        guard let open = try? threads.unfinished(), !open.isEmpty else { return }
+        // A copy left by a broker that died between ending an exchange and removing it. An unreadable ledger removes nothing.
+        let unfinished = try? threads.unfinished()
+        if let unfinished { removeStrandedCopies(except: Set(unfinished.map { "\($0.thread)-\($0.seq)" })) }
+        guard let open = unfinished, !open.isEmpty else { return }
         let startup = Set(((try? store.open()) ?? []).map(\.id))
         Thread.detachNewThread { [self] in
             for item in open {

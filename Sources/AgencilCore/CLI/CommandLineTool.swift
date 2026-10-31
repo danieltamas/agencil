@@ -19,7 +19,7 @@ public struct CommandLineTool: Sendable {
 
     private static let specs: [String: Spec] = [
         "version": Spec(positionals: 0...0),
-        "ask": Spec(positionals: 2...2, valued: ["--file", "--thread", "--wait", "--as"]),
+        "ask": Spec(positionals: 2...2, valued: ["--file", "--thread", "--wait", "--as", "--repo"]),
         "result": Spec(positionals: 1...1, valued: ["--wait"], switches: ["--json", "--full"]),
         "wake": Spec(positionals: 1...1, valued: ["--brief", "--repo", "--diff", "--wait"]),
         "status": Spec(positionals: 1...1), "stop": Spec(positionals: 1...1),
@@ -84,7 +84,7 @@ public struct CommandLineTool: Sendable {
             guard let seconds = Int(wait), (0...3600).contains(seconds) else { throw Usage(message: "--wait takes whole seconds") }
             request["wait_seconds"] = seconds
         }
-        for (flag, key) in [("--thread", "thread"), ("--as", "as")] {
+        for (flag, key) in [("--thread", "thread"), ("--as", "as"), ("--repo", "repo")] {
             if let value = parsed.value(flag) { request[key] = value }
         }
         if let files = parsed.options["--file"] {

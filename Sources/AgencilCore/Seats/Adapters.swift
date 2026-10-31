@@ -2,7 +2,20 @@ import Foundation
 
 /// What an adapter promises about the process it builds. A route or council that needs a policy the adapter
 /// does not enforce is refused (U6d consumes this).
-public enum Policy: String, Sendable { case readOnlyFiles, noNetworkTools, noFurtherMCP }
+public enum Policy: String, Sendable, CaseIterable {
+    case readOnlyFiles, noNetworkTools, noFurtherMCP
+
+    /// The name config and refusals use.
+    public var name: String {
+        switch self {
+        case .readOnlyFiles: "read_only_files"
+        case .noNetworkTools: "no_network_tools"
+        case .noFurtherMCP: "no_further_mcp"
+        }
+    }
+
+    static func named(_ name: String) -> Policy? { allCases.first { $0.name == name } }
+}
 
 /// The process an adapter builds for one seat run: argv (the prompt is one argument, never a shell string),
 /// environment additions, and where the answer comes from.
@@ -20,6 +33,8 @@ public enum Adapter {
         switch harness {
         case "codex", "claude": [.readOnlyFiles, .noNetworkTools, .noFurtherMCP]
         case "opencode": [.readOnlyFiles, .noNetworkTools]
+        // A model request has no tools: nothing it could read, fetch or call beyond what the prompt carries.
+        case "ollama": Set(Policy.allCases)
         default: []
         }
     }
@@ -52,12 +67,19 @@ public enum Adapter {
         }
     }
 
-    /// The labelled evidence a seat is shown: the question, the files, never instructions from them.
-    public static func prompt(question: String, files: [(path: String, text: String)], transcript: [(asked: String, answered: String)]) -> String {
+    /// Whether the harness refuses files outside its working directory, so attachments must be placed inside it.
+    public static func restrictsExternalDirectories(_ harness: String) -> Bool { harness == "opencode" }
+
+    /// The labelled evidence a seat is shown: the question, the files, never instructions from them. `attached` names
+    /// briefs already written under the working directory; `withheld` counts files the redaction rules kept back.
+    public static func prompt(question: String, files: [(path: String, text: String)], transcript: [(asked: String, answered: String)],
+                              attached: [String] = [], withheld: Int = 0) -> String {
         var parts: [String] = []
         for exchange in transcript { parts.append("ASKED:\n\(exchange.asked)\nANSWERED:\n\(exchange.answered)") }
         parts.append("QUESTION:\n\(question)")
         for file in files { parts.append("FILE \(file.path):\n\(file.text)") }
+        for name in attached { parts.append("FILE \(name): attached") }
+        if withheld > 0 { parts.append("[\(withheld) file(s) withheld by the redaction rules]") }
         return parts.joined(separator: "\n\n")
     }
 }

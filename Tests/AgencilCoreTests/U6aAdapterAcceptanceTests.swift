@@ -41,12 +41,20 @@ struct U6aAdapterAcceptanceTests {
         #expect(recorded.hasSuffix(trailing))
         promptStart = String(recorded.dropFirst(leading.count).dropLast(trailing.count))
         #expect(promptStart.contains("QUESTION:\nliteral $(echo nope); 'quoted'"))
-        #expect(promptStart.contains("FILE \(file.path):\nuntrusted file text"))
+        if kind == "opencode" {
+            #expect(promptStart.contains("FILE .agencil/briefs/1-evidence.txt: attached"))
+            #expect(!promptStart.contains("untrusted file text"))
+            #expect(!promptStart.contains(file.path))
+        } else {
+            #expect(promptStart.contains("FILE \(file.path):\nuntrusted file text"))
+        }
         #expect(recorded == leading + promptStart + trailing)
         #expect(try rig.contents(".stdin") == "empty-closed\n")
         if kind == "opencode" {
             let cwd = try rig.contents(".cwd").trimmingCharacters(in: .whitespacesAndNewlines)
             #expect(cwd.hasPrefix(rig.home.url.appendingPathComponent("runs").path + "/"))
+            let brief = URL(fileURLWithPath: cwd).appendingPathComponent(".agencil/briefs/1-evidence.txt")
+            #expect(try String(contentsOf: brief, encoding: .utf8) == "untrusted file text")
             #expect(try rig.contents(".config") == cwd + "/opencode.json\n")
             let policy = try brokerJSON(Data(rig.contents(".policy").utf8))
             #expect(policy.count == 1)

@@ -12,6 +12,8 @@ public struct Seat: Equatable, Sendable {
     public let capSeconds: Int
     public let capTokens: Int?
     public let price: Price
+    /// Whether the seat's model runs on someone else's machine: what it is shown leaves this Mac.
+    public var hosted = true
 }
 
 /// Who may reach what: callers (ids or `any`), a target (seat, council or alias) and its limits.
@@ -20,6 +22,10 @@ public struct Route: Equatable, Sendable {
     public let target: String
     public let hopLimit: Int
     public let fallbacks: [String]
+    /// A local-only route never reaches a hosted seat.
+    public var localOnly = false
+    /// Policies every seat on this route must enforce.
+    public var requires: Set<Policy> = []
 }
 
 /// One of the config collections does not validate; every ask fails closed with this text.
@@ -76,6 +82,12 @@ public struct SeatConfig: Sendable {
         return number.intValue
     }
 
+    /// A JSON true or false; the numbers 0 and 1 are not booleans here.
+    static func flag(_ value: Any?) -> Bool? {
+        guard let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() else { return nil }
+        return number.boolValue
+    }
+
     static func array(_ text: String?, _ key: String) throws -> [[String: Any]] {
         guard let text, !text.isEmpty else { return [] }
         guard let parsed = try? JSONSerialization.jsonObject(with: Data(text.utf8)) else {
@@ -110,10 +122,13 @@ public struct SeatConfig: Sendable {
                 throw fail("seat \(name) needs cap.seconds from 1 to 3600")
             }
             if let tokens = cap["tokens"], !(whole(tokens).map { (1...10_000_000).contains($0) } ?? false) { throw fail("seat \(name) has a bad cap.tokens") }
-            return Seat(name: name, harness: harness, model: model, endpoint: item["endpoint"] as? String,
+            if let hosted = item["hosted"], Self.flag(hosted) == nil { throw fail("seat \(name) has a bad hosted flag") }
+            let endpoint = item["endpoint"] as? String
+            return Seat(name: name, harness: harness, model: model, endpoint: endpoint,
                         pin: item["pin"] as? String, role: role, hardening: item["hardening"] as? [String] ?? [],
                         capSeconds: seconds, capTokens: whole(cap["tokens"]),
-                        price: try parsePrice(item["price"], seat: name) ?? .free)
+                        price: try parsePrice(item["price"], seat: name) ?? .free,
+                        hosted: Self.flag(item["hosted"]) ?? (harness != "ollama" || !isLoopback(endpoint)))
         }
     }
 
@@ -128,8 +143,23 @@ public struct SeatConfig: Sendable {
             guard (1...4).contains(hops) else { throw fail("hop_limit is 1 to 4") }
             let fallbacks = item["fallbacks"] as? [String] ?? []
             if let unknown = fallbacks.first(where: { !seatNames.contains($0) }) { throw fail("fallback \(unknown) is not a seat") }
-            return Route(callers: callers, target: target, hopLimit: hops, fallbacks: fallbacks)
+            if let residency = item["residency"], !["any", "local"].contains(residency as? String ?? "") {
+                throw fail("residency is any or local")
+            }
+            if let list = item["requires"], list as? [String] == nil { throw fail("requires must be a list of policy names") }
+            var requires = Set<Policy>()
+            for name in item["requires"] as? [String] ?? [] {
+                guard let policy = Policy.named(name) else { throw fail("requires names an unknown policy: \(name)") }
+                requires.insert(policy)
+            }
+            return Route(callers: callers, target: target, hopLimit: hops, fallbacks: fallbacks,
+                         localOnly: item["residency"] as? String == "local", requires: requires)
         }
+    }
+
+    private static func isLoopback(_ endpoint: String?) -> Bool {
+        guard let host = endpoint.flatMap({ URLComponents(string: $0)?.host })?.lowercased() else { return false }
+        return ["127.0.0.1", "::1", "[::1]", "localhost"].contains(host)
     }
 
     private static func parseAliases(_ text: String?, seatNames: Set<String>) throws -> [String: String] {

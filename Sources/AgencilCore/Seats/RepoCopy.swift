@@ -1,0 +1,85 @@
+import Foundation
+
+/// The packet a seat works on: a copy of a repo's committed files, and the attachments written beside it.
+enum RepoCopy {
+    private static let git = URL(fileURLWithPath: "/usr/bin/git")
+    private static let exportSeconds = 300.0
+    /// The repo's text is untrusted: no user or system git configuration is read on its behalf.
+    private static let environment = ["PATH": "/usr/bin:/bin", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1",
+                                      "GIT_TERMINAL_PROMPT": "0"]
+
+    /// Ends helpers that are still running: asked politely first, then for good.
+    private static func stop(_ processes: [Process]) {
+        for process in processes where process.isRunning { process.terminate() }
+        let grace = Date().addingTimeInterval(2)
+        while processes.contains(where: \.isRunning), Date() < grace { usleep(10_000) }
+        for process in processes where process.isRunning { kill(process.processIdentifier, SIGKILL) }
+        for process in processes { process.waitUntilExit() }
+    }
+
+    private static func output(_ arguments: [String]) -> String? {
+        let process = Process()
+        process.executableURL = git
+        process.arguments = arguments
+        process.environment = environment
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return nil }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 30) { stop([process]) }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return process.terminationStatus == 0 ? String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines) : nil
+    }
+
+    /// An absolute path that is the top of a git work tree.
+    static func isRepository(_ path: String) -> Bool {
+        guard path.hasPrefix("/"), let top = output(["-C", path, "rev-parse", "--show-toplevel"]) else { return false }
+        return URL(fileURLWithPath: top).resolvingSymlinksInPath().path == URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+    }
+
+    /// Exports `HEAD` into `copy`: no `.git`, no uncommitted change.
+    static func export(repo: String, to copy: URL) throws {
+        try FileManager.default.createDirectory(at: copy, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let archive = Process(), extract = Process(), pipe = Pipe()
+        archive.executableURL = git
+        archive.arguments = ["-C", repo, "archive", "--format=tar", "HEAD"]
+        extract.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
+        extract.arguments = ["-x", "-f", "-", "-C", copy.path]
+        for process in [archive, extract] { process.environment = environment; process.standardError = FileHandle.nullDevice }
+        archive.standardOutput = pipe
+        extract.standardInput = pipe
+        try archive.run()
+        try extract.run()
+        // The parent's ends of the pipe stay closed, or the extractor never sees the end of the archive.
+        try? pipe.fileHandleForWriting.close()
+        try? pipe.fileHandleForReading.close()
+        // A copy that does not finish in time is an ask that fails, never one that holds its place for ever.
+        let deadline = Date().addingTimeInterval(exportSeconds)
+        while archive.isRunning || extract.isRunning {
+            if Date() >= deadline {
+                stop([archive, extract])
+                throw Refusal(exit: 4, message: "failed: copying repo \(repo) took too long")
+            }
+            usleep(10_000)
+        }
+        guard archive.terminationStatus == 0, extract.terminationStatus == 0 else {
+            throw Refusal(exit: 4, message: "failed: repo \(repo) has no commit to copy")
+        }
+    }
+
+    /// Writes each attachment as `<directory>/.agencil/briefs/<n>-<basename>`; returns the names relative to `directory`.
+    static func writeBriefs(_ files: [(path: String, text: String)], into directory: URL) throws -> [String] {
+        // The repo may have committed `.agencil` as a link: it is replaced, never followed, so nothing lands outside.
+        let root = directory.appendingPathComponent(".agencil")
+        if (try? FileManager.default.attributesOfItem(atPath: root.path)) != nil { try FileManager.default.removeItem(at: root) }
+        let briefs = root.appendingPathComponent("briefs")
+        try FileManager.default.createDirectory(at: briefs, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        return try files.enumerated().map { index, file in
+            let base = (file.path as NSString).lastPathComponent
+            let name = "\(index + 1)-\(base.isEmpty ? "file" : base)"
+            try file.text.write(to: briefs.appendingPathComponent(name), atomically: true, encoding: .utf8)
+            return ".agencil/briefs/" + name
+        }
+    }
+}

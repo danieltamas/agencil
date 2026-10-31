@@ -30,7 +30,7 @@ public enum Resolver {
     /// Steps 1 to 5 of the contract. `admit` takes the reservation of one candidate seat (the primary, then each
     /// fallback in turn) and throws a refusal when it is not admitted.
     public static func resolve(config: SeatConfig, caller: String, alsoKnownAs kinds: [String] = [], target: String,
-                               world: ResolverWorld, admit: (Seat) throws -> Admitted? = { _ in nil }) throws -> Resolved {
+                               world: ResolverWorld, admit: (Seat, Route) throws -> Admitted? = { _, _ in nil }) throws -> Resolved {
         guard let route = config.route(from: [caller] + kinds, to: target) else {
             throw Refusal(exit: 3, message: "refused: no route from \(caller) to \(target)")
         }
@@ -42,7 +42,7 @@ public enum Resolver {
         switch usable(seat, world) {
         case .success(let executable):
             do {
-                return Resolved(seat: seat, route: route, substituted: nil, executable: executable, admitted: try admit(seat))
+                return Resolved(seat: seat, route: route, substituted: nil, executable: executable, admitted: try admit(seat, route))
             } catch let refusal as Refusal {
                 original = refusal
                 reason = String(refusal.message.dropFirst("refused: ".count))
@@ -56,7 +56,7 @@ public enum Resolver {
             do {
                 return Resolved(seat: fallback, route: route,
                                 substituted: "answered by \(fallback.name), fallback for \(seat.name): \(reason)",
-                                executable: executable, admitted: try admit(fallback))
+                                executable: executable, admitted: try admit(fallback, route))
             } catch is Refusal { continue }
         }
         throw original
