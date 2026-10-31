@@ -115,7 +115,7 @@ extension Broker {
         }
     }
 
-    private func panelFindings() throws -> [[String: Any]] {
+    func panelFindings() throws -> [[String: Any]] {
         try ledger.query("""
             SELECT c.id, c.severity, c.file, c.line, c.body,
               (SELECT label FROM outcomes WHERE claim_id = c.id AND source = 'owner'
@@ -130,7 +130,7 @@ extension Broker {
             let dissenters = Int(Ledger.text(row, 7) ?? "") ?? 0
             return ["id": Ledger.text(row, 0) ?? "", "severity": Ledger.text(row, 1) ?? "", "file": Ledger.text(row, 2) ?? "",
                     "line": Int(Ledger.text(row, 3) ?? "") ?? 0, "body": Ledger.text(row, 4) ?? "",
-                    "disposition": ["confirmed", "dismissed", "will_fix"].contains(label) ? label : "open",
+                    "disposition": label == "refuted" ? "dismissed" : ["confirmed", "dismissed", "will_fix"].contains(label) ? label : "open",
                     "backers": 1 + (Int(Ledger.text(row, 6) ?? "") ?? 0), "dissenters": dissenters, "minority": dissenters > 0]
         }
     }

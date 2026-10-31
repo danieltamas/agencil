@@ -6,6 +6,8 @@ import Foundation
 public final class Broker: @unchecked Sendable {
     public struct Failure: Error, LocalizedError {
         public let message: String
+        public var exit = 64
+        public init(message: String, exit: Int = 64) { self.message = message; self.exit = exit }
         public var errorDescription: String? { message }
     }
 
@@ -179,18 +181,18 @@ public final class Broker: @unchecked Sendable {
                 }
                 if let reply = result(request) { return reply }
                 return Self.failure("unknown id \((request["id"] as? String) ?? "?")", exit: 64)
-            case "dispose":
-                return Self.failure("unknown id \((request["id"] as? String) ?? "?")", exit: 64)
+            case "dispose": return try disposeOp(request, peer: peer, peerStart: peerStart)
             case "harnesses": return harnessesOp(request)
-            case "seats", "councils", "routes", "models", "findings", "leaderboard", "list_targets":
-                return ["ok": true, "data": [op: [Any]()], "data_note": Self.note]
+            case "seats", "councils", "routes", "models", "list_targets": return try listOp(op, request, peer: peer, peerStart: peerStart)
+            case "findings": return try findingsOp(request)
+            case "leaderboard": return try leaderboardOp(request, peer: peer, peerStart: peerStart)
             default:
                 return Self.failure("unknown op \(op)", exit: 64)
             }
         } catch let problem as ConfigProblem {
             return Self.failure(problem.message, exit: 4)
         } catch let error as Failure {
-            return Self.failure(error.message, exit: 64)
+            return Self.failure(error.message, exit: error.exit)
         } catch {
             return Self.failure("\(error.localizedDescription)", exit: 70)
         }
