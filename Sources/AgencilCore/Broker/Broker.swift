@@ -31,6 +31,8 @@ public final class Broker: @unchecked Sendable {
     var waiting: [String: PendingLaunch] = [:]
     /// Launch id to the file its stdout goes to (an answer); only a seat started by this broker has one.
     var outputs: [String: String] = [:]
+    /// Per-launch environment that must never reach the ledger (a capability), handed over once at registration.
+    var secretEnvironments: [String: [String: String]] = [:]
     /// Exchange keys ("<thread>-<seq>") that were asked to stop, and the Ollama requests that can be cancelled.
     var stoppedThreads: Set<String> = []
     var ollamaTasks: [String: URLSessionTask] = [:]
@@ -110,6 +112,7 @@ public final class Broker: @unchecked Sendable {
     private func connection(_ descriptor: Int32) {
         defer { close(descriptor) }
         let peer = UnixSocket.peerPID(descriptor)
+        let peerStart = peer.flatMap { ProcessTable.startTime(of: $0) }
         let reader = UnixSocket.Reader(descriptor: descriptor)
         while true {
             switch reader.next() {
@@ -122,7 +125,7 @@ public final class Broker: @unchecked Sendable {
                     UnixSocket.write(descriptor, line: UnixSocket.json(Self.failure("malformed request", exit: 64)))
                     continue
                 }
-                let response = handle(op, request, peer: peer)
+                let response = handle(op, request, peer: peer, peerStart: peerStart)
                 let delivered = UnixSocket.write(descriptor, line: UnixSocket.json(response))
                 if op == "register", response["go"] as? Bool == true, let nonce = request["nonce"] as? String {
                     releaseLaunch(nonce: nonce, delivered: delivered)
@@ -132,7 +135,7 @@ public final class Broker: @unchecked Sendable {
         }
     }
 
-    private func handle(_ op: String, _ request: [String: Any], peer: Int32?) -> [String: Any] {
+    private func handle(_ op: String, _ request: [String: Any], peer: Int32?, peerStart: Double?) -> [String: Any] {
         do {
             switch op {
             case "ping":
@@ -143,7 +146,7 @@ public final class Broker: @unchecked Sendable {
                 return try launch(request)
             case "status": return try status(request)
             case "stop": return try stop(request)
-            case "ask": return ask(request)
+            case "ask": return ask(request, peer: peer, peerStart: peerStart)
             case "wake":
                 try? store.recordRequest(peer: peer)
                 let target = (request["target"] as? String) ?? (request["council"] as? String) ?? "?"

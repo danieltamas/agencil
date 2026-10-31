@@ -77,6 +77,8 @@ public struct CommandLineTool: Sendable {
 
     private func ask(_ verb: String, _ parsed: Parsed, json: Bool) throws -> Int32 {
         var request: [String: Any] = ["op": verb, "caller": "owner"]
+        // A seat's capability, when this process was started by one; the broker judges it against the process tree.
+        if let capability = environment["AGENCIL_CAP"], !capability.isEmpty { request["cap"] = capability }
         if let wait = parsed.value("--wait") {
             guard let seconds = Int(wait), (0...3600).contains(seconds) else { throw Usage(message: "--wait takes whole seconds") }
             request["wait_seconds"] = seconds

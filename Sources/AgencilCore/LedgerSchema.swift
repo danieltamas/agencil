@@ -66,5 +66,12 @@ enum LedgerSchema {
             question TEXT NOT NULL, answer TEXT, state TEXT NOT NULL, reason TEXT, launch_id TEXT,
             created_at TEXT NOT NULL, PRIMARY KEY (thread_id, seq)) WITHOUT ROWID;
         """,
+        // Chains: the seats from the root to each exchange's seat, and the hashed capability of each seat run.
+        // The token itself lives only in the seat's environment.
+        """
+        ALTER TABLE exchanges ADD COLUMN chain TEXT NOT NULL DEFAULT '[]';
+        CREATE TABLE capabilities (hash TEXT PRIMARY KEY, thread_id TEXT NOT NULL, seq INTEGER NOT NULL,
+            launch_id TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL) WITHOUT ROWID;
+        """,
     ]
 }

@@ -10,6 +10,8 @@ public struct Exchange: Sendable, Equatable {
     public var state: State
     public var reason: String?
     public var launchID: String?
+    /// Seat names from the root of the chain to the seat that answers.
+    public var chain: [String] = []
 }
 
 public struct ThreadRecord: Sendable, Equatable {
@@ -26,6 +28,14 @@ public struct ThreadStore: Sendable {
     let ledger: Ledger
 
     public init(ledger: Ledger) { self.ledger = ledger }
+
+    static func encode(_ chain: [String]) -> String {
+        String(decoding: (try? JSONSerialization.data(withJSONObject: chain)) ?? Data("[]".utf8), as: UTF8.self)
+    }
+
+    static func decode(_ text: String?) -> [String] {
+        text.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String] } ?? []
+    }
 
     private static func now() -> String { ISO8601DateFormatter().string(from: Date()) }
 
@@ -59,21 +69,9 @@ public struct ThreadStore: Sendable {
         }
     }
 
-    public func addExchange(thread: String, question: String) throws -> Exchange {
-        try ledger.locked {
-            let next = try ledger.query("SELECT COALESCE(MAX(seq), 0) + 1 FROM exchanges WHERE thread_id = ?;", [thread]) {
-                Int(Ledger.text($0, 0) ?? "") ?? 1
-            }.first ?? 1
-            try ledger.run("INSERT INTO exchanges (thread_id, seq, question, state, created_at) VALUES (?, ?, ?, 'asking', ?);",
-                           [thread, String(next), question, Self.now()])
-            try ledger.run("UPDATE runs SET status = 'asking', ended_at = NULL WHERE id = ?;", [thread])
-            return Exchange(seq: next, question: question, answer: nil, state: .asking, reason: nil, launchID: nil)
-        }
-    }
-
     /// Starts an exchange only when the thread has none in flight; the transcript is read in the same step, so two
     /// follow-ups can never both run on a transcript that lacks the other. Nil when one is still asking.
-    public func beginExchange(thread: String, question: String) throws -> (exchange: Exchange, transcript: [(asked: String, answered: String)])? {
+    public func beginExchange(thread: String, question: String, chain: [String]) throws -> (exchange: Exchange, transcript: [(asked: String, answered: String)])? {
         try ledger.locked {
             let rows = try ledger.query("SELECT seq, question, answer, state FROM exchanges WHERE thread_id = ? ORDER BY seq;", [thread]) {
                 (seq: Int(Ledger.text($0, 0) ?? "") ?? 0, asked: Ledger.text($0, 1) ?? "", answer: Ledger.text($0, 2) ?? "",
@@ -81,10 +79,10 @@ public struct ThreadStore: Sendable {
             }
             if rows.contains(where: { $0.state == "asking" }) { return nil }
             let next = (rows.last?.seq ?? 0) + 1
-            try ledger.run("INSERT INTO exchanges (thread_id, seq, question, state, created_at) VALUES (?, ?, ?, 'asking', ?);",
-                           [thread, String(next), question, Self.now()])
+            try ledger.run("INSERT INTO exchanges (thread_id, seq, question, state, chain, created_at) VALUES (?, ?, ?, 'asking', ?, ?);",
+                           [thread, String(next), question, Self.encode(chain), Self.now()])
             try ledger.run("UPDATE runs SET status = 'asking', ended_at = NULL WHERE id = ?;", [thread])
-            return (Exchange(seq: next, question: question, answer: nil, state: .asking, reason: nil, launchID: nil),
+            return (Exchange(seq: next, question: question, answer: nil, state: .asking, reason: nil, launchID: nil, chain: chain),
                     rows.filter { $0.state == "answered" }.map { (asked: $0.asked, answered: $0.answer) })
         }
     }
@@ -114,10 +112,11 @@ public struct ThreadStore: Sendable {
 
     public func exchanges(thread: String) throws -> [Exchange] {
         try ledger.locked {
-            try ledger.query("SELECT seq, question, answer, state, reason, launch_id FROM exchanges WHERE thread_id = ? ORDER BY seq;", [thread]) { statement in
+            try ledger.query("SELECT seq, question, answer, state, reason, launch_id, chain FROM exchanges WHERE thread_id = ? ORDER BY seq;", [thread]) { statement in
                 Exchange(seq: Int(Ledger.text(statement, 0) ?? "") ?? 0, question: Ledger.text(statement, 1) ?? "",
                          answer: Ledger.text(statement, 2), state: Exchange.State(rawValue: Ledger.text(statement, 3) ?? "") ?? .failed,
-                         reason: Ledger.text(statement, 4), launchID: Ledger.text(statement, 5))
+                         reason: Ledger.text(statement, 4), launchID: Ledger.text(statement, 5),
+                         chain: Self.decode(Ledger.text(statement, 6)))
             }
         }
     }

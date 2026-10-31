@@ -26,8 +26,9 @@ public struct ResolverWorld: Sendable {
 
 public enum Resolver {
     /// Steps 1 to 4 of the contract; the reservation (step 5) is a seam filled by the budget piece.
-    public static func resolve(config: SeatConfig, caller: String, target: String, world: ResolverWorld) throws -> Resolved {
-        guard let route = config.route(from: caller, to: target) else {
+    public static func resolve(config: SeatConfig, caller: String, alsoKnownAs kinds: [String] = [], target: String,
+                               world: ResolverWorld) throws -> Resolved {
+        guard let route = config.route(from: [caller] + kinds, to: target) else {
             throw Refusal(exit: 3, message: "refused: no route from \(caller) to \(target)")
         }
         guard let seat = config.seat(named: config.resolveName(target)) else {

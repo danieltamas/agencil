@@ -6,10 +6,21 @@ extension Broker {
     private static let fileLimit = 64 * 1024
     private static let defaultWait = 120
 
-    func ask(_ request: [String: Any]) -> [String: Any] {
+    func ask(_ request: [String: Any], peer: Int32?, peerStart: Double?) -> [String: Any] {
         let socketCaller = request["caller"] as? String ?? "unknown"
-        // Only the owner's CLI may speak as someone else; any other connection is who it says it is.
-        let caller = socketCaller == "owner" ? (request["as"] as? String ?? "owner") : socketCaller
+        let origin: Origin
+        switch attribute(peer: peer, peerStart: peerStart, capability: request["cap"] as? String) {
+        case .failure(let refusal):
+            try? threads.recordRequest(caller: socketCaller, outcome: "refused")
+            return Self.failure(refusal.message, exit: refusal.exit)
+        case .success(let found): origin = found
+        }
+        // A seat's child is the seat that started it, whatever it claims. Only a root's owner CLI may speak as
+        // someone else; any other root connection is who it says it is.
+        let parent: CapabilityRun?
+        if case .child(let run) = origin { parent = run } else { parent = nil }
+        let caller = parent?.seat ?? (socketCaller == "owner" ? (request["as"] as? String ?? "owner") : socketCaller)
+        let parentChain = parent?.chain ?? []
         guard let target = request["target"] as? String, let question = request["question"] as? String else {
             return Self.failure("ask needs a target and a question", exit: 64)
         }
@@ -22,6 +33,7 @@ extension Broker {
             do { config = try SeatConfig(values: try ConfigStore(directory: directory).read().values) } catch let problem as ConfigProblem {
                 return settle(Refusal(exit: 4, message: problem.message))
             }
+            let kinds = parent.flatMap { config.seat(named: $0.seat)?.harness }.map { [$0] } ?? []
             let files = try readFiles(request["files"])
             let world = discovery.world(environment: environment, home: directory)
             var existing: ThreadRecord?
@@ -31,7 +43,7 @@ extension Broker {
                 guard [thread.seat, thread.requested].contains(target) else {
                     throw Failure(message: "a follow-up goes to the thread's seat \(thread.seat)")
                 }
-                guard let route = config.route(from: caller, to: thread.requested) else {
+                guard let route = config.route(from: [caller] + kinds, to: thread.requested) else {
                     return settle(Refusal(exit: 3, message: "refused: no route from \(caller) to \(target)"))
                 }
                 guard let seat = config.seat(named: thread.seat) else {
@@ -43,9 +55,20 @@ extension Broker {
                 }
                 existing = thread
             } else {
-                resolved = try Resolver.resolve(config: config, caller: caller, target: target, world: world)
+                resolved = try Resolver.resolve(config: config, caller: caller, alsoKnownAs: kinds, target: target, world: world)
             }
-            return try run(resolved, caller: caller, requested: target, question: question, files: files,
+            // The cycle comes first: a seat already in the chain is refused at any hop limit.
+            if parentChain.contains(resolved.seat.name) {
+                throw Refusal(exit: 3, message: "refused: cycle " + (parentChain + [resolved.seat.name]).joined(separator: " -> "))
+            }
+            if parentChain.count > resolved.route.hopLimit { throw Refusal(exit: 3, message: "refused: hop limit") }
+            // A follow-up keeps the chain its thread started with, whoever asks it.
+            let chain = try existing.flatMap { try threads.exchanges(thread: $0.id).first?.chain } ?? parentChain + [resolved.seat.name]
+            // A seat may only continue a thread that already sits at its own place in the chain.
+            if existing != nil, parent != nil, chain != parentChain + [resolved.seat.name] {
+                throw Refusal(exit: 3, message: "refused: ancestry unknown")
+            }
+            return try run(resolved, caller: caller, chain: chain, parent: parent, requested: target, question: question, files: files,
                            thread: existing, wait: waitSeconds(request))
         } catch let refusal as Refusal {
             return settle(refusal)
@@ -87,11 +110,11 @@ extension Broker {
 
     // MARK: running one exchange
 
-    private func run(_ resolved: Resolved, caller: String, requested: String, question: String,
+    private func run(_ resolved: Resolved, caller: String, chain: [String], parent: CapabilityRun?, requested: String, question: String,
                      files: [(path: String, text: String)], thread existing: ThreadRecord?, wait: Int) throws -> [String: Any] {
         let thread = try existing ?? threads.createThread(requested: requested, seat: resolved.seat.name, caller: caller,
                                                          substituted: resolved.substituted)
-        guard let (exchange, transcript) = try threads.beginExchange(thread: thread.id, question: question) else {
+        guard let (exchange, transcript) = try threads.beginExchange(thread: thread.id, question: question, chain: chain) else {
             throw Failure(message: "thread \(thread.id) is still waiting for an answer")
         }
         let key = "\(thread.id)-\(exchange.seq)"
@@ -108,6 +131,7 @@ extension Broker {
                 return reply(thread, awaiting: exchange.seq, wait: 0)
             }
             if seat.harness == "ollama" {
+            if let parent, (try? threads.capability(launch: parent.launchID))??.live != true { return fail("refused: capability expired") }
                 Thread.detachNewThread { [self] in
                     let result = OllamaClient.chat(seat: seat, prompt: prompt) { task in
                         tracking.withLock {
@@ -142,13 +166,21 @@ extension Broker {
                                                 "env": invocation.environment.merging(["PWD": workingDirectory]) { _, mine in mine },
                                                 "reservation": ["seconds": seat.capSeconds]]
             if invocation.stdoutIsAnswer { launchRequest["stdout"] = answerFile }
+        // The token reaches the seat's environment but never the ledger, which keeps launch environments in clear.
+        let capability = ThreadStore.newCapability()
+        launchRequest["secret_env"] = ["AGENCIL_CAP": capability]
             let began = Date()
             let started: [String: Any]
             // The exchange is tied to its launch before the seat can start, so a crash never orphans a running group.
             var attached: String?
             do {
                 started = try launch(launchRequest, onIntent: { id in
+                // The parent's authority ends with its exchange: admission is rechecked at the last moment.
+                if let parent, (try self.threads.capability(launch: parent.launchID))?.live != true {
+                    throw Failure(message: "refused: capability expired")
+                }
                     try self.threads.attach(launch: id, thread: thread.id, seq: exchange.seq)
+                try self.threads.issueCapability(capability, launch: id, thread: thread.id, seq: exchange.seq)
                     attached = id
                 })
             } catch {
@@ -224,7 +256,7 @@ extension Broker {
             usleep(20_000)
             exchange = (try? threads.exchanges(thread: thread.id))?.first { $0.seq == seq }
         }
-        var data: [String: Any] = ["thread": thread.id, "seat": thread.seat, "substituted": thread.substituted ?? NSNull(),
+        var data: [String: Any] = ["thread": thread.id, "seat": thread.seat, "chain": exchange?.chain ?? [], "substituted": thread.substituted ?? NSNull(),
                                    "state": Self.stateName(exchange?.state ?? .asking)]
         if let answer = exchange?.answer { data["answer"] = answer }
         if let reason = exchange?.reason { data["reason"] = reason }

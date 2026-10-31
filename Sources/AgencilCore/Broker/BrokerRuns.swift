@@ -79,6 +79,7 @@ extension Broker {
             }
         }
         if let output = request["stdout"] as? String { tracking.withLock { outputs[launch.id] = output } }
+        if let secret = request["secret_env"] as? [String: String] { tracking.withLock { secretEnvironments[launch.id] = secret } }
         let pending = PendingLaunch()
         tracking.withLock { waiting[launch.nonce] = pending }
         defer { tracking.withLock { _ = waiting.removeValue(forKey: launch.nonce) } }
@@ -139,6 +140,7 @@ extension Broker {
         tracking.withLock { tracked[launch.id] = run }
         var env = environment.filter { !$0.key.hasPrefix("AGENCIL_TEST_") }
         env.merge(launch.env) { _, new in new }
+        if let secret = tracking.withLock({ secretEnvironments.removeValue(forKey: launch.id) }) { env.merge(secret) { _, new in new } }
         env[Self.runMarker] = launch.id
         var go: [String: Any] = ["ok": true, "go": true, "argv": launch.argv, "cwd": launch.cwd, "env": env]
         if let output = tracking.withLock({ outputs[launch.id] }) { go["stdout"] = output }

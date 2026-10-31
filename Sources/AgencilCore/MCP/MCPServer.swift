@@ -78,6 +78,7 @@ public struct MCPServer {
         var request = arguments
         request["op"] = tool.brokerOp
         request["caller"] = caller
+        if let capability = ProcessInfo.processInfo.environment["AGENCIL_CAP"], !capability.isEmpty { request["cap"] = capability }
         if let thread = arguments["thread"] ?? arguments["sitting"] { request["id"] = thread }
         do {
             let reply = try BrokerClient(home: home).send(request)

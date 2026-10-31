@@ -7,6 +7,15 @@ enum ProcessTable {
         let pid: Int32
         let pgid: Int32
         let startTime: Double
+        var parent: Int32 = 0
+    }
+
+    enum Lookup { case found(Entry), gone, unreadable }
+
+    /// One process by pid; `gone` when the kernel says no such process, `unreadable` when it could not be asked.
+    static func lookup(_ pid: Int32) -> Lookup {
+        guard let found = entries([CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]) else { return .unreadable }
+        return found.first { $0.pid == pid }.map(Lookup.found) ?? .gone
     }
 
     /// Every process in group `pgid`, zombies included: a zombie leader still holds the group. Nil when the
@@ -86,7 +95,7 @@ enum ProcessTable {
         return buffer.prefix(size / stride).map { info in
             let start = info.kp_proc.p_un.__p_starttime
             return Entry(pid: info.kp_proc.p_pid, pgid: info.kp_eproc.e_pgid,
-                         startTime: Double(start.tv_sec) + Double(start.tv_usec) / 1_000_000)
+                         startTime: Double(start.tv_sec) + Double(start.tv_usec) / 1_000_000, parent: info.kp_eproc.e_ppid)
         }
     }
 }

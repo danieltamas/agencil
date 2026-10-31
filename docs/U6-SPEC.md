@@ -106,3 +106,63 @@ the broker's `PATH` (`AGENCIL_PATH_PREFIX`, read by discovery only when `AGENCIL
 never sets in a way that matters because a test seam is only honoured under an explicit
 `AGENCIL_TEST_SEAMS=1`). Stubs record their argv and stdin state to a file named by `STUB_RECORD`, answer on
 stdout or in the `-o` file, and take their behaviour from `STUB_MODE`.
+
+## U6b contract (chains)
+
+Fills `Resolution.attribute`. Everything below is checked by the broker before resolution picks a process, after the
+route check names the route (the route supplies `hop_limit`).
+
+### Capability
+
+- Every seat the broker launches for an ask gets `AGENCIL_CAP=<64 lowercase hex>` (256 random bits) added to its
+  environment. The ledger stores only a SHA-256 hash of it (table `capabilities`: hash, thread, exchange seq, seat,
+  chain JSON, launch id). It is live exactly while that exchange is `asking`.
+- The CLI and `agencil mcp` read `AGENCIL_CAP` from their environment and send it as `cap` on every request.
+- Ollama seats have no process, so they never ask anything and get no capability.
+
+### Attribution (what a request is)
+
+The broker reads the peer pid of the socket and walks parent pids until it finds a pid that is a tracked seat
+launch's leader or a member of its process group (matched by pgid, start time checked), or until pid 1.
+
+| Process tree | `cap` field | Outcome |
+|--------------|-------------|---------|
+| descends from a live seat run R | absent | child of R (environment stripped is still attributed) |
+| descends from a live seat run R | live cap of R | child of R |
+| descends from a live seat run R | live cap of another run | `refused: capability does not match caller` (exit 3) |
+| descends from a live seat run R | unknown or ended cap | `refused: capability expired` (exit 3) |
+| no seat ancestor | absent | a new root: the claimed caller (`owner`, `as`, the MCP `--caller`) applies as in U6a |
+| no seat ancestor | any cap | `refused: capability does not match caller` if live, `refused: capability expired` if not |
+| peer pid unreadable, or the walk fails | any | `refused: ancestry unknown` (exit 3), never a root |
+
+A request attributed to a seat run ignores the caller id it claims (`owner`, `as`, `--caller`): the caller for
+routing is the parent seat's name, else the parent seat's harness kind, else `any` (same precedence as U6a, so a
+route may list a seat name or a harness kind). A seat can therefore not impersonate the owner.
+
+Fault injection: with `AGENCIL_TEST_SEAMS=1`, the broker environment variable `AGENCIL_TEST_FAIL_ANCESTRY=peer`
+makes the peer-pid read fail and `AGENCIL_TEST_FAIL_ANCESTRY=walk` makes the parent walk fail, for every ask.
+
+### Chain, hops, cycles
+
+- The chain of a run is the seat names from the root seat to the run's own seat, e.g. `["codex-a","claude-b"]`. A run
+  started by a root (owner or detached process) has chain `[seat]`.
+- Hop count of a request attributed to a seat run = length of that run's chain (the seats already in the chain; the
+  new call is the next hop). Refused when that count exceeds the matched route's `hop_limit`: `refused: hop limit`
+  (exit 3). With `hop_limit` 2: owner asks A (chain `[A]`), A asks B (count 1, ok, chain `[A,B]`), B asks C (count 2,
+  ok, chain `[A,B,C]`), C asks anyone (count 3): refused.
+- Cycle: after resolution, when the resolved seat (including a substituted fallback) is already in the chain:
+  `refused: cycle a -> b -> a` (chain names joined with ` -> `, then the target seat), exit 3, at any hop limit; it is
+  checked before the hop limit. Nothing runs, a refused `requests` row is written, no thread is created.
+- A follow-up (`--thread`) on a thread started by a chained run keeps that thread's chain; its caller must still be
+  attributed the same way.
+- The `ask` reply and `result` data gain `chain` (array of seat names ending in the answering seat).
+
+### Replay
+
+A capability stops being valid when its exchange leaves `asking` (answered, failed, stopped, timed out). A call that
+presents it afterwards, from any process, gets `refused: capability expired`.
+
+### MCP and CLI
+
+Stub seats reach the broker through the real `AgencilCLI ask` and through `AgencilCLI mcp` (JSON-RPC over stdio,
+`tools/call` `ask`, with `agent_access` on in config). Both are bounded exactly alike.

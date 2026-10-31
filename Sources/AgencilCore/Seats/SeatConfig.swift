@@ -50,10 +50,16 @@ public struct SeatConfig: Sendable {
     public func resolveName(_ name: String) -> String { aliases[name] ?? name }
 
     /// The first route for `caller` to `target`: routes naming the caller come before `any`, in config order.
-    public func route(from caller: String, to target: String) -> Route? {
+    public func route(from caller: String, to target: String) -> Route? { route(from: [caller], to: target) }
+
+    /// `callers` lists the ways a caller is known, most specific first (a seat name, then its harness kind).
+    public func route(from callers: [String], to target: String) -> Route? {
         let wanted = resolveName(target)
         let matching = routes.filter { resolveName($0.target) == wanted }
-        return matching.first { $0.callers.contains(caller) } ?? matching.first { $0.callers.contains("any") }
+        for caller in callers {
+            if let route = matching.first(where: { $0.callers.contains(caller) }) { return route }
+        }
+        return matching.first { $0.callers.contains("any") }
     }
 
     // MARK: parsing
