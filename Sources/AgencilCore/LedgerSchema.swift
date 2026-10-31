@@ -113,5 +113,9 @@ enum LedgerSchema {
         CREATE INDEX evidence_claim ON evidence(claim_id);
         CREATE INDEX seat_runs_run ON seat_runs(run_id);
         """,
+        // The repository a sitting was woken for, so the memory export can write per repo.
+        """
+        ALTER TABLE sittings ADD COLUMN repo TEXT;
+        """,
     ]
 }

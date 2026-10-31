@@ -92,7 +92,7 @@ final class U8Rig {
             let time = String(format: "2030-01-%02dT12:%02d:%02dZ", 1 + n / 3600, (n / 60) % 60, n % 60)
             try sql("""
                 INSERT INTO runs(id,kind,status,started_at,ended_at) VALUES('s\(n)','sitting','PASS','\(time)','\(time)');
-                INSERT INTO sittings VALUES('s\(n)',\(n),'panel','PASS','blind','google','snapshot','', 'PASS','\(time)','\(time)');
+                INSERT INTO sittings(id, no, council, state, round, author_vendor, snapshot_id, reason, verdict, created_at, ended_at) VALUES('s\(n)',\(n),'panel','PASS','blind','google','snapshot','', 'PASS','\(time)','\(time)');
                 INSERT INTO runs(id,kind,status,started_at,ended_at) VALUES('t\(n)','thread','answered','\(time)','\(time)');
                 INSERT INTO threads VALUES('t\(n)','a','a','owner',NULL,'\(time)');
                 INSERT INTO exchanges(thread_id,seq,question,answer,state,created_at)

@@ -39,9 +39,9 @@ struct SittingStore {
             try ledger.run("INSERT INTO runs (id, kind, snapshot_id, status, started_at) VALUES (?, 'sitting', ?, 'running', ?);",
                            [id, snapshot.id, stamp])
             try ledger.run("""
-                INSERT INTO sittings (id, no, council, state, round, author_vendor, snapshot_id, created_at)
-                VALUES (?, ?, ?, 'running', 'blind', ?, ?, ?);
-                """, [id, String(number), council, authorVendor, snapshot.id, stamp])
+                INSERT INTO sittings (id, no, council, state, round, author_vendor, snapshot_id, created_at, repo)
+                VALUES (?, ?, ?, 'running', 'blind', ?, ?, ?, ?);
+                """, [id, String(number), council, authorVendor, snapshot.id, stamp, snapshot.repo])
             return (id, number)
         }
     }
