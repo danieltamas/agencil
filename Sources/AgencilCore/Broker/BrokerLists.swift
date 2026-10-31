@@ -3,15 +3,15 @@ import Foundation
 /// The read ops over config and the ledger, and the owner's two writes (docs/U18-SPEC.md). Replies carry no
 /// endpoint, pin, key or prompt.
 extension Broker {
-    private func seatConfig() throws -> (SeatConfig, [String: String]) {
+    func seatConfig() throws -> (SeatConfig, [String: String]) {
         let values = try ConfigStore(directory: directory).read().values
         return (try SeatConfig(values: values), values)
     }
 
-    private func reply(_ data: [String: Any]) -> [String: Any] { ["ok": true, "data": data, "data_note": Self.note] }
+    func reply(_ data: [String: Any]) -> [String: Any] { ["ok": true, "data": data, "data_note": Self.note] }
 
     /// The CLI speaks as `owner` only from outside every seat: a seat's child that claims it is refused.
-    private func requireOwner(_ request: [String: Any], peer: Int32?, peerStart: Double?) throws {
+    func requireOwner(_ request: [String: Any], peer: Int32?, peerStart: Double?) throws {
         guard request["caller"] as? String == "owner" else { throw Failure(message: "refused: only the owner may do this", exit: 3) }
         try requireRoot(request, peer: peer, peerStart: peerStart)
     }

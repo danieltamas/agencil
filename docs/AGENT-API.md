@@ -127,6 +127,7 @@ is off by default, and routes default to refuse.
 | `harnesses [--probe]` | Detected harnesses: path, version, signed in, chain support, last probe |
 | `models` | Providers and Ollama endpoints with health and models |
 | `findings [--open]`, `dispose <claim-id> confirm|dismiss|will-fix` | Findings and the owner's disposition |
+| `proposals [--all]`, `learn approve|reject <id>`, `learn rollback` | The learn loop's council proposals and the owner's decision on them |
 | `leaderboard preview|publish` | `docs/LEADERBOARD.md` |
 | `mcp [--caller <id>]` | Runs the stdio MCP server (what harness configs launch) |
 | `install-mcp <harness> [--caller <id>] [--dry-run]` | Writes the MCP entry into that harness's config; `--dry-run` prints the diff |

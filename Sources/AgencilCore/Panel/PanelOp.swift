@@ -26,7 +26,7 @@ extension Broker {
                           "thinking": items.filter { $0["thinking"] as? Bool == true }.count, "items": items],
                 "threads": threads, "sittings": sittings, "findings": try panelFindings(),
                 "proposals_pending": try panelCount("""
-                    SELECT count(*) FROM proposals WHERE status = 'pending'
+                    SELECT count(*) FROM proposals WHERE status IN ('pending', 'proposed', 'reviewed')
                     AND id NOT IN (SELECT supersedes FROM proposals WHERE supersedes IS NOT NULL);
                     """),
                 "week": week,

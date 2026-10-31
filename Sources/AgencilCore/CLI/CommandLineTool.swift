@@ -29,6 +29,7 @@ public struct CommandLineTool: Sendable {
         "data": Spec(positionals: 0...0), "prune": Spec(positionals: 0...0),
         "findings": Spec(positionals: 0...0, switches: ["--json", "--open"]),
         "dispose": Spec(positionals: 2...2), "leaderboard": Spec(positionals: 1...1),
+        "proposals": Spec(positionals: 0...0, switches: ["--json", "--all"]), "learn": Spec(positionals: 1...2),
         "mcp": Spec(positionals: 0...0, valued: ["--caller"]),
         "install-mcp": Spec(positionals: 1...1, valued: ["--caller"], switches: ["--json", "--dry-run", "--uninstall"]),
         "access": Spec(positionals: 0...0),
@@ -99,7 +100,7 @@ public struct CommandLineTool: Sendable {
             // The broker runs elsewhere, so a relative path would resolve against the wrong directory.
             request["files"] = files.map { URL(fileURLWithPath: $0).standardizedFileURL.path }
         }
-        for flag in ["--full", "--probe", "--open"] where parsed.flags.contains(flag) { request[String(flag.dropFirst(2))] = true }
+        for flag in ["--full", "--probe", "--open", "--all"] where parsed.flags.contains(flag) { request[String(flag.dropFirst(2))] = true }
         switch verb {
         case "ask":
             request["target"] = parsed.positionals[0]; request["question"] = parsed.positionals[1]
@@ -122,6 +123,14 @@ public struct CommandLineTool: Sendable {
                 throw Usage(message: "dispose takes confirm, dismiss or will-fix")
             }
             request["id"] = parsed.positionals[0]; request["disposition"] = parsed.positionals[1]
+        case "learn":
+            let action = parsed.positionals[0]
+            guard ["approve", "reject", "rollback"].contains(action),
+                  parsed.positionals.count == (action == "rollback" ? 1 : 2) else {
+                throw Usage(message: "learn takes approve <id>, reject <id> or rollback")
+            }
+            request["action"] = action
+            if parsed.positionals.count == 2 { request["id"] = parsed.positionals[1] }
         case "leaderboard":
             guard ["preview", "publish"].contains(parsed.positionals[0]) else { throw Usage(message: "leaderboard takes preview or publish") }
             request["action"] = parsed.positionals[0]

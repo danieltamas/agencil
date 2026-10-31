@@ -10,6 +10,8 @@ import SwiftUI
     private(set) var stopping: Set<String> = []
     @ObservationIgnored private var deciding: Set<String> = []
     private(set) var decided: Set<String> = []
+    private(set) var proposals: [ProposalItem] = []
+    private(set) var canRollback = false
     private(set) var seen: Set<String> = []
     private(set) var problem: String?
     private(set) var readAt: Date?
@@ -67,6 +69,7 @@ import SwiftUI
             readAt = Date()
             control?.observe(next)
             syncStopping(next)
+            await readProposals(client)
         } catch {
             problem = error.localizedDescription
         }
@@ -99,6 +102,29 @@ import SwiftUI
             if let failure { problem = failure }
         }
     }
+    /// Best effort: a failed read leaves the last list, since the panel read itself already reports a dead broker.
+    private func readProposals(_ client: PanelClient) async {
+        guard let reply = try? await client.call("proposals"), let rows = reply["proposals"] as? [[String: Any]] else { return }
+        proposals = rows.compactMap(ProposalItem.init)
+        canRollback = reply["can_rollback"] as? Bool == true
+    }
+
+    /// The owner's decision on one proposal (`id` nil for the rollback): one broker call, then a fresh read.
+    func learnAction(_ id: String?, _ action: String) -> () async -> Void {
+        { [self] in
+            guard let client, !deciding.contains(id ?? action) else { return }
+            deciding.insert(id ?? action)
+            defer { deciding.remove(id ?? action) }
+            var failure: String?
+            var extra = ["action": action]
+            if let id { extra["id"] = id }
+            do { _ = try await client.call("learn", extra) }
+            catch { failure = error.localizedDescription }
+            await refresh()
+            if let failure { problem = failure }
+        }
+    }
+
     func open(sitting id: String) { seen.insert(id) }
 
     private func syncStopping(_ data: PanelData) {
@@ -172,4 +198,24 @@ import SwiftUI
     }
 
     static func money(_ dollars: Double) -> String { PanelFormat.money(dollars) }
+}
+
+/// One open learn proposal as the panel shows it.
+struct ProposalItem: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let detail: String
+    let status: String
+    let endorsed: Bool
+
+    init?(_ row: [String: Any]) {
+        guard let id = row["id"] as? String, let kind = row["kind"] as? String, let council = row["council"] as? String else { return nil }
+        let change = [row["seat"], row["replacement"], row["variable"], row["value"]].compactMap { $0 as? String }.joined(separator: " to ")
+        let verdict = row["verdict"] as? String
+        self.id = id
+        title = kind.replacingOccurrences(of: "_", with: " ") + " on " + council
+        detail = [change, "n \(row["n"] as? Int ?? 0)", verdict, row["note"] as? String].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
+        status = row["status"] as? String ?? "proposed"
+        endorsed = status == "reviewed" && verdict == "endorse"
+    }
 }
