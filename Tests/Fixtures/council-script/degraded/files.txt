@@ -1,0 +1,11 @@
+./gpt.md 25 lines
+./gpt.trace
+./longcat.md 3 lines
+./longcat.out
+./longcat.raw
+./muse.md 26 lines
+./muse.out
+./muse.raw
+./nemotron.md 26 lines
+./nemotron.out
+./nemotron.raw

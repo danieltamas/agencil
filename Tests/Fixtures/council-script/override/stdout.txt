@@ -1,0 +1,8 @@
+ alpha 26 lines ok
+ beta 25 lines ok
+=== COUNCIL COMPLETE: 2/2 seats ===
+=== COUNCIL SEATS ===
+=== Council over <REPO> | brief ./brief.md | cap 30s/seat | out <OUT> ===
+=== Seats: alpha:claude:opus beta:codex:- ===
+[alpha] DONE lines= 26 file:line-refs=25 -> <OUT>/alpha.md
+[beta] DONE lines= 25 file:line-refs=25 -> <OUT>/beta.md

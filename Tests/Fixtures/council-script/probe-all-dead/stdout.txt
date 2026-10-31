@@ -1,0 +1,4 @@
+=== ! seat longcat (opencode/longcat-2.5-preview-free) did not answer in 2s and no spare answered - seat dropped ===
+=== ! seat muse (opencode/muse-spark-1.3-contributor-free) did not answer in 2s and no spare answered - seat dropped ===
+=== ! seat nemotron (opencode/nemotron-3-ultra-free) did not answer in 2s and no spare answered - seat dropped ===
+=== live seats: gpt:codex:- ===

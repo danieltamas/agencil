@@ -1,0 +1,13 @@
+ longcat 26 lines ok
+ muse 26 lines ok
+ nemotron 26 lines ok
+ opus 26 lines ok
+=== ! codex seat unavailable (Try again at Jan 1st) - gpt seat -> opus:claude:opus. Claude is now author-lineage AND a seat: writer!=judge is weakened for Claude-authored repos. ===
+=== COUNCIL COMPLETE: 4/4 seats ===
+=== COUNCIL SEATS ===
+=== Council over <REPO> | brief ./brief.md | cap 1200s/seat | out <OUT> | opencode server http://127.0.0.1:41999 ===
+=== Seats: opus:claude:opus nemotron:opencode:opencode/nemotron-3-ultra-free longcat:opencode:opencode/longcat-2.5-preview-free muse:opencode:opencode/muse-spark-1.3-contributor-free ===
+[longcat] DONE lines= 26 file:line-refs=25 -> <OUT>/longcat.md
+[muse] DONE lines= 26 file:line-refs=25 -> <OUT>/muse.md
+[nemotron] DONE lines= 26 file:line-refs=25 -> <OUT>/nemotron.md
+[opus] DONE lines= 26 file:line-refs=25 -> <OUT>/opus.md

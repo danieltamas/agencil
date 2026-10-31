@@ -1,0 +1,10 @@
+#!/bin/bash
+# Stub opencode. STUB_DEAD_MODELS: models that never answer; STUB_THIN_MODELS: models that answer with a 3-line report.
+echo "opencode $*" >> "$STUB_LOG"
+if [[ $1 == serve ]]; then echo "opencode server listening on http://127.0.0.1:41999"; exec sleep 300; fi
+model=""; prev=""
+for arg in "$@"; do [[ $prev == -m ]] && model=$arg; prev=$arg; done
+if [[ " $STUB_DEAD_MODELS " == *" $model "* ]]; then exec sleep 120; fi
+if [[ " $* " == *"Reply with exactly: OK"* ]]; then echo OK; exit 0; fi
+if [[ " $STUB_THIN_MODELS " == *" $model "* ]]; then printf '# Report\nnothing\nfound\n'; exit 0; fi
+echo "# Report from $model"; for i in $(seq 1 25); do echo "finding $i: src/app.ts:$i evidence"; done

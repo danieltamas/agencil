@@ -1,0 +1,10 @@
+#!/bin/bash
+# Stub codex for the council-script fixtures. STUB_LOG gets one line per call; STUB_CODEX_LIMIT=1 simulates the usage limit.
+echo "codex $*" >> "$STUB_LOG"
+if [[ " $* " == *"Reply with exactly: OK"* ]]; then
+  if [[ ${STUB_CODEX_LIMIT:-0} == 1 ]]; then echo "You've hit your usage limit. Try again at Jan 1st."; exit 1; fi
+  echo OK; exit 0
+fi
+file=$(printf '%s' "$*" | grep -oE '\./\.council-[a-z0-9-]+\.md' | head -1)
+for i in $(seq 1 25); do echo "finding $i: src/app.ts:$i evidence"; done > "$file"
+echo "REPORT WRITTEN"

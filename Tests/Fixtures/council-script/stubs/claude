@@ -1,0 +1,3 @@
+#!/bin/bash
+echo "claude $*" >> "$STUB_LOG"
+echo "# Report from claude"; for i in $(seq 1 25); do echo "finding $i: src/app.ts:$i evidence"; done
