@@ -30,6 +30,7 @@ enum SettingsMetrics {
     static let rowInset: CGFloat = 8
     static let rowHeight = Size.settingsRow
     static let fieldWidth: CGFloat = 84
+    static let wideFieldWidth: CGFloat = 168
     static let unitWidth: CGFloat = 168
     static let resetWidth: CGFloat = 52
 }

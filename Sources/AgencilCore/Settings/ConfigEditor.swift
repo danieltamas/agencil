@@ -154,17 +154,18 @@ public struct ConfigEditor: Sendable {
         }
     }
 
-    private static func json(_ object: Any) -> String {
+    static func json(_ object: Any) -> String {
         let data = (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])) ?? Data()
         return String(decoding: data, as: UTF8.self)
     }
 
     private func change(_ key: String, _ transform: (String?) -> String) throws -> ConfigSnapshot {
         let snapshot = try read()
-        guard ["look", "notify", "limits", "agent_access"].contains(key) else { throw SheetProblems(fields: [key: "this setting is not editable here"]) }
+        guard ["look", "notify", "limits", "agent_access"].contains(key) || Self.paneKeys.contains(key) else { throw SheetProblems(fields: [key: "this setting is not editable here"]) }
         let value = transform(snapshot.values[key])
         if key == "look", !Self.looks.contains(value) { throw SheetProblems(fields: [key: "pick one of the three looks"]) }
         if key == "agent_access", !["on", "off"].contains(value) { throw SheetProblems(fields: [key: "on or off"]) }
+        if let problem = Self.paneProblem(key, value) { throw SheetProblems(fields: [key: problem]) }
         var next = snapshot.values
         next[key] = value
         do { _ = try SeatConfig(values: next) } catch let problem as ConfigProblem { throw SheetProblems(fields: [key: problem.problem]) }
@@ -174,11 +175,11 @@ public struct ConfigEditor: Sendable {
 
     // MARK: shared
 
-    private func read() throws -> ConfigSnapshot {
+    func read() throws -> ConfigSnapshot {
         do { return try store.read() } catch { throw SheetProblems.form(error.localizedDescription) }
     }
 
-    private static func taken(_ name: String, _ config: SeatConfig) -> Bool {
+    static func taken(_ name: String, _ config: SeatConfig) -> Bool {
         config.seat(named: name) != nil || config.aliases[name] != nil || config.councils.contains { $0.name == name }
     }
 
@@ -202,7 +203,7 @@ public struct ConfigEditor: Sendable {
         return try write(snapshot, key: key, text: text)
     }
 
-    private func write(_ snapshot: ConfigSnapshot, key: String, text: String) throws -> ConfigSnapshot {
+    func write(_ snapshot: ConfigSnapshot, key: String, text: String) throws -> ConfigSnapshot {
         do {
             try beforeUpdate?()
             return try store.update(expectedRevision: snapshot.revision) { $0[key] = text }

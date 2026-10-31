@@ -185,6 +185,8 @@ public final class Broker: @unchecked Sendable {
             case "harnesses": return harnessesOp(request)
             case "seats", "councils", "routes", "models", "list_targets": return try listOp(op, request, peer: peer, peerStart: peerStart)
             case "findings": return try findingsOp(request)
+            case "data": return try dataOp()
+            case "prune": return try pruneOp(request, peer: peer, peerStart: peerStart)
             case "leaderboard": return try leaderboardOp(request, peer: peer, peerStart: peerStart)
             default:
                 return Self.failure("unknown op \(op)", exit: 64)

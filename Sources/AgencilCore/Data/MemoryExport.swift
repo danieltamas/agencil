@@ -57,7 +57,7 @@ public final class MemoryExport: @unchecked Sendable {
         _ = try store.update { $0[Self.key] = text }
     }
 
-    private static func validate(_ targets: [MemoryTarget]) throws {
+    static func validate(_ targets: [MemoryTarget]) throws {
         var repos = Set<String>()
         for target in targets {
             for path in [target.repo, target.folder] {

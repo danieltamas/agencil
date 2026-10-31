@@ -26,6 +26,8 @@ struct RouteForm { var callers = "", target = "", hops = "" }
     private(set) var targets: [String] = []
     private(set) var access: [String: AccessState] = [:]
     private(set) var wiring: [String: Wiring] = [:]
+    /// The broker-fed panes (harnesses, models, budgets, data, leaderboard).
+    var panes = PaneStore()
     private(set) var configProblem: String?
     private(set) var notify: Set<String> = NotifySettings.kinds
     private(set) var seatsAtOnce = ""
@@ -79,7 +81,11 @@ struct RouteForm { var callers = "", target = "", hops = "" }
         let environment = ProcessInfo.processInfo.environment
         let fallback = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".agencil")
         let directory = (try? AgencilHome(directory: fallback, environment: environment))?.directory ?? fallback
-        return SettingsStore(directory: directory, environment: environment)
+        let store = SettingsStore(directory: directory, environment: environment)
+        if let home = try? AgencilHome(directory: fallback, environment: environment) {
+            store.panes = PaneStore(directory: directory, client: PanelClient(home: home))
+        }
+        return store
     }
 
     // MARK: reading

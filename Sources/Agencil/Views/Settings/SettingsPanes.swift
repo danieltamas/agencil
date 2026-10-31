@@ -6,6 +6,11 @@ struct SettingsPaneView: View {
     @Bindable var store: SettingsStore
     let pane: SettingsPane
     @State private var look = Appearance.shared.look
+    @State var budgetVendor = ""
+    @State var budgetDollars = ""
+    @State var budgetHard = false
+    @State var memoryRepo = ""
+    @State var memoryFolder = ""
 
     init(store: SettingsStore, pane: SettingsPane) {
         self.store = store
@@ -22,10 +27,18 @@ struct SettingsPaneView: View {
             case .councils: list(.council, rows: store.councilRows)
             case .routes: list(.route, rows: store.routeRows)
             case .access: accessPane
+            case .harnesses: harnessesPane
+            case .models: modelsPane
+            case .budgets: budgetsPane
+            case .scoring: scoringPane
+            case .leaderboard: leaderboardPane
+            case .data: dataPane
+            case .apps: appsPane
             case .about: about
-            default: placeholder
             }
         }
+        .onAppear { store.panes.begin() }
+        .onChange(of: pane) { _, _ in store.panes.begin() }
         .houseSheet(item: $store.presenting, title: { kind in kind.title }, detail: { kind in kind.detail }, footer: { kind in
             ModalFooter(secondary: .init(title: "Cancel") { store.presenting = nil },
                         primary: .init(title: "Create") { if store.save(kind) { store.presenting = nil } })
@@ -144,9 +157,5 @@ struct SettingsPaneView: View {
         SettingsCard(title: "Agencil") {
             SettingsRow(title: "Version", detail: "Built from source") { Chip(text: AgencilVersion.current(), color: Theme.unknown) }
         }
-    }
-
-    private var placeholder: some View {
-        EmptyState(symbol: pane.symbol, title: "\(pane.title) lands with its unit", detail: "Nothing here is saved yet.")
     }
 }

@@ -26,6 +26,7 @@ public struct CommandLineTool: Sendable {
         "budgets": Spec(positionals: 0...0),
         "seats": Spec(positionals: 0...0), "councils": Spec(positionals: 0...0), "triggers": Spec(positionals: 0...0), "panel": Spec(positionals: 0...0), "routes": Spec(positionals: 0...0),
         "harnesses": Spec(positionals: 0...0, switches: ["--json", "--probe"]), "models": Spec(positionals: 0...0),
+        "data": Spec(positionals: 0...0), "prune": Spec(positionals: 0...0),
         "findings": Spec(positionals: 0...0, switches: ["--json", "--open"]),
         "dispose": Spec(positionals: 2...2), "leaderboard": Spec(positionals: 1...1),
         "mcp": Spec(positionals: 0...0, valued: ["--caller"]),

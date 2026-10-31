@@ -22,6 +22,12 @@ struct PanelClient: Sendable {
         _ = try await send(["op": "stop", "id": id])
     }
 
+    /// One op, owner caller; the reply's `data` object.
+    func call(_ op: String, _ extra: [String: Any] = [:]) async throws -> [String: Any] {
+        let reply = try await send(["op": op, "caller": "owner"].merging(extra) { _, new in new })
+        return reply["data"] as? [String: Any] ?? [:]
+    }
+
     private func send(_ request: [String: Any]) async throws -> [String: Any] {
         let client = client
         let payload = JSONBox(value: request)
