@@ -30,10 +30,12 @@ public struct CommandLineTool: Sendable {
         "dispose": Spec(positionals: 2...2), "leaderboard": Spec(positionals: 1...1),
         "mcp": Spec(positionals: 0...0, valued: ["--caller"]),
         "install-mcp": Spec(positionals: 1...1, valued: ["--caller"], switches: ["--json", "--dry-run", "--uninstall"]),
+        "access": Spec(positionals: 0...0),
+        "install-instructions": Spec(positionals: 1...1, switches: ["--json", "--dry-run", "--uninstall"]),
         "serve": Spec(positionals: 0...0), "run-seat": Spec(positionals: 1...1),
     ]
 
-    private let environment: [String: String]
+    let environment: [String: String]
 
     public init(environment: [String: String] = ProcessInfo.processInfo.environment) { self.environment = environment }
 
@@ -71,6 +73,11 @@ public struct CommandLineTool: Sendable {
             return try McpInstaller(home: try home(), environment: environment).run(
                 harness: parsed.positionals[0], caller: parsed.value("--caller"),
                 dryRun: parsed.flags.contains("--dry-run"), uninstall: parsed.flags.contains("--uninstall"))
+        case "access":
+            return try access(json: json)
+        case "install-instructions":
+            return try installInstructions(parsed.positionals[0], dryRun: parsed.flags.contains("--dry-run"),
+                                           uninstall: parsed.flags.contains("--uninstall"), json: json)
         default:
             return try ask(verb, parsed, json: json)
         }
@@ -180,7 +187,7 @@ public struct CommandLineTool: Sendable {
         return parsed
     }
 
-    private func home() throws -> AgencilHome {
+    func home() throws -> AgencilHome {
         try AgencilHome(directory: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".agencil"),
                         environment: environment)
     }
@@ -202,7 +209,7 @@ public struct CommandLineTool: Sendable {
         return Envelope.text(["data": data])
     }
 
-    private static func report(_ message: String, _ code: Int32) -> Int32 {
+    static func report(_ message: String, _ code: Int32) -> Int32 {
         FileHandle.standardError.write(Data("agencil: \(message)\n".utf8))
         return code
     }

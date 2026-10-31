@@ -130,7 +130,8 @@ is off by default, and routes default to refuse.
 | `leaderboard preview|publish` | `docs/LEADERBOARD.md` |
 | `mcp [--caller <id>]` | Runs the stdio MCP server (what harness configs launch) |
 | `install-mcp <harness> [--caller <id>] [--dry-run]` | Writes the MCP entry into that harness's config; `--dry-run` prints the diff |
-| `serve` | The headless broker |
+| `install-instructions <harness> [--uninstall] [--dry-run]` | Adds or removes the marked "when to use Agencil" paragraph in that harness's instruction file (docs/U17-SPEC.md); other text in the file is never touched |
+| `access [--json]` | How this Mac is wired, per harness: server entry, instruction state, routes, and drift lines; reads files only, no broker || `serve` | The headless broker |
 | `version` | Version and the source line |
 
 Exit codes:

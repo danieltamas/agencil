@@ -25,6 +25,7 @@ struct RouteForm { var callers = "", target = "", hops = "" }
     private(set) var seatNames: [String] = []
     private(set) var targets: [String] = []
     private(set) var access: [String: AccessState] = [:]
+    private(set) var wiring: [String: Wiring] = [:]
     private(set) var configProblem: String?
     private(set) var notify: Set<String> = NotifySettings.kinds
     private(set) var seatsAtOnce = ""
@@ -42,6 +43,7 @@ struct RouteForm { var callers = "", target = "", hops = "" }
     @ObservationIgnored private let directory: URL?
     @ObservationIgnored private let editor: ConfigEditor?
     @ObservationIgnored private let agentAccess: AgentAccess?
+    @ObservationIgnored private var environment: [String: String] = [:]
 
     /// An inert store: no file, no broker. `demo()` and the tests use it.
     init() {
@@ -54,6 +56,7 @@ struct RouteForm { var callers = "", target = "", hops = "" }
         self.directory = directory
         editor = ConfigEditor(directory: directory)
         agentAccess = AgentAccess(home: directory, environment: environment)
+        self.environment = environment
         reload()
     }
 
@@ -104,6 +107,19 @@ struct RouteForm { var callers = "", target = "", hops = "" }
         for harness in ["claude", "codex", "opencode"] {
             access[harness] = try? agentAccess?.state(harness)
         }
+        refreshWiring()
+    }
+
+    private func refreshWiring() {
+        guard let directory, let agentAccess else { return }
+        let values = (try? ConfigStore(directory: directory).read().values) ?? [:]
+        wiring = Dictionary(uniqueKeysWithValues: agentAccess.audit(values: values).map { ($0.harness, $0) })
+    }
+
+    /// One line for the pane: how many drift lines the harness cards carry ("access is off" is information, not drift).
+    var wiringSummary: String {
+        let drifted = wiring.values.reduce(0) { $0 + $1.drift.filter { $0 != "access is off" }.count }
+        return drifted == 0 ? "All wired" : "\(drifted) thing\(drifted == 1 ? "" : "s") drifted"
     }
 
     // MARK: sheets
@@ -210,8 +226,27 @@ struct RouteForm { var callers = "", target = "", hops = "" }
             catch { return .failure(AccessError(message: error.localizedDescription)) }
         }.value
         switch result {
-        case .success(let state): access[harness] = state; accessProblem = nil
+        case .success(let state): access[harness] = state; accessProblem = nil; refreshWiring()
         case .failure(let error): accessProblem = error.message
         }
+    }
+}
+
+extension SettingsStore {
+    func instructionAction(_ harness: String, remove: Bool) -> () async -> Void {
+        { [self] in await changeInstruction(harness, remove: remove) }
+    }
+
+    private func changeInstruction(_ harness: String, remove: Bool) async {
+        guard let directory else { return }
+        let environment = self.environment
+        let failure = await Task.detached { () -> String? in
+            let instruction = AgentInstruction(environment: environment)
+            do { remove ? try instruction.remove(harness) : try instruction.install(harness); return nil }
+            catch let error as AccessError { return error.message }
+            catch { return error.localizedDescription }
+        }.value
+        accessProblem = failure
+        refreshWiring()
     }
 }

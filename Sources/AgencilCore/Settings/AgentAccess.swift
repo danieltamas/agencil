@@ -25,11 +25,13 @@ public struct AccessState: Equatable, Sendable {
 
 /// The Agent access pane's installs (docs/U9-SPEC.md "AgentAccess"), over the `install-mcp` machinery.
 public struct AgentAccess: Sendable {
-    private static let supported = ["claude", "codex", "opencode"]
+    fileprivate static let supported = ["claude", "codex", "opencode"]
 
     private let installer: McpInstaller
+    fileprivate let environment: [String: String]
 
     public init(home: URL, environment: [String: String]) {
+        self.environment = environment
         installer = McpInstaller(home: AgencilHome(existing: home), environment: environment)
     }
 
@@ -84,5 +86,57 @@ public struct AgentAccess: Sendable {
               let entry = (root["mcp"] as? [String: Any])?["agencil"],
               let data = try? JSONSerialization.data(withJSONObject: entry, options: [.sortedKeys]) else { return nil }
         return String(decoding: data, as: UTF8.self)
+    }
+}
+
+/// One harness as the Mac is wired now: the server entry, the instruction paragraph, the routes and what drifted.
+public struct Wiring: Equatable, Sendable {
+    public let harness: String
+    public let mcp: AccessState
+    public let instruction: InstructionState
+    public let caller: String
+    public let routes: [String]
+    public let drift: [String]
+}
+
+extension AgentAccess {
+    /// Reads every file fresh; a harness with nothing installed has no drift. `values` is the config.json snapshot.
+    public func audit(values: [String: String]) -> [Wiring] {
+        let masterOn = values["agent_access"] == "on"
+        let routes = ((try? SeatConfig(values: values))?.routes) ?? []
+        return Self.supported.map { harness in
+            let mcp = (try? state(harness)) ?? AccessState(harness: harness, installed: false, path: nil, entry: nil, problem: "unreadable")
+            let instruction = AgentInstruction(environment: environment).state(harness)
+            let targets = routes.filter { $0.callers.contains(harness) }.map(\.target)
+            var drift: [String] = []
+            if mcp.installed {
+                if instruction == .absent { drift.append("instructions missing") }
+                if masterOn && targets.isEmpty { drift.append("no route for this caller") }
+                if !masterOn { drift.append("access is off") }
+                if let entry = mcp.entry, !Self.runsThisApp(harness, entry) {
+                    drift.append("server entry does not match this app")
+                }
+            } else if instruction != .absent {
+                drift.append("instructions without server")
+            }
+            if instruction == .outdated { drift.append("instructions outdated") }
+            if instruction == .broken { drift.append("instructions markers broken") }
+            return Wiring(harness: harness, mcp: mcp, instruction: instruction, caller: harness, routes: targets, drift: drift)
+        }
+    }
+}
+
+extension AgentAccess {
+    /// Whether the entry's own command (not an argument or comment) is this app's installed CLI.
+    fileprivate static func runsThisApp(_ harness: String, _ entry: String) -> Bool {
+        let path = "\(NSHomeDirectory())/.local/bin/agencil"
+        if harness == "codex" {
+            return entry.split(separator: "\n").contains { line in
+                let parts = line.split(separator: "=", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+                return parts.count == 2 && parts[0] == "command" && parts[1] == "\"\(path)\""
+            }
+        }
+        guard let object = (try? JSONSerialization.jsonObject(with: Data(entry.utf8))) as? [String: Any] else { return false }
+        return (object["command"] as? [String])?.first == path
     }
 }
