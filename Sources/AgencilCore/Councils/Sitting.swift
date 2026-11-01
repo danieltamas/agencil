@@ -50,8 +50,6 @@ extension Broker {
         if (parent?.chain.count ?? 0) > route.hopLimit { return settle(Refusal(exit: 3, message: "refused: hop limit")) }
         do {
             let repo = try repository(request["repo"])
-            let snapshot = try Snapshot.take(repo: repo, uncommitted: request["uncommitted"] as? Bool ?? false, question: question,
-                                             commit: try pinnedCommit(request["commit"], repo: repo))
             let author = authorVendor(request["author_vendor"] as? String, parent: parent, config: config)
             let chosen = try Self.chosenSeats(request["seats"], council: council)
             let cap = try Self.capOverride(request["cap_seconds"])
@@ -61,7 +59,14 @@ extension Broker {
                 if author != "unknown", seat.vendor == author { slot.phase = .recused; slot.reason = "same vendor as the author" }
                 return slot
             }
-            let spares = council.spares.compactMap { config.seat(named: $0) }.map(shortened).filter { author == "unknown" || $0.vendor != author }
+            var spares = council.spares.compactMap { config.seat(named: $0) }.map(shortened).filter { author == "unknown" || $0.vendor != author }
+            // A malformed request is refused before any seat is probed; then the panel is checked before anything is
+            // written, so a council that cannot sit leaves no run behind.
+            let commit = try pinnedCommit(request["commit"], repo: repo)
+            let fallbackUsed: Bool
+            do { fallbackUsed = try preflightGate(slots: slots, spares: &spares, council: council, config: config, author: author) }
+            catch let refusal as Refusal { return settle(refusal, "failed") }
+            let snapshot = try Snapshot.take(repo: repo, uncommitted: request["uncommitted"] as? Bool ?? false, question: question, commit: commit)
             let councilRoute = Route(callers: route.callers, target: route.target, hopLimit: route.hopLimit, fallbacks: [],
                                      localOnly: route.localOnly || council.localOnly, requires: route.requires)
             let seatsLine = (request["seats"] as? [String]).map { "seats: \($0.joined(separator: ","))" }
@@ -74,6 +79,7 @@ extension Broker {
                                      caller: caller, parent: parent, snapshot: snapshot, changeKind: kind,
                                      diffRange: request["diff"] as? String, question: question, authorVendor: author, slots: slots,
                                      spares: spares)
+            if fallbackUsed { sitting.noteFallback() }
             tracking.withLock { sittings[opened.id] = sitting }
             try? threads.recordRequest(caller: caller, outcome: "accepted", runID: opened.id)
             Thread.detachNewThread { [self] in conduct(sitting) }
@@ -176,21 +182,23 @@ extension Broker {
             while true {
                 let began = Date()
                 let outcome = sitRun(s, seat: seat, prompt: text)
-                _ = try? sittingRows.seatRun(sitting: s.id, seat: seat, started: began, ended: Date(), exit: nil)
+                func record(exit: Int) { _ = try? sittingRows.seatRun(sitting: s.id, seat: seat, started: began, ended: Date(), exit: exit) }
                 switch outcome {
                 case .unplaceable: break
                 case .answer(let answer):
                     switch AnswerContract.parseSummary(answer) {
                     case .success(let summary):
+                        record(exit: 0)
                         s.summary = summary; s.synthesizerFailed = false
                         return
                     case .failure(let problem):
+                        record(exit: 1)
                         if retried { return }
                         retried = true
                         text = SittingPrompt.retry(base, error: problem.message)
                         continue
                     }
-                default: return
+                default: record(exit: 1); return
                 }
                 break
             }

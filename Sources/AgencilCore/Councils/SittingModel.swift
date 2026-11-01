@@ -93,6 +93,9 @@ final class SittingRun: @unchecked Sendable {
         }
     }
 
+    /// A spare took a seat before the sitting opened (the preflight gate, docs/U25-SPEC.md).
+    func noteFallback() { locked { fallbackUsed = true } }
+
     func append(_ claim: StoredClaim) { locked { claims.append(claim) } }
 
     /// A later round's answer replaces every earlier assessment of the seat.

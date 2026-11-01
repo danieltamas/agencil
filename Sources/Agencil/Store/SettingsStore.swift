@@ -12,7 +12,12 @@ enum SheetKind: String, Identifiable, CaseIterable {
     var detail: String { "Saved to config.json; the broker picks it up without a restart." }
 }
 
-struct SeatForm { var name = "", harness = "codex", model = "", endpoint = "", pin = "", cap = "" }
+struct SeatForm {
+    var name = "", harness = "codex", model = "", endpoint = "", pin = "", cap = ""
+    /// Set by a chosen preset; the sheet has no fields for them.
+    var preset = "", vendor = "", plan = ""
+    var hosted: Bool?
+}
 struct CouncilForm { var name = "", seats: [String] = [], rule = "majority", quorum = "" }
 struct RouteForm { var callers = "", target = "", hops = "" }
 
@@ -146,6 +151,14 @@ struct RouteForm { var callers = "", target = "", hops = "" }
         }
     }
 
+    /// Fills the seat sheet from a preset (docs/U25-SPEC.md); the owner can still edit any field before saving.
+    func applyPreset(_ name: String) {
+        guard let preset = SeatPreset.named(name) else { return }
+        seatForm = SeatForm(name: preset.name, harness: preset.harness, model: preset.model, endpoint: preset.endpoint ?? "", pin: "",
+                            cap: String(preset.capSeconds), preset: preset.name, vendor: preset.vendor, plan: preset.plan.rawValue,
+                            hosted: preset.hosted)
+    }
+
     /// True when the object was saved; otherwise `problems` says which field to fix and the sheet stays open.
     func save(_ kind: SheetKind) -> Bool {
         guard let editor else {
@@ -164,7 +177,8 @@ struct RouteForm { var callers = "", target = "", hops = "" }
                 let cap = whole(seatForm.cap, "capSeconds")
                 guard found.isEmpty else { throw SheetProblems(fields: found) }
                 try editor.add(SeatDraft(name: seatForm.name, harness: seatForm.harness, model: seatForm.model,
-                                         endpoint: seatForm.endpoint, pin: seatForm.pin, capSeconds: cap))
+                                         endpoint: seatForm.endpoint, pin: seatForm.pin, capSeconds: cap,
+                                         vendor: seatForm.vendor, plan: seatForm.plan, hosted: seatForm.hosted))
             case .council:
                 let quorum = whole(councilForm.quorum, "quorum")
                 guard found.isEmpty else { throw SheetProblems(fields: found) }

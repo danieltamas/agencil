@@ -36,7 +36,7 @@ extension Broker {
             let kinds = parent.flatMap { config.seat(named: $0.seat)?.harness }.map { [$0] } ?? []
             let files = try readFiles(request["files"])
             let repo = try repository(request["repo"])
-            let world = discovery.world(environment: environment, home: directory)
+            let world = resolverWorld()
             var existing: ThreadRecord?
             var resolved: Resolved
             var prompt = Adapter.prompt(question: question, files: files, transcript: [])
@@ -201,6 +201,7 @@ extension Broker {
                                                        runDirectory: runDirectory.path) else {
                 return fail("\(seat.harness) has no adapter")
             }
+            if seat.harness == "opencode", !holdOpencode(exchange: key, wait: placeWait ?? wait) { return fail("refused: busy") }
             var workingDirectory = invocation.workingDirectory ?? runDirectory.path
             if let copy = packet.copy {
                 workingDirectory = copy.path
@@ -268,21 +269,23 @@ extension Broker {
             usleep(20_000)
         }
         let stopped = tracking.withLock { stoppedThreads.remove("\(thread.id)-\(seq)") != nil }
+        // A free seat's report never carries dollars into the ledger, whatever it claims.
+        let usage = seat.plan == .free ? reportedUsage(thread: thread.id, seq: seq).map { (dollars: 0.0, tokens: $0.tokens) } : nil
         if stopped {
-            finishExchange(thread: thread.id, seq: seq, state: .failed, answer: nil, reason: "stopped")
+            finishExchange(thread: thread.id, seq: seq, state: .failed, answer: nil, reason: "stopped", usage: usage)
         } else if ranFor >= Double(seat.capSeconds) {
-            finishExchange(thread: thread.id, seq: seq, state: .failed, answer: nil, reason: "\(seat.harness) ran past its \(seat.capSeconds) second cap")
+            finishExchange(thread: thread.id, seq: seq, state: .failed, answer: nil, reason: "\(seat.harness) ran past its \(seat.capSeconds) second cap", usage: usage)
         } else if status == 0 {
             let text = ((try? String(contentsOfFile: answerFile, encoding: .utf8)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             if text.isEmpty {
-                finishExchange(thread: thread.id, seq: seq, state: .failed, answer: nil, reason: "\(seat.harness) answered nothing")
+                finishExchange(thread: thread.id, seq: seq, state: .failed, answer: nil, reason: "\(seat.harness) answered nothing", usage: usage)
             } else {
-                finishExchange(thread: thread.id, seq: seq, state: .answered, answer: text, reason: nil)
+                finishExchange(thread: thread.id, seq: seq, state: .answered, answer: text, reason: nil, usage: usage)
             }
         } else {
             let detail = lastLine(ofLog: launchID).map { ": \($0)" } ?? ""
             let code = status.map { "status \($0)" } ?? "an unknown status"
-            finishExchange(thread: thread.id, seq: seq, state: .failed, answer: nil, reason: "\(seat.harness) exited with \(code)\(detail)")
+            finishExchange(thread: thread.id, seq: seq, state: .failed, answer: nil, reason: "\(seat.harness) exited with \(code)\(detail)", usage: usage)
         }
     }
 

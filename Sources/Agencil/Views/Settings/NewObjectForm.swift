@@ -1,3 +1,4 @@
+import AgencilCore
 import SwiftUI
 
 /// The fields of the three "New ..." sheets. Each problem the store reports shows under its own field; one the
@@ -24,6 +25,11 @@ struct NewObjectForm: View {
 
     private var seat: some View {
         VStack(alignment: .leading, spacing: Space.l) {
+            FieldBlock(title: "Preset", detail: "Fills the fields below; edit any of them before saving.") {
+                MenuField(title: store.seatForm.preset.isEmpty ? "Pick a preset" : store.seatForm.preset, options: SeatPreset.all.map(\.name)) {
+                    store.applyPreset($0)
+                }
+            }
             FieldBlock(title: "Name") { GlassField(placeholder: "reviewer-one", text: $store.seatForm.name) }
             problem("name")
             FieldBlock(title: "Harness") {

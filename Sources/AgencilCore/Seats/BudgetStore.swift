@@ -37,14 +37,15 @@ struct BudgetStore: Sendable {
     }
 
     /// Nil when the quote fits every matching hard budget; else the refusal. With `commit`, the reservation row is
-    /// written in the same transaction as the check.
+    /// written in the same transaction as the check. A `free` seat has no dollar worst case to bound, so a hard
+    /// dollar budget does not refuse it for being unbounded.
     func admit(id: String, quote: Quote, budgets: [Budget], routeKey: String, rootKey: String, vendor: String,
-               commit: Bool) throws -> Refusal? {
+               commit: Bool, free: Bool = false) throws -> Refusal? {
         try ledger.locked {
             try ledger.execute("BEGIN IMMEDIATE;")
             do {
                 for budget in budgets where budget.hard {
-                    if quote.bounded == false, budget.dollars != nil { try rollback(); return Self.refusal }
+                    if quote.bounded == false, budget.dollars != nil, !free { try rollback(); return Self.refusal }
                     let used = try usage(of: budget)
                     if let limit = budget.dollars, used.spentDollars + used.reservedDollars + quote.dollars > limit + Self.epsilon {
                         try rollback(); return Self.refusal

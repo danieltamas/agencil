@@ -8,6 +8,8 @@ public struct PanelData: Sendable, Equatable {
         public let up: Bool
         public let thinking: Bool
         public let probedAgo: Double?
+        /// The preflight standing in the panel's words (docs/U25-SPEC.md); `not probed` without a fresh one.
+        public let standing: String
     }
 
     public struct Seats: Sendable, Equatable {
@@ -95,7 +97,8 @@ public struct PanelData: Sendable, Equatable {
                       items: try items.map {
                           SeatItem(name: try field($0, "name", "seats.items."), model: try field($0, "model", "seats.items."),
                                    up: try field($0, "up", "seats.items."), thinking: try field($0, "thinking", "seats.items."),
-                                   probedAgo: ($0["probed_ago"] as? NSNumber)?.doubleValue)
+                                   probedAgo: ($0["probed_ago"] as? NSNumber)?.doubleValue,
+                                   standing: $0["standing"] as? String ?? "not probed")
                       })
         threads = try list("threads").map {
             Thread(id: try field($0, "id", "threads."), caller: try field($0, "caller", "threads."), seat: try field($0, "seat", "threads."),

@@ -22,7 +22,7 @@ extension Broker {
             return .unplaceable("refused: cycle " + (s.chain + [seat.name]).joined(separator: " -> "), refused: true)
         }
         let executable: String?
-        switch Resolver.usable(seat, discovery.world(environment: environment, home: directory)) {
+        switch Resolver.usable(seat, resolverWorld()) {
         case .success(let path): executable = path
         case .failure(let problem): return .unplaceable(problem.reason, refused: false)
         }
@@ -117,10 +117,12 @@ extension Broker {
         while true {
             let began = Date()
             let outcome = sitRun(s, seat: seat, prompt: text)
-            // An attempt without a usable answer still ran, so the ledger keeps it; a usable one is stored with its round.
+            // An attempt without a usable answer still ran, so the ledger keeps it as exit 1; a usable one is stored with
+            // its round as exit 0. A seat that could not be placed never ran: availability is not a run (docs/U25-SPEC.md).
             if case .answer(let answer) = outcome, case .success = AnswerContract.parse(answer, requireVote: round != "challenge") {
+            } else if case .unplaceable = outcome {
             } else {
-                _ = try? sittingRows.seatRun(sitting: s.id, seat: seat, started: began, ended: Date(), exit: nil)
+                _ = try? sittingRows.seatRun(sitting: s.id, seat: seat, started: began, ended: Date(), exit: 1)
             }
             switch outcome {
             case .answer(let answer):
@@ -177,7 +179,7 @@ extension Broker {
         var runs: [(slot: Slot, id: String)] = []
         for slot in s.slots {
             guard let result = s.locked({ slot.result }) else { continue }
-            let id = try sittingRows.seatRun(sitting: s.id, seat: result.seat, started: result.started, ended: result.ended, exit: nil)
+            let id = try sittingRows.seatRun(sitting: s.id, seat: result.seat, started: result.started, ended: result.ended, exit: 0)
             runs.append((slot, id))
             guard round != "challenge" else { continue }
             for claim in result.answer?.claims ?? [] {

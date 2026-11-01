@@ -30,7 +30,7 @@ extension Broker {
         }
         do {
             if let refusal = try budgets.admit(id: id, quote: quote, budgets: matching, routeKey: requested, rootKey: rootKey,
-                                               vendor: seat.harness, commit: true) {
+                                               vendor: seat.harness, commit: true, free: seat.plan == .free) {
                 capacity.leave(id)
                 throw refusal
             }
@@ -108,11 +108,12 @@ extension Broker {
         }
         try? threads.finish(thread: thread, seq: seq, state: state, answer: answer, reason: reason, runStatus: runStatus)
         capacity.leave(exchange: "\(thread)-\(seq)")
+        releaseOpencode(exchange: "\(thread)-\(seq)")
         removeCopy(thread: thread, seq: seq)
     }
 
     /// A process seat reports what it used in `usage.json` of its run directory; anything malformed is not a report.
-    private func reportedUsage(thread: String, seq: Int) -> (dollars: Double, tokens: Int)? {
+    func reportedUsage(thread: String, seq: Int) -> (dollars: Double, tokens: Int)? {
         let file = directory.appendingPathComponent("runs/\(thread)-\(seq)/usage.json")
         guard let data = try? Data(contentsOf: file), data.count <= 4096,
               let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],

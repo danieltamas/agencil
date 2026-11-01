@@ -24,6 +24,8 @@ public struct ResolverWorld: Sendable {
     public var statusless: Set<String>
     /// Nil when the endpoint answers and lists the model; else the reason.
     public var ollamaProblem: @Sendable (Seat) -> String?
+    /// Nil when the seat has no fresh preflight standing or an `ok` one; else `<seat> preflight: <reason>` (docs/U25-SPEC.md).
+    public var preflight: @Sendable (Seat) -> String? = { _ in nil }
 }
 
 public enum Resolver {
@@ -64,6 +66,14 @@ public enum Resolver {
 
     /// Whether this one seat can run now: the executable path (or nil for a request), else why not.
     public static func usable(_ seat: Seat, _ world: ResolverWorld) -> Result<String?, Unusable> {
+        let base = installed(seat, world)
+        guard case .success = base else { return base }
+        if let standing = world.preflight(seat) { return .failure(Unusable(reason: standing)) }
+        return base
+    }
+
+    /// The install, pin and sign-in checks alone, without the preflight standing.
+    static func installed(_ seat: Seat, _ world: ResolverWorld) -> Result<String?, Unusable> {
         switch seat.harness {
         case "ollama":
             guard seat.endpoint != nil else { return .failure(Unusable(reason: "seat \(seat.name) has no endpoint")) }

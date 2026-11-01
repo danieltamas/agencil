@@ -16,6 +16,22 @@ public struct Seat: Equatable, Sendable {
     public var hosted = true
     /// Who trained the model: recusal and the independence flags compare vendors, never harnesses.
     public var vendor = ""
+    /// How the seat is paid for (docs/U25-SPEC.md "Plans"): a free seat never counts against a dollar budget.
+    public var plan: Plan = .credit
+
+    public enum Plan: String, Sendable, CaseIterable {
+        case subscription, credit, free, local
+
+        /// The plan a seat has when config names none.
+        static func inferred(harness: String, model: String) -> Plan {
+            switch harness {
+            case "claude", "codex": .subscription
+            case "opencode": model.hasSuffix("-free") ? .free : .credit
+            case "ollama": .local
+            default: .credit
+            }
+        }
+    }
 }
 
 /// Who may reach what: callers (ids or `any`), a target (seat, council or alias) and its limits.
@@ -134,12 +150,19 @@ public struct SeatConfig: Sendable {
             if let vendor = item["vendor"], vendor as? String == nil || (vendor as? String)?.range(of: "^[a-z0-9][a-z0-9-]{0,39}$", options: .regularExpression) == nil {
                 throw fail("seat \(name) has a bad vendor")
             }
+            var plan = Seat.Plan.inferred(harness: harness, model: model)
+            if let stated = item["plan"] {
+                guard let parsed = (stated as? String).flatMap(Seat.Plan.init) else { throw fail("seat \(name) has an unknown plan") }
+                plan = parsed
+            }
+            let price = try parsePrice(item["price"], seat: name)
+            if plan == .free, price != nil { throw fail("seat \(name) is free and has a price") }
             return Seat(name: name, harness: harness, model: model, endpoint: endpoint,
                         pin: item["pin"] as? String, role: role, hardening: item["hardening"] as? [String] ?? [],
                         capSeconds: seconds, capTokens: whole(cap["tokens"]),
-                        price: try parsePrice(item["price"], seat: name) ?? .free,
+                        price: price ?? .free,
                         hosted: Self.flag(item["hosted"]) ?? (harness != "ollama" || !isLoopback(endpoint)),
-                        vendor: item["vendor"] as? String ?? vendor(of: harness))
+                        vendor: item["vendor"] as? String ?? vendor(of: harness), plan: plan)
         }
     }
 
@@ -190,6 +213,6 @@ extension Seat {
     /// The same seat with its per-call cap shortened to `seconds`; an override never lengthens a configured cap.
     func capped(at seconds: Int) -> Seat {
         Seat(name: name, harness: harness, model: model, endpoint: endpoint, pin: pin, role: role, hardening: hardening,
-             capSeconds: min(capSeconds, seconds), capTokens: capTokens, price: price, hosted: hosted, vendor: vendor)
+             capSeconds: min(capSeconds, seconds), capTokens: capTokens, price: price, hosted: hosted, vendor: vendor, plan: plan)
     }
 }

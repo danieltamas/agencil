@@ -16,14 +16,22 @@ public struct SeatDraft: Sendable {
     public var endpoint: String?
     public var pin: String?
     public var capSeconds: Int?
+    /// Set by a preset (docs/U25-SPEC.md); absent, the config's own defaults apply.
+    public var vendor: String?
+    public var plan: String?
+    public var hosted: Bool?
 
-    public init(name: String, harness: String, model: String, endpoint: String? = nil, pin: String? = nil, capSeconds: Int? = nil) {
+    public init(name: String, harness: String, model: String, endpoint: String? = nil, pin: String? = nil, capSeconds: Int? = nil,
+                vendor: String? = nil, plan: String? = nil, hosted: Bool? = nil) {
         self.name = name
         self.harness = harness
         self.model = model
         self.endpoint = endpoint
         self.pin = pin
         self.capSeconds = capSeconds
+        self.vendor = vendor
+        self.plan = plan
+        self.hosted = hosted
     }
 }
 
@@ -85,6 +93,9 @@ public struct ConfigEditor: Sendable {
             if let endpoint = draft.endpoint, !endpoint.isEmpty { object["endpoint"] = endpoint }
             if let pin = draft.pin, !pin.isEmpty { object["pin"] = pin }
             if let cap = draft.capSeconds { object["cap"] = ["seconds": cap] }
+            if let vendor = draft.vendor, !vendor.isEmpty { object["vendor"] = vendor }
+            if let plan = draft.plan, !plan.isEmpty { object["plan"] = plan }
+            if let hosted = draft.hosted { object["hosted"] = hosted }
             return (problems, object)
         }
     }

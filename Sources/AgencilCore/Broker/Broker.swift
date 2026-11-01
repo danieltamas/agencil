@@ -23,6 +23,11 @@ public final class Broker: @unchecked Sendable {
     let budgets: BudgetStore
     let sittingRows: SittingStore
     let triggerRows: TriggerStore
+    let preflights: PreflightStore
+    /// One opencode process at a time per broker: standalone runs collide on opencode's own SQLite (docs/U25-SPEC.md).
+    let opencodeGate = DispatchSemaphore(value: 1)
+    /// Exchange keys that hold the opencode gate; `finishExchange` gives it back.
+    var opencodeHeld: Set<String> = []
     let triggerLock = NSLock()
     let capacity = Capacity()
     let discovery = DiscoveryCache()
@@ -73,6 +78,7 @@ public final class Broker: @unchecked Sendable {
         budgets = BudgetStore(ledger: ledger)
         sittingRows = SittingStore(ledger: ledger)
         triggerRows = TriggerStore(ledger: ledger)
+        preflights = PreflightStore(ledger: ledger)
     }
 
     deinit { close(lockDescriptor) }
@@ -169,9 +175,9 @@ public final class Broker: @unchecked Sendable {
             case "stop": return try stop(request)
             case "ask": return ask(request, peer: peer, peerStart: peerStart)
             case "budgets": return budgetsOp()
-            case "wake":
-                try? store.recordRequest(peer: peer)
-                return wake(request, peer: peer, peerStart: peerStart)
+            // A wake records its own request with the caller and the outcome, like an ask; a second, outcome-less row
+            // for the same request would make the ledger's request log lie about what happened.
+            case "wake": return wake(request, peer: peer, peerStart: peerStart)
             case "triggers": return try triggersOp()
             case "panel": return try panelOp()
             case "tick":
@@ -186,6 +192,7 @@ public final class Broker: @unchecked Sendable {
                 return Self.failure("unknown id \((request["id"] as? String) ?? "?")", exit: 64)
             case "dispose": return try disposeOp(request, peer: peer, peerStart: peerStart)
             case "harnesses": return harnessesOp(request)
+            case "preflight": return try preflightOp(request, peer: peer, peerStart: peerStart)
             case "seats", "councils", "routes", "models", "list_targets": return try listOp(op, request, peer: peer, peerStart: peerStart)
             case "findings": return try findingsOp(request)
             case "data": return try dataOp()

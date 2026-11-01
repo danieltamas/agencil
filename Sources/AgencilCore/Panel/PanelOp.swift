@@ -14,8 +14,14 @@ extension Broker {
             let threads = try panelThreads(stamp: stamp)
             let sittings = try panelSittings()
             let thinking = try panelThinking()
-            let items = config.seats.map { seat -> [String: Any] in
-                ["name": seat.name, "model": seat.model, "up": harnessInstalled(seat), "thinking": thinking.contains(seat.name)]
+            let items = try config.seats.map { seat -> [String: Any] in
+                var item: [String: Any] = ["name": seat.name, "model": seat.model, "up": harnessInstalled(seat),
+                                           "thinking": thinking.contains(seat.name), "plan": seat.plan.rawValue, "standing": "not probed"]
+                if let standing = try preflights.fresh(seat, insideLock: true) {
+                    item["standing"] = standing.display
+                    item["probed_ago"] = Date().timeIntervalSince(standing.probedAt)
+                }
+                return item
             }
             let weekly = config.budgets.filter { $0.window == .week }.compactMap(\.dollars)
             var week: [String: Any] = ["spend_usd": try panelSpend(since: weekStart)]

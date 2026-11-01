@@ -24,8 +24,10 @@ public struct CommandLineTool: Sendable {
         "wake": Spec(positionals: 1...1, valued: ["--brief", "--repo", "--diff", "--wait", "--author-vendor", "--seats", "--cap"]),
         "status": Spec(positionals: 1...1), "stop": Spec(positionals: 1...1),
         "budgets": Spec(positionals: 0...0),
-        "seats": Spec(positionals: 0...0), "councils": Spec(positionals: 0...0), "triggers": Spec(positionals: 0...0), "panel": Spec(positionals: 0...0), "routes": Spec(positionals: 0...0),
+        "seats": Spec(positionals: 0...2, valued: ["--preset"]), "councils": Spec(positionals: 0...0), "triggers": Spec(positionals: 0...0),
+        "panel": Spec(positionals: 0...0), "routes": Spec(positionals: 0...0),
         "harnesses": Spec(positionals: 0...0, switches: ["--json", "--probe"]), "models": Spec(positionals: 0...0),
+        "preflight": Spec(positionals: 0...0, valued: ["--seats"], switches: ["--json", "--probe"]),
         "data": Spec(positionals: 0...0), "prune": Spec(positionals: 0...0),
         "findings": Spec(positionals: 0...0, switches: ["--json", "--open"]),
         "dispose": Spec(positionals: 2...2), "leaderboard": Spec(positionals: 1...1),
@@ -78,6 +80,8 @@ public struct CommandLineTool: Sendable {
                 dryRun: parsed.flags.contains("--dry-run"), uninstall: parsed.flags.contains("--uninstall"))
         case "access":
             return try access(json: json)
+        case "seats" where !parsed.positionals.isEmpty:
+            return try presets(parsed)
         case "install-instructions":
             return try installInstructions(parsed.positionals[0], dryRun: parsed.flags.contains("--dry-run"),
                                            uninstall: parsed.flags.contains("--uninstall"), json: json)
@@ -105,9 +109,11 @@ public struct CommandLineTool: Sendable {
         switch verb {
         case "ask":
             request["target"] = parsed.positionals[0]; request["question"] = parsed.positionals[1]
-        case "wake":
-            request["council"] = parsed.positionals[0]
-            request.merge(try Self.brief(parsed)) { _, new in new }
+        case "wake", "preflight":
+            if verb == "wake" {
+                request["council"] = parsed.positionals[0]
+                request.merge(try Self.brief(parsed)) { _, new in new }
+            }
             if let seats = parsed.value("--seats") {
                 let names = seats.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
                 guard names.allSatisfy({ !$0.isEmpty }) else { throw Usage(message: "--seats takes a comma-separated list of seat names") }
@@ -144,6 +150,10 @@ public struct CommandLineTool: Sendable {
         let data = reply["data"] ?? reply.filter { $0.key != "ok" }
         print(json ? Envelope.text(Envelope.make(data: data, note: reply["data_note"] as? String ?? Broker.note))
                    : Self.human(data))
+        // Preflight exits by the panel's standing: 0 when every listed seat is ok, else 4.
+        if verb == "preflight", let rows = (data as? [String: Any])?["seats"] as? [[String: Any]] {
+            return rows.allSatisfy { $0["reason"] as? String == "ok" } ? 0 : 4
+        }
         // A sitting that reached a verdict exits by it: PASS 0, BLOCK 1, INCOMPLETE 2.
         switch (data as? [String: Any])?["verdict"] as? String {
         case "BLOCK": return 1
@@ -203,9 +213,33 @@ public struct CommandLineTool: Sendable {
                         environment: environment)
     }
 
+    /// `seats presets` lists the catalog; `seats add --preset <name>` writes one through the validated config path.
+    private func presets(_ parsed: Parsed) throws -> Int32 {
+        switch parsed.positionals {
+        case ["presets"]:
+            print(SeatPreset.all.map(\.line).joined(separator: "\n"))
+            return 0
+        case ["add"]:
+            guard let name = parsed.value("--preset") else { throw Usage(message: "seats add takes --preset <name>") }
+            guard let preset = SeatPreset.named(name) else { throw Usage(message: "unknown preset \(name)") }
+            do { try ConfigEditor(directory: try home().directory).add(preset.draft) } catch let refused as SheetProblems {
+                return Self.report(refused.fields.sorted { $0.key < $1.key }.map { "\($0.key): \($0.value)" }.joined(separator: "; "), 4)
+            }
+            print("added \(preset.name)")
+            return 0
+        default:
+            throw Usage(message: "seats takes no arguments, presets, or add --preset <name>")
+        }
+    }
+
     private static func human(_ data: Any) -> String {
         if let object = data as? [String: Any], let answer = object["answer"] as? String {
             return [object["substituted"] as? String, answer].compactMap { $0 }.joined(separator: "\n\n")
+        }
+        if let object = data as? [String: Any], let rows = object["seats"] as? [[String: Any]], rows.first?["reason"] != nil {
+            return rows.map { row in
+                ["name", "reason", "detail"].map { row[$0] as? String ?? "" }.filter { !$0.isEmpty }.joined(separator: "  ")
+            }.joined(separator: "\n")
         }
         if let object = data as? [String: Any], let rows = object["harnesses"] as? [[String: Any]], !rows.isEmpty {
             return rows.map { row in

@@ -117,5 +117,16 @@ enum LedgerSchema {
         """
         ALTER TABLE sittings ADD COLUMN repo TEXT;
         """,
+        // Preflight standings (docs/U25-SPEC.md): every availability probe of a seat, appended, never changed. The
+        // latest row of a seat is its standing; all of them are its availability rate.
+        """
+        CREATE TABLE preflights (id TEXT PRIMARY KEY, seat TEXT NOT NULL, harness TEXT NOT NULL, model TEXT NOT NULL,
+            plan TEXT NOT NULL, reason TEXT NOT NULL, detail TEXT NOT NULL, until TEXT, probed_at TEXT NOT NULL);
+        CREATE INDEX preflights_seat ON preflights (seat, probed_at);
+        CREATE TRIGGER preflights_no_update BEFORE UPDATE ON preflights
+        BEGIN SELECT RAISE(ABORT, 'preflights rows are never overwritten'); END;
+        CREATE TRIGGER preflights_no_delete BEFORE DELETE ON preflights
+        BEGIN SELECT RAISE(ABORT, 'preflights rows are never deleted'); END;
+        """,
     ]
 }

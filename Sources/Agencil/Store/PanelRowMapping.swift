@@ -33,7 +33,7 @@ extension DemoPanel.Finding {
 extension DemoPanel.SeatRow {
     init(_ row: PanelData.SeatItem) {
         self.init(id: row.name, model: row.model, up: row.up, confirmed: "n=0, too few", coverage: "n=0, too few",
-                  cost: "-", median: "-", overlap: row.up ? "no outcomes yet" : "not reachable", enough: false)
+                  cost: "-", median: "-", overlap: row.up ? row.standing : "not reachable", enough: false)
     }
 }
 

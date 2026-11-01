@@ -40,6 +40,13 @@ One broker per Mac owns the ledger, the budgets and the concurrency cap:
    - Agencil uses the newest detected install of the seat's harness kind: the path, a version within the seat's pin, the signed-in state, and a probe younger than 10 minutes (else it probes now, at most 20 s).
    - None usable: the route's fallbacks are tried in order and the substitution is recorded on the thread (`answered by opencode-kimi, fallback for hermes-qwen: hermes not signed in`).
    - With no usable fallback: `failed: <reason>`.
+   - **Preflight standing** (docs/U25-SPEC.md): a seat whose latest probe is younger than 10 minutes and not `ok` is
+     unusable without a new process: `failed: <seat> preflight: <reason>[ until <text>]`, reasons `not_installed`,
+     `not_logged_in`, `usage_limit`, `no_credit`, `model_unavailable`, `busy`, `unreachable`, `timeout`, `error`. `wake`
+     probes every seat of the council first and refuses before any row is written when a slot cannot be filled by an
+     `ok` spare of a new vendor. The `preflight` op (`seats`, `probe`) answers from the cache for any local caller;
+     probing needs the owner. Seats have a `plan` (`subscription`, `credit`, `free`, `local`); a `free` seat is never
+     refused by, nor charged against, a dollar budget. At most one opencode process runs at a time.
 4. **Model and endpoint.**
    - For an Ollama-backed seat, the endpoint must answer `/api/tags` and list the model, else `failed: <endpoint> down` or `model not loaded`.
    - A hosted seat needs its key present in the Keychain.
@@ -123,6 +130,8 @@ is off by default, and routes default to refuse.
 | `status <id>` | State, seats, elapsed time, cost |
 | `stop <id>` | Stops a thread or sitting; seats are killed by process group |
 | `seats`, `councils`, `routes`, `triggers` | The configuration, read-only. `triggers` also shows each trigger's last fire and sitting (docs/U7-SPEC.md "Triggers") |
+| `seats presets`, `seats add --preset <name>` | The documented seat catalog (docs/U25-SPEC.md "Presets") and adding one through the validated config path; 64 for an unknown preset, 4 for a refused draft |
+| `preflight [--seats a,b] [--probe]` | Each seat's standing (`<name>  <reason>  <detail>`): cached without `--probe`, probed now with it (owner only). Exit 0 when every listed seat is `ok`, else 4; an unknown seat exits 64 |
 | `panel` | CLI only, read-only: the snapshot the app panel shows (threads, sittings, findings, seats, week spend); no MCP tool (docs/U8-SPEC.md) |
 | `harnesses [--probe]` | Detected harnesses: path, version, signed in, chain support, last probe |
 | `models` | Providers and Ollama endpoints with health and models |

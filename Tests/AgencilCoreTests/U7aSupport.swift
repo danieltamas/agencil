@@ -48,6 +48,7 @@ final class U7aRig {
             for round in ["blind", "rebuttal", "challenge"] { try reply(seat, round, u7aAnswer()) }
             try reply(seat, "synthesis", "{\"summary\":\"SUMMARY_MARKER\"}")
         }
+        for kind in ["codex", "claude", "hermes", "opencode"] { try put(kind + ".ask", "OK") }
         base.broker = try home.serve(["AGENCIL_TEST_SEAMS": "1", "AGENCIL_PATH_PREFIX": base.bin.path,
             "HOME": packet.fakeHome.path, "STUB_DIR": control.path,
             "STUB_LEDGER": home.url.appendingPathComponent("agencil.sqlite").path,

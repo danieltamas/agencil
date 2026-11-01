@@ -8,7 +8,8 @@ final class DiscoveryCache: @unchecked Sendable {
     private var taken: Date?
 
     /// The world the resolver sees. Probing starts at the first probe lookup, so a refused route costs no process runs.
-    func world(environment: [String: String], home: URL) -> ResolverWorld {
+    /// `preflight` is the seat's fresh standing (docs/U25-SPEC.md); without it only install and sign-in are judged.
+    func world(environment: [String: String], home: URL, preflight: @escaping @Sendable (Seat) -> String? = { _ in nil }) -> ResolverWorld {
         let catalog = try? HarnessCatalog.embedded()
         return ResolverWorld(probe: { [self] kind in
                                  let fresh = lock.withLock { taken.map { Date().timeIntervalSince($0) < Self.lifetime } ?? false }
@@ -16,7 +17,7 @@ final class DiscoveryCache: @unchecked Sendable {
                                  return lock.withLock { probes[kind] }
                              },
                              statusless: Set(catalog?.entries.filter { $0.status == nil }.map(\.kind) ?? []),
-                             ollamaProblem: { OllamaClient.problem(for: $0) })
+                             ollamaProblem: { OllamaClient.problem(for: $0) }, preflight: preflight)
     }
 
     /// Every catalog harness in catalog order. `force` probes again; otherwise the cache serves while it is fresh.
