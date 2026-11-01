@@ -40,7 +40,7 @@ extension Broker {
             let resolved = Resolved(seat: seat, route: s.route, substituted: nil, executable: executable, admitted: admitted)
             let reply = try run(resolved, caller: s.caller, chain: s.chain + [seat.name], parent: s.parent, requested: s.council.name,
                                 question: prompt, files: [], repo: repo, thread: nil, limits: s.config.limits, wait: 0,
-                                placeWait: max(1, Int(s.deadline.timeIntervalSinceNow)), snapshot: s.snapshot, verbatim: true)
+                                placeWait: max(1, Int(s.deadline.timeIntervalSinceNow)), snapshot: s.snapshot, verbatim: true, isOver: { s.isOver })
             guard let id = (reply["data"] as? [String: Any])?["thread"] as? String else {
                 return .failed("the seat could not be started")
             }

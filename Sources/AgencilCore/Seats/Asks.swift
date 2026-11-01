@@ -132,7 +132,8 @@ extension Broker {
 
     func run(_ resolved: Resolved, caller: String, chain: [String], parent: CapabilityRun?, requested: String, question: String,
                      files: [(path: String, text: String)], repo: String?, thread existing: ThreadRecord?, limits: Limits,
-                     wait: Int, placeWait: Int? = nil, snapshot: Snapshot? = nil, verbatim: Bool = false) throws -> [String: Any] {
+                     wait: Int, placeWait: Int? = nil, snapshot: Snapshot? = nil, verbatim: Bool = false,
+                     isOver:  () -> Bool = { false }) throws -> [String: Any] {
         guard let admitted = resolved.admitted else { throw Failure(message: "the ask was not admitted") }
         try awaitSeat(admitted, limits: limits, wait: placeWait ?? wait)
         let thread = try existing ?? threads.createThread(requested: requested, seat: resolved.seat.name, caller: caller,
@@ -202,9 +203,9 @@ extension Broker {
                 return fail("\(seat.harness) has no adapter")
             }
             if seat.harness == "opencode" {
-                if !holdOpencode(exchange: key, wait: placeWait ?? wait) { return fail("refused: busy") }
+                if !holdOpencode(exchange: key, wait: placeWait ?? wait, cancelled: isOver) { return fail(isOver() ? "stopped" : "refused: busy") }
                 // The wait may have outlasted a stop of the thread or its sitting; nothing is launched after one.
-                if tracking.withLock({ stoppedThreads.contains(key) }) { return fail("stopped") }
+                if isOver() || tracking.withLock({ stoppedThreads.contains(key) }) { return fail("stopped") }
             }
             var workingDirectory = invocation.workingDirectory ?? runDirectory.path
             if let copy = packet.copy {

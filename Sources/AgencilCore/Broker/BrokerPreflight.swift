@@ -234,9 +234,13 @@ extension Broker {
 
     // MARK: the opencode gate
 
-    /// Takes the opencode gate for an exchange, waiting up to `wait` seconds; false when another run still holds it.
-    func holdOpencode(exchange key: String, wait: Int) -> Bool {
-        guard opencodeGate.wait(timeout: .now() + Double(max(wait, 1))) == .success else { return false }
+    /// Takes the opencode gate for an exchange, waiting up to `wait` seconds; false when another run still holds it
+    /// or `cancelled` turns true while waiting (a stopped sitting must not queue a launch behind the gate).
+    func holdOpencode(exchange key: String, wait: Int, cancelled: () -> Bool = { false }) -> Bool {
+        let end = Date().addingTimeInterval(Double(max(wait, 1)))
+        while opencodeGate.wait(timeout: .now() + 0.1) != .success {
+            if cancelled() || Date() >= end { return false }
+        }
         tracking.withLock { _ = opencodeHeld.insert(key) }
         return true
     }
