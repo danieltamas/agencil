@@ -54,6 +54,20 @@ struct SettingsRow<Control: View>: View {
     }
 }
 
+/// A row that opens something: the whole row is the button, with a wash and the hand on hover.
+struct PressRow<Content: View>: View {
+    let label: String
+    let action: () -> Void
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        Button(action: action) { content.padding(.horizontal, SettingsMetrics.rowInset) }
+            .buttonStyle(RowPressStyle())
+            .padding(.horizontal, -SettingsMetrics.rowInset)
+            .accessibilityLabel(label)
+    }
+}
+
 /// A hairline between the rows of one card.
 struct RowDivider: View {
     var body: some View { Rectangle().fill(Theme.hairline).frame(height: 0.5) }

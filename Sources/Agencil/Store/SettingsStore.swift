@@ -19,14 +19,22 @@ struct SeatForm {
     var harness = "codex" { didSet { if harness != oldValue { forgetPreset() } } }
     var model = "" { didSet { if model != oldValue { forgetPreset() } } }
     var endpoint = "", pin = "", cap = ""
-    /// Set by a chosen preset; the sheet has no fields for them.
+    /// Empty means the config infers it. A chosen preset fills them; the sheet shows them and they can be edited.
     var preset = "", vendor = "", plan = ""
     var hosted: Bool?
+    var role = ""
 
     private mutating func forgetPreset() { preset = ""; vendor = ""; plan = ""; hosted = nil }
 }
-struct CouncilForm { var name = "", seats: [String] = [], rule = "majority", quorum = "" }
+struct CouncilForm { var name = "", seats: [String] = [], rule = "majority", quorum = "", spare: [String] = [], synthesizer: [String] = [] }
 struct RouteForm { var callers = "", target = "", hops = "" }
+
+/// What an Edit sheet changes: a seat or council by its name, a route by its place in the list and what it was
+/// when the sheet opened (a route has no name).
+enum EditTarget: Equatable {
+    case named(String)
+    case route(index: Int, was: RouteDraft)
+}
 
 /// The Settings window's state: what the config holds now, the sheet forms, and the saves. Every save goes through
 /// `ConfigEditor`, which re-reads the file first; nothing here keeps a second copy of a setting.
@@ -52,13 +60,16 @@ struct RouteForm { var callers = "", target = "", hops = "" }
     var councilForm = CouncilForm()
     var routeForm = RouteForm()
     var presenting: SheetKind?
+    /// Set while the sheet edits an existing object; nil while it creates one.
+    var editing: EditTarget?
+    var confirmingDelete = false
     /// Owned here, not by a view, so an install press stays guarded while the owner is on another pane.
     let inFlight = InFlightActions()
     private(set) var agentAccessOn = false
-    private(set) var problems: [String: String] = [:]
+    var problems: [String: String] = [:]
 
     @ObservationIgnored private let directory: URL?
-    @ObservationIgnored private let editor: ConfigEditor?
+    @ObservationIgnored let editor: ConfigEditor?
     @ObservationIgnored private let agentAccess: AgentAccess?
     @ObservationIgnored private var environment: [String: String] = [:]
 
@@ -151,6 +162,8 @@ struct RouteForm { var callers = "", target = "", hops = "" }
 
     func startSheet(_ kind: SheetKind) {
         problems = [:]
+        editing = nil
+        confirmingDelete = false
         switch kind {
         case .seat: seatForm = SeatForm()
         case .council: councilForm = CouncilForm()
@@ -183,18 +196,22 @@ struct RouteForm { var callers = "", target = "", hops = "" }
             case .seat:
                 let cap = whole(seatForm.cap, "capSeconds")
                 guard found.isEmpty else { throw SheetProblems(fields: found) }
-                try editor.add(SeatDraft(name: seatForm.name, harness: seatForm.harness, model: seatForm.model,
+                let draft = SeatDraft(name: seatForm.name, harness: seatForm.harness, model: seatForm.model,
                                          endpoint: seatForm.endpoint, pin: seatForm.pin, capSeconds: cap,
-                                         vendor: seatForm.vendor, plan: seatForm.plan, hosted: seatForm.hosted))
+                                         vendor: seatForm.vendor, plan: seatForm.plan, hosted: seatForm.hosted, role: seatForm.role)
+                if case .named(let old) = editing { try editor.update(seat: old, with: draft) } else { try editor.add(draft) }
             case .council:
                 let quorum = whole(councilForm.quorum, "quorum")
                 guard found.isEmpty else { throw SheetProblems(fields: found) }
-                try editor.add(CouncilDraft(name: councilForm.name, seats: councilForm.seats, rule: councilForm.rule, quorum: quorum))
+                let draft = CouncilDraft(name: councilForm.name, seats: councilForm.seats, rule: councilForm.rule, quorum: quorum,
+                                         spare: councilForm.spare, synthesizer: councilForm.synthesizer)
+                if case .named(let old) = editing { try editor.update(council: old, with: draft) } else { try editor.add(draft) }
             case .route:
                 let hops = whole(routeForm.hops, "hopLimit")
                 guard found.isEmpty else { throw SheetProblems(fields: found) }
                 let callers = routeForm.callers.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-                try editor.add(RouteDraft(callers: callers, target: routeForm.target, hopLimit: hops))
+                let draft = RouteDraft(callers: callers, target: routeForm.target, hopLimit: hops)
+                if case .route(let index, let was) = editing { try editor.update(routeAt: index, was: was, with: draft) } else { try editor.add(draft) }
             }
         } catch let refused as SheetProblems {
             problems = refused.fields
