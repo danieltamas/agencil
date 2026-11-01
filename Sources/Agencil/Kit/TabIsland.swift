@@ -37,10 +37,16 @@ struct TabIsland: View {
                     .foregroundStyle(open ? Theme.textPrimary : Theme.textSecondary)
                     .padding(.horizontal, Space.l)
                     .frame(maxWidth: open ? .infinity : nil, minHeight: Size.tabIsland)
-                    .background { if open { Capsule().fill(Theme.coreHover) } }
+                    .background {
+                        if open {
+                            Capsule().fill(Theme.coreHover)
+                                .overlay(Capsule().strokeBorder(Theme.accent.opacity(0.55), lineWidth: 0.75))
+                        }
+                    }
                     .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
+                .pointingHandCursor()
                 .help(tab.title)
             }
         }

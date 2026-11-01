@@ -86,11 +86,9 @@ struct PanelView: View {
             }
         case .council:
             BentoTile(eyebrow: "In session", value: "Sitting", tint: Theme.running, big: true) {
-                HStack(alignment: .bottom, spacing: Space.m) {
-                    ChipButton(title: "Show sittings") { tab = "sittings" }
-                    BentoRing { store.ringView }
-                }
+                ChipButton(title: "Show sittings") { tab = "sittings" }
             }
+            .overlay(alignment: .trailing) { BentoRing { store.ringView }.padding(.trailing, Space.l) }
         case .needsYou(let count, let findings, let proposals, let stopped):
             BentoTile(eyebrow: "Needs you", value: "\(count)", tint: Theme.accent, big: true) {
                 HStack(spacing: Space.s) {
@@ -178,8 +176,7 @@ struct PanelView: View {
             Text(store.problem ?? store.footer).font(.house.meta)
                 .foregroundStyle(store.problem == nil ? Theme.textTertiary : Theme.crit).lineLimit(1)
             Spacer(minLength: 0)
-            ChipButton(title: "Restart") {}
-            ChipButton(title: "Quit") { NSApplication.shared.terminate(nil) }
+            AppControls(restart: AppRelaunch.restart, quit: AppRelaunch.quit)
         }
         .panelFooterInsets()
     }

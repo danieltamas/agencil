@@ -5,6 +5,6 @@ struct BentoRing<Ring: View>: View {
     @ViewBuilder let ring: Ring
 
     var body: some View {
-        ring.frame(maxWidth: .infinity, maxHeight: Size.bentoRing)
+        ring.frame(width: Size.bentoRing, height: Size.bentoRing)
     }
 }

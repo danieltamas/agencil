@@ -9,10 +9,10 @@ struct BentoTile<Footer: View>: View {
     @ViewBuilder let footer: Footer
 
     var body: some View {
-        Bezel(radius: Radius.smallCard) {
+        Bezel(radius: Radius.smallCard, glow: big ? tint : nil) {
             VStack(alignment: .leading, spacing: Space.xs) {
                 Eyebrow(text: eyebrow)
-                Text(value).font(big ? .house.statValue : .house.statSmall).foregroundStyle(tint)
+                Text(value).font(big ? .house.statValue : .house.statSmall).foregroundStyle(big ? AnyShapeStyle(Theme.brand) : AnyShapeStyle(tint))
                     .lineLimit(1).minimumScaleFactor(0.7)
                 footer
                 if big { Spacer(minLength: 0) }

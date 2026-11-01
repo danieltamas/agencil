@@ -62,7 +62,7 @@ enum Size {
     static let modalWidth: CGFloat = 520
     static let panelListLimit: CGFloat = 340
     static let bentoSide: CGFloat = 140
-    static let bentoRing: CGFloat = 64
+    static let bentoRing: CGFloat = 96
     static let sidebarGlyph: CGFloat = 24
 }
 

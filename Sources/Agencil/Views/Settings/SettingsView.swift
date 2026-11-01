@@ -74,10 +74,7 @@ struct SettingsView: View {
                 }
             }
             .scrollIndicators(.hidden)
-            HStack(spacing: Space.m) {
-                ChipButton(title: "Restart") {}
-                ChipButton(title: "Quit") { NSApplication.shared.terminate(nil) }
-            }
+            AppControls(restart: AppRelaunch.restart, quit: AppRelaunch.quit)
             .padding(.horizontal, Space.l).padding(.top, Space.s)
         }
         .padding(.vertical, Space.l).padding(.horizontal, Space.s)
