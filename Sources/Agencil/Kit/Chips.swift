@@ -55,3 +55,17 @@ struct GlyphDisc: View {
             .overlay(Circle().strokeBorder(color.opacity(0.22), lineWidth: 0.5))
     }
 }
+
+/// A panel filter: an outlined capsule, tinted in the accent while it is the one in force.
+struct FilterChip: View {
+    let title: String
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Chip(text: title, color: selected ? Theme.accent : Theme.textSecondary, style: selected ? .tinted : .outline)
+        }
+        .buttonStyle(PressStyle(scale: 0.97, hit: AnyShape(Capsule()), lift: 0.08))
+    }
+}

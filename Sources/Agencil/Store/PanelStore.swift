@@ -180,6 +180,7 @@ import SwiftUI
 
     var footer: String {
         guard let readAt else { return "Reading..." }
+        if let newest = (data?.seats.items ?? []).compactMap(\.probedAgo).min() { return "probed " + Self.age(newest) }
         return "Updated " + readAt.formatted(date: .omitted, time: .standard)
     }
 
@@ -230,6 +231,15 @@ import SwiftUI
 
     private static func matches(_ search: String, _ fields: [String]) -> Bool {
         search.isEmpty || fields.contains { $0.localizedCaseInsensitiveContains(search) }
+    }
+
+    /// "40s", "5m", "2h": how long ago, for the footer's poll age.
+    static func age(_ seconds: Double) -> String {
+        switch seconds {
+        case ..<60: "\(Int(seconds))s"
+        case ..<3600: "\(Int(seconds / 60))m"
+        default: "\(Int(seconds / 3600))h"
+        }
     }
 
     static func money(_ dollars: Double) -> String { PanelFormat.money(dollars) }

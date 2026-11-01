@@ -20,6 +20,7 @@ struct PanelView: View {
             TabItem(id: "sittings", title: "Sittings", symbol: "circle.hexagongrid", badge: store.liveSittings),
             TabItem(id: "findings", title: "Findings", symbol: "exclamationmark.bubble", badge: store.openFindings),
             TabItem(id: "seats", title: "Seats", symbol: "person.2.wave.2"),
+            TabItem(id: "learn", title: "Learn", symbol: "sparkles", badge: store.proposals.count),
         ]
     }
 
@@ -109,7 +110,7 @@ struct PanelView: View {
         if !names.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Space.s) {
-                    ForEach(names, id: \.self) { name in SegmentChip(title: name, selected: filter == name) { filter = name } }
+                    ForEach(names, id: \.self) { name in FilterChip(title: name, selected: filter == name) { filter = name } }
                 }
             }
         }
@@ -128,6 +129,7 @@ struct PanelView: View {
         case "threads": "Reading threads..."
         case "sittings": "Reading sittings..."
         case "findings": "Reading findings..."
+        case "learn": "Reading proposals..."
         default: "Reading seats..."
         }
     }
@@ -149,7 +151,10 @@ struct PanelView: View {
                 if items.isEmpty { EmptyState(symbol: "checkmark.seal", title: "Nothing to decide", detail: "Claims from a sitting wait here for your call.") }
                 ForEach(items) { item in FindingRow(finding: item, confirm: store.decideAction(item.id, confirm: true), dismiss: store.decideAction(item.id, confirm: false),
                                        adjudicate: store.adjudicateAction(item.id)) }
-            default:
+            case "learn":
+                if store.proposals.isEmpty && !store.canRollback {
+                    EmptyState(symbol: "sparkles", title: "Nothing to learn yet", detail: "Proposals to drop, swap or add a seat appear here once outcomes pile up.")
+                }
                 ForEach(store.proposals) { item in
                     ProposalRow(proposal: item, approve: store.learnAction(item.id, "approve"), reject: store.learnAction(item.id, "reject"),
                                 review: store.learnAction(item.id, "review"))
@@ -159,6 +164,7 @@ struct PanelView: View {
                         ChipButton(title: running ? "Rolling back..." : "Roll back the last council change", action: press)
                     }
                 }
+            default:
                 let items = store.seats(search: search)
                 if items.isEmpty { EmptyState(symbol: "person.2.wave.2", title: "No seats configured", detail: "Add a seat in Settings to start.") }
                 ForEach(items) { SeatScoreRow(seat: $0) }

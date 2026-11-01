@@ -12,12 +12,14 @@ struct TabItem: Identifiable, Hashable {
 struct TabIsland: View {
     let tabs: [TabItem]
     @Binding var selection: String
+    @Namespace private var island
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
             row(named: true)
             row(named: false)
         }
+        .animation(Motion.spring, value: selection)
         .padding(Space.xs)
         .frame(height: Size.tabIsland + Space.xs * 2)
         .background(Theme.core.opacity(0.7), in: Capsule())
@@ -28,10 +30,10 @@ struct TabIsland: View {
         HStack(spacing: Space.xs) {
             ForEach(tabs) { tab in
                 let open = tab.id == selection
-                Button { withAnimation(Motion.snappy) { selection = tab.id } } label: {
+                Button { withAnimation(Motion.spring) { selection = tab.id } } label: {
                     HStack(spacing: Space.s) {
                         Image(systemName: tab.symbol).font(.system(size: 12, weight: .semibold))
-                        if open && named { Text(tab.title).font(.house.control).lineLimit(1) }
+                        if open && named { Text(tab.title).font(.house.control).lineLimit(1).fixedSize().transition(.opacity) }
                         if tab.badge > 0 { Chip(text: "\(tab.badge)", color: Theme.accent, style: open ? .filled : .tinted) }
                     }
                     .foregroundStyle(open ? Theme.textPrimary : Theme.textSecondary)
@@ -40,6 +42,7 @@ struct TabIsland: View {
                     .background {
                         if open {
                             Capsule().fill(Theme.coreHover)
+                                .matchedGeometryEffect(id: "tab", in: island)
                                 .overlay(Capsule().strokeBorder(Theme.accent.opacity(0.55), lineWidth: 0.75))
                         }
                     }
