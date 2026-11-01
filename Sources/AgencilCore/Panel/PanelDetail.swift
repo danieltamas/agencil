@@ -10,6 +10,10 @@ public struct ThreadDetail: Sendable, Equatable {
         public let reason: String?
         public let costUSD: Double?
         public let tokens: Int?
+        public let tokensIn: Int?
+        public let tokensOut: Int?
+        /// "reported", "estimated" or "estimated, subscription"; nil when there is no cost.
+        public let costNote: String?
     }
 
     public let exchanges: [Exchange]
@@ -24,7 +28,8 @@ public struct ThreadDetail: Sendable, Equatable {
         exchanges = (json["exchanges"] as? [[String: Any]] ?? []).map {
             Exchange(question: $0["question"] as? String ?? "", answer: $0["answer"] as? String, state: $0["state"] as? String ?? "",
                      reason: $0["reason"] as? String, costUSD: ($0["cost_usd"] as? NSNumber)?.doubleValue,
-                     tokens: ($0["tokens"] as? NSNumber)?.intValue)
+                     tokens: ($0["tokens"] as? NSNumber)?.intValue, tokensIn: ($0["tokens_in"] as? NSNumber)?.intValue,
+                     tokensOut: ($0["tokens_out"] as? NSNumber)?.intValue, costNote: $0["cost_note"] as? String)
         }
     }
 }
@@ -40,6 +45,9 @@ public struct SittingDetail: Sendable, Equatable {
         public let ended: Date?
         public let costUSD: Double?
         public let tokens: Int?
+        public let tokensIn: Int?
+        public let tokensOut: Int?
+        public let costNote: String?
         public let model: String?
         public let harness: String?
     }
@@ -114,7 +122,9 @@ public struct SittingDetail: Sendable, Equatable {
                 Seat(name: $0["seat"] as? String ?? "", state: $0["state"] as? String ?? "", answer: $0["answer"] as? String,
                      reason: $0["reason"] as? String, started: ($0["started"] as? String).flatMap(stamp.date),
                      ended: ($0["ended"] as? String).flatMap(stamp.date), costUSD: ($0["cost_usd"] as? NSNumber)?.doubleValue,
-                     tokens: ($0["tokens"] as? NSNumber)?.intValue, model: $0["model"] as? String, harness: $0["harness"] as? String)
+                     tokens: ($0["tokens"] as? NSNumber)?.intValue, tokensIn: ($0["tokens_in"] as? NSNumber)?.intValue,
+                     tokensOut: ($0["tokens_out"] as? NSNumber)?.intValue, costNote: $0["cost_note"] as? String,
+                     model: $0["model"] as? String, harness: $0["harness"] as? String)
             })
         }
     }

@@ -64,6 +64,6 @@ extension Broker {
         let argv = try Confinement.wrap(invocation.argv, launcher: launcher, copy: copy, runDirectory: runDirectory, harness: harness,
                                         home: Confinement.home(environment: environment))
         return Invocation(argv: argv, environment: invocation.environment.merging(["TMPDIR": temporary.path]) { _, mine in mine },
-                          workingDirectory: copy.path, stdoutIsAnswer: invocation.stdoutIsAnswer)
+                          workingDirectory: copy.path, stdoutIsAnswer: invocation.stdoutIsAnswer, usage: invocation.usage)
     }
 }

@@ -2,7 +2,8 @@ import Foundation
 
 /// The `detail` op: one thread's whole exchange, or one sitting's brief, verdict and every round's seat answers.
 /// Read-only, for the panel and any agent that wants to inspect a deliberation after it ended (docs/AGENT-API.md "detail").
-/// A figure the ledger does not hold is left out, never estimated: cost and tokens appear only when the seat reported them.
+/// A figure the ledger does not hold is left out: tokens appear only when the harness reported them, and cost only when it
+/// reported dollars or the model has a listed price (`cost_note` says which; a subscription seat's cost is always an estimate).
 extension Broker {
     private static let textLimit = 32_768
 
@@ -22,7 +23,19 @@ extension Broker {
         return found.charged
     }
 
+    /// The harness's own usage when it gave one (tokens in and out, cost with `cost_note` saying whether it is reported or
+    /// estimated), else what the seat reported through the budget path.
     private func addReport(_ row: inout [String: Any], thread: String, seq: Int) {
+        if let usage = try? threads.usage(thread: thread, seq: seq) {
+            row["tokens_in"] = usage.tokensIn
+            row["tokens_out"] = usage.tokensOut
+            row["tokens"] = usage.tokensIn + usage.tokensOut
+            if let dollars = usage.dollars {
+                row["cost_usd"] = dollars
+                row["cost_note"] = usage.basis ?? "estimated"
+            }
+            return
+        }
         guard let report = reported(thread: thread, seq: seq) else { return }
         row["cost_usd"] = report.dollars
         row["tokens"] = report.tokens

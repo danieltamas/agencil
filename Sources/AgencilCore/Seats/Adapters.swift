@@ -25,6 +25,9 @@ public struct Invocation: Equatable, Sendable {
     public let workingDirectory: String?
     /// True when the answer is the process's stdout; false when it is the file the adapter named in argv.
     public let stdoutIsAnswer: Bool
+    /// Set when the argv asks the harness for its machine-readable stream, from which the usage (and for some harnesses
+    /// the answer) is read. Nil for the plain-text invocation.
+    public var usage: UsageFormat?
 }
 
 /// Harness adapters: the hardened argv for each kind, as pure functions of the seat and the run.
@@ -40,25 +43,28 @@ public enum Adapter {
     }
 
     /// Nil for harnesses with no process adapter (ollama is a request; the rest are not adapted in 0.1.0).
+    /// `reportUsage` swaps in each harness's JSON output so the run's tokens and cost can be read (UsageCapture); the
+    /// availability probe keeps the plain-text invocation.
     public static func command(seat: Seat, executable: String, prompt: String, answerFile: String,
-                               runDirectory: String) throws -> Invocation? {
+                               runDirectory: String, reportUsage: Bool = false) throws -> Invocation? {
         switch seat.harness {
         case "codex":
             return Invocation(argv: [executable, "exec", "--ignore-user-config", "--disable", "hooks", "-s", "read-only",
-                                     "--skip-git-repo-check", "-o", answerFile, "-m", seat.model, prompt],
-                              environment: [:], workingDirectory: nil, stdoutIsAnswer: false)
+                                     "--skip-git-repo-check", "-o", answerFile, "-m", seat.model] + (reportUsage ? ["--json"] : []) + [prompt],
+                              environment: [:], workingDirectory: nil, stdoutIsAnswer: false, usage: reportUsage ? .codexEvents : nil)
         case "claude":
             return Invocation(argv: [executable, "-p", prompt, "--model", seat.model, "--setting-sources", "user",
-                                     "--strict-mcp-config", "--permission-mode", "plan"],
-                              environment: [:], workingDirectory: nil, stdoutIsAnswer: true)
+                                     "--strict-mcp-config", "--permission-mode", "plan"] + (reportUsage ? ["--output-format", "json"] : []),
+                              environment: [:], workingDirectory: nil, stdoutIsAnswer: true, usage: reportUsage ? .claudeResult : nil)
         case "opencode":
             // OpenCode's external-directory rule is a permission prompt, not OS isolation: the run's own config
             // denies edit, bash, web fetch and external directories, and the run starts inside its directory.
             let config = runDirectory + "/opencode.json"
             let policy = ["permission": ["edit": "deny", "bash": "deny", "webfetch": "deny", "external_directory": "deny"]]
             try JSONSerialization.data(withJSONObject: policy, options: [.sortedKeys]).write(to: URL(fileURLWithPath: config))
-            return Invocation(argv: [executable, "run", "--model", seat.model, prompt],
-                              environment: ["OPENCODE_CONFIG": config], workingDirectory: runDirectory, stdoutIsAnswer: true)
+            return Invocation(argv: [executable, "run", "--model", seat.model] + (reportUsage ? ["--format", "json"] : []) + [prompt],
+                              environment: ["OPENCODE_CONFIG": config], workingDirectory: runDirectory, stdoutIsAnswer: true,
+                              usage: reportUsage ? .opencodeEvents : nil)
         case "hermes":
             return Invocation(argv: [executable, "chat", "-q", prompt, "--model", seat.model],
                               environment: [:], workingDirectory: nil, stdoutIsAnswer: true)

@@ -112,6 +112,25 @@ public struct ThreadStore: Sendable {
         }
     }
 
+    /// What the harness reported for an exchange; `cost` is nil when neither the harness nor a listed price gives one.
+    func recordUsage(thread: String, seq: Int, tokensIn: Int, tokensOut: Int, cost: (dollars: Double, basis: String)?) throws {
+        try ledger.locked {
+            try ledger.run("UPDATE exchanges SET tokens_in = ?, tokens_out = ?, cost_usd = ?, cost_basis = ? WHERE thread_id = ? AND seq = ?;",
+                           [String(tokensIn), String(tokensOut), cost.map { String($0.dollars) }, cost?.basis, thread, String(seq)])
+        }
+    }
+
+    /// The usage recorded for an exchange, nil when the harness reported none.
+    func usage(thread: String, seq: Int) throws -> (tokensIn: Int, tokensOut: Int, dollars: Double?, basis: String?)? {
+        try ledger.locked {
+            try ledger.query("SELECT tokens_in, tokens_out, cost_usd, cost_basis FROM exchanges WHERE thread_id = ? AND seq = ? AND tokens_in IS NOT NULL;",
+                             [thread, String(seq)]) {
+                (tokensIn: Int(Ledger.text($0, 0) ?? "") ?? 0, tokensOut: Int(Ledger.text($0, 1) ?? "") ?? 0,
+                 dollars: Ledger.text($0, 2).flatMap { Double($0) }, basis: Ledger.text($0, 3))
+            }.first
+        }
+    }
+
     /// Exchanges still asking, with the launch each is waiting on (nil when it never got one).
     public func unfinished() throws -> [(thread: String, seq: Int, launchID: String?)] {
         try ledger.locked {
