@@ -73,6 +73,8 @@ enum EditTarget: Equatable {
     /// Set while the sheet edits an existing object; nil while it creates one.
     var editing: EditTarget?
     var confirmingDelete = false
+    /// What the pending seat delete also changes, named for the confirm; empty when it changes nothing else.
+    var deleteNotice = ""
     /// Owned here, not by a view, so an install press stays guarded while the owner is on another pane.
     let inFlight = InFlightActions()
     private(set) var agentAccessOn = false

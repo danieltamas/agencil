@@ -19,14 +19,38 @@ extension ConfigEditor {
         }
     }
 
+    /// Removes the seat from the file and from every council's seat list and spare list, in one write. Refused when the
+    /// seat is a synthesizer, a route's target, fallback or caller, a route-scoped budget's key or an alias's seat, or when a
+    /// council would be left with no seat.
     @discardableResult
     public func remove(seat name: String) throws -> ConfigSnapshot {
-        try rewrite("seats") { list, config in
-            guard let at = list.firstIndex(where: { $0["name"] as? String == name }) else { return .gone("seat \(name)") }
-            if let uses = Self.uses(ofSeat: name, config) { return ["form": "\(uses); remove those uses first"] }
-            list.remove(at: at)
-            return [:]
+        let snapshot = try read()
+        let config = try Self.config(snapshot)
+        var seats = try SeatConfig.array(snapshot.values["seats"], "seats")
+        guard let at = seats.firstIndex(where: { $0["name"] as? String == name }) else { throw SheetProblems(fields: .gone("seat \(name)")) }
+        if let uses = Self.uses(ofSeat: name, config, includingMembership: false) { throw SheetProblems.form("\(uses); remove those uses first") }
+        seats.remove(at: at)
+        var councils = try SeatConfig.array(snapshot.values["councils"], "councils")
+        for index in councils.indices {
+            for key in ["seats", "spare"] {
+                guard let members = councils[index][key] as? [String], members.contains(name) else { continue }
+                let rest = members.filter { $0 != name }
+                councils[index][key] = rest.isEmpty ? nil : rest
+            }
+            if councils[index]["seats"] == nil {
+                throw SheetProblems.form("council \(councils[index]["name"] as? String ?? "") would be left with no seat; remove the council or add another seat first")
+            }
         }
+        var next = snapshot.values
+        next["seats"] = Self.json(seats)
+        next["councils"] = Self.json(councils)
+        do { _ = try SeatConfig(values: next) } catch let problem as ConfigProblem { throw SheetProblems.form(problem.message) }
+        return try write(snapshot, updates: ["seats": next["seats"] ?? "", "councils": next["councils"] ?? ""])
+    }
+
+    /// The councils whose seat list or spare list names `seat`: what removing it takes it out of.
+    public func councils(holding seat: String) throws -> [String] {
+        try Self.config(try read()).councils.filter { $0.seats.contains(seat) || $0.spares.contains(seat) }.map(\.name)
     }
 
     @discardableResult
@@ -116,12 +140,13 @@ extension ConfigEditor {
 
     // MARK: what still uses a name
 
-    /// "seat x is used by council a (spare), alias b", or nil when nothing names it.
-    private static func uses(ofSeat name: String, _ config: SeatConfig) -> String? {
+    /// "seat x is used by council a (spare), alias b", or nil when nothing names it. A removal takes the seat out of the
+    /// councils' seat and spare lists itself, so it passes `includingMembership: false`; a rename cannot.
+    private static func uses(ofSeat name: String, _ config: SeatConfig, includingMembership: Bool = true) -> String? {
         var users: [String] = []
         for council in config.councils {
-            if council.seats.contains(name) { users.append("council \(council.name) (seat)") }
-            if council.spares.contains(name) { users.append("council \(council.name) (spare)") }
+            if includingMembership, council.seats.contains(name) { users.append("council \(council.name) (seat)") }
+            if includingMembership, council.spares.contains(name) { users.append("council \(council.name) (spare)") }
             if council.synthesizers.contains(name) { users.append("council \(council.name) (synthesizer)") }
         }
         for route in config.routes where route.target == name { users.append("route \(route.callers.joined(separator: ", ")) to \(name) (target)") }

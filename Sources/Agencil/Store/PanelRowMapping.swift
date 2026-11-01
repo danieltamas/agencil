@@ -37,7 +37,7 @@ extension DemoPanel.SeatRow {
         let down = !row.up
         self.init(id: row.name, model: row.model, up: !down, confirmed: "n=0, too few", coverage: "n=0, too few",
                   cost: "-", median: "-", overlap: "no overlap data yet", enough: false, vendor: row.vendor,
-                  harness: row.harness, plan: row.plan, reason: down ? (failed ? row.standing : "harness not installed") : "")
+                  harness: row.harness, plan: row.plan, reason: down ? (failed ? row.standing : row.problem ?? "harness not installed") : "")
     }
 }
 

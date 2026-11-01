@@ -186,10 +186,7 @@ public struct ConfigEditor: Sendable {
     /// changed the list), validates the whole config and writes once.
     func rewrite(_ key: String, _ change: (inout [[String: Any]], SeatConfig) -> [String: String]) throws -> ConfigSnapshot {
         let snapshot = try read()
-        let config: SeatConfig
-        do { config = try SeatConfig(values: snapshot.values) } catch let problem as ConfigProblem {
-            throw SheetProblems.form(problem.message)
-        }
+        let config = try Self.config(snapshot)
         var list = try SeatConfig.array(snapshot.values[key], key)
         let problems = change(&list, config)
         guard problems.isEmpty else { throw SheetProblems(fields: problems) }
@@ -201,10 +198,18 @@ public struct ConfigEditor: Sendable {
         return try write(snapshot, key: key, text: text)
     }
 
+    static func config(_ snapshot: ConfigSnapshot) throws -> SeatConfig {
+        do { return try SeatConfig(values: snapshot.values) } catch let problem as ConfigProblem { throw SheetProblems.form(problem.message) }
+    }
+
     func write(_ snapshot: ConfigSnapshot, key: String, text: String) throws -> ConfigSnapshot {
+        try write(snapshot, updates: [key: text])
+    }
+
+    func write(_ snapshot: ConfigSnapshot, updates: [String: String]) throws -> ConfigSnapshot {
         do {
             try beforeUpdate?()
-            return try store.update(expectedRevision: snapshot.revision) { $0[key] = text }
+            return try store.update(expectedRevision: snapshot.revision) { values in values.merge(updates) { _, new in new } }
         } catch {
             throw SheetProblems.form(error.localizedDescription)
         }

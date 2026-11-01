@@ -26,16 +26,19 @@ struct NewObjectForm: View {
 
     /// Delete asks once inside the sheet; a refusal shows under it through `form`.
     private var deleteBlock: some View {
-        FieldBlock(title: "Delete", detail: "Removes it from config.json. Refused while something still uses it.") {
+        FieldBlock(title: "Delete", detail: "Removes it from config.json. Refused while a route, alias, budget or synthesizer still uses it.") {
             if store.confirmingDelete {
-                HStack(spacing: Space.s) {
-                    ChipButton(title: "Keep") { store.confirmingDelete = false }
-                    AsyncPress(id: "delete:\(kind.rawValue)", action: store.deleteAction(kind)) { running, press in
-                        ChipButton(title: running ? "Deleting..." : "Yes, delete this \(kind.rawValue)", destructive: true, action: press)
+                VStack(alignment: .leading, spacing: Space.s) {
+                    if !store.deleteNotice.isEmpty { Text(store.deleteNotice).font(.house.meta).foregroundStyle(Theme.textSecondary) }
+                    HStack(spacing: Space.s) {
+                        ChipButton(title: "Keep") { store.confirmingDelete = false }
+                        AsyncPress(id: "delete:\(kind.rawValue)", action: store.deleteAction(kind)) { running, press in
+                            ChipButton(title: running ? "Deleting..." : "Yes, delete this \(kind.rawValue)", destructive: true, action: press)
+                        }
                     }
                 }
             } else {
-                ChipButton(title: "Delete \(kind.rawValue)", destructive: true) { store.confirmingDelete = true }
+                ChipButton(title: "Delete \(kind.rawValue)", destructive: true) { store.askDelete(kind) }
             }
         }
     }

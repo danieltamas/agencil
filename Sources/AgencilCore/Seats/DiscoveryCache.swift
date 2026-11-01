@@ -31,7 +31,7 @@ final class DiscoveryCache: @unchecked Sendable {
     private func refresh(_ catalog: HarnessCatalog, environment: [String: String], home: URL) {
         var directories = (environment["PATH"] ?? "/usr/bin:/bin").split(separator: ":").map { URL(fileURLWithPath: String($0)) }
         let user = FileManager.default.homeDirectoryForCurrentUser
-        var known = [user.appendingPathComponent(".local/bin"), URL(fileURLWithPath: "/opt/homebrew/bin"), URL(fileURLWithPath: "/usr/local/bin")]
+        var known = [user.appendingPathComponent(".local/bin"), user.appendingPathComponent(".opencode/bin"), URL(fileURLWithPath: "/opt/homebrew/bin"), URL(fileURLWithPath: "/usr/local/bin")]
         // With test seams on, a stub directory goes first and only PATH entries inside the Agencil home count,
         // so the real installs on the machine running the tests cannot leak in.
         if environment["AGENCIL_TEST_SEAMS"] == "1" {

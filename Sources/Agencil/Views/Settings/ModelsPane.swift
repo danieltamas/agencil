@@ -72,7 +72,11 @@ struct ModelsPane: View {
             if models.isEmpty { SettingsRow(title: "No seats yet", detail: "Add a seat first.") { EmptyView() } }
             ForEach(Array(models.enumerated()), id: \.element.id) { index, model in
                 if index > 0 { RowDivider() }
-                SettingsRow(title: model.id, detail: model.seats.joined(separator: ", ")) { EmptyView() }
+                SettingsRow(title: model.id, detail: "Open a seat to edit or delete it.") {
+                    HStack(spacing: Space.s) {
+                        ForEach(model.seats, id: \.self) { seat in ChipButton(title: seat) { SettingsRoute.shared.show(seat: seat) } }
+                    }
+                }
             }
         }
     }

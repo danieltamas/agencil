@@ -17,6 +17,8 @@ public struct PanelData: Sendable, Equatable {
         public let plan: String
         /// The preflight reason (`not_logged_in`, `usage_limit`, ...) of a fresh standing; nil without one.
         public let reason: String?
+        /// Why the harness cannot run (not installed, not signed in, sign-in unknown); nil when it can.
+        public var problem: String? = nil
     }
 
     public struct Seats: Sendable, Equatable {
@@ -107,7 +109,7 @@ public struct PanelData: Sendable, Equatable {
                                    probedAgo: ($0["probed_ago"] as? NSNumber)?.doubleValue,
                                    standing: $0["standing"] as? String ?? "not probed", harness: $0["harness"] as? String ?? "",
                                    vendor: $0["vendor"] as? String ?? "", plan: $0["plan"] as? String ?? "",
-                                   reason: $0["reason"] as? String)
+                                   reason: $0["reason"] as? String, problem: $0["problem"] as? String)
                       })
         threads = try list("threads").map {
             Thread(id: try field($0, "id", "threads."), caller: try field($0, "caller", "threads."), seat: try field($0, "seat", "threads."),

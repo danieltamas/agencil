@@ -10,14 +10,23 @@ extension Broker {
         let config = try SeatConfig(values: values)
         let stamp = ISO8601DateFormatter()
         let weekStart = stamp.string(from: Self.weekStart(Date()))
+        // Outside the ledger lock: the discovery cache may probe the Mac once it is ten minutes old.
+        let world = discovery.world(environment: environment, home: directory)
+        let problems = config.seats.map { seat -> String? in
+            // An ollama seat is a request: its endpoint answering is the preflight's business, not a panel read's.
+            if seat.harness == "ollama" { return seat.endpoint == nil ? "seat \(seat.name) has no endpoint" : nil }
+            if case .failure(let problem) = Resolver.installed(seat, world) { return problem.reason }
+            return nil
+        }
         return try ledger.locked {
             let threads = try panelThreads(stamp: stamp)
             let sittings = try panelSittings()
             let thinking = try panelThinking()
-            let items = try config.seats.map { seat -> [String: Any] in
-                var item: [String: Any] = ["name": seat.name, "model": seat.model, "up": harnessInstalled(seat),
+            let items = try zip(config.seats, problems).map { seat, problem -> [String: Any] in
+                var item: [String: Any] = ["name": seat.name, "model": seat.model, "up": problem == nil,
                                            "thinking": thinking.contains(seat.name), "plan": seat.plan.rawValue, "standing": "not probed",
                                            "harness": seat.harness, "vendor": seat.vendor]
+                if let problem { item["problem"] = problem }
                 if let standing = try preflights.fresh(seat, insideLock: true) {
                     // A fresh failed preflight takes the seat down; `busy` says nothing about the seat itself.
                     if standing.reason != .ok, standing.reason != .busy { item["up"] = false }
@@ -51,14 +60,6 @@ extension Broker {
         var calendar = Calendar(identifier: .iso8601)
         calendar.timeZone = TimeZone(identifier: "UTC") ?? .gmt
         return calendar.dateInterval(of: .weekOfYear, for: date)?.start ?? date
-    }
-
-    /// The seat's harness is on this Mac: a path check, never a probe, so the panel read stays cheap.
-    private func harnessInstalled(_ seat: Seat) -> Bool {
-        if seat.harness == "ollama" { return seat.endpoint != nil }
-        var directories = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", NSHomeDirectory() + "/.local/bin"]
-        if environment["AGENCIL_TEST_SEAMS"] == "1", let prefix = environment["AGENCIL_PATH_PREFIX"] { directories.insert(prefix, at: 0) }
-        return directories.contains { FileManager.default.isExecutableFile(atPath: $0 + "/" + seat.harness) }
     }
 
     private func panelCount(_ sql: String) throws -> Int {

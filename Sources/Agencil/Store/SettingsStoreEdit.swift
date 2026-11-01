@@ -41,6 +41,15 @@ extension SettingsStore {
         presenting = kind
     }
 
+    /// The first Delete press: asks once, naming the councils a seat delete also takes the seat out of.
+    func askDelete(_ kind: SheetKind) {
+        deleteNotice = ""
+        if kind == .seat, case .seat(let was)? = editing, let councils = try? editor?.councils(holding: was.name), !councils.isEmpty {
+            deleteNotice = "Also removes it from \(councils.count == 1 ? "council" : "councils") \(councils.joined(separator: ", "))."
+        }
+        confirmingDelete = true
+    }
+
     /// The Delete press of an Edit sheet. A refusal (the object is still used) stays in `problems["form"]` and the sheet stays open.
     func deleteAction(_ kind: SheetKind) -> () async -> Void {
         { [self] in delete(kind) }
