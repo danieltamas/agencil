@@ -130,7 +130,12 @@ import Testing
             INSERT INTO runs (id, kind, status, started_at) VALUES ('th_old', 'thread', 'answered', '2030-01-01T00:00:00Z');
             INSERT INTO threads VALUES ('th_old', 'a', 'a', 'owner', NULL, '2030-01-01T00:00:00Z');
             DROP TABLE run_origins;
-            PRAGMA user_version = \(version - 1);
+            DROP TABLE thread_rounds;
+            ALTER TABLE exchanges DROP COLUMN tokens_in;
+            ALTER TABLE exchanges DROP COLUMN tokens_out;
+            ALTER TABLE exchanges DROP COLUMN cost_usd;
+            ALTER TABLE exchanges DROP COLUMN cost_basis;
+            PRAGMA user_version = \(version - 2);
             """)
         #expect(try sqlite(file, "SELECT count(*) FROM sqlite_master WHERE name = 'run_origins';").out == "0\n")
         try ledger.migrate()
