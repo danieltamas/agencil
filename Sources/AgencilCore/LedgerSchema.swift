@@ -128,5 +128,8 @@ enum LedgerSchema {
         CREATE TRIGGER preflights_no_delete BEFORE DELETE ON preflights
         BEGIN SELECT RAISE(ABORT, 'preflights rows are never deleted'); END;
         """,
+        // The plan a reservation was admitted under (1 free, 0 not, NULL unknown), so settlement never re-reads a config
+        // that may have changed since.
+        "ALTER TABLE reservations ADD COLUMN free INTEGER;",
     ]
 }

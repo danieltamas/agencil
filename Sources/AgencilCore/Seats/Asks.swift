@@ -135,7 +135,7 @@ extension Broker {
                      wait: Int, placeWait: Int? = nil, snapshot: Snapshot? = nil, verbatim: Bool = false,
                      isOver:  () -> Bool = { false }) throws -> [String: Any] {
         guard let admitted = resolved.admitted else { throw Failure(message: "the ask was not admitted") }
-        try awaitSeat(admitted, limits: limits, wait: placeWait ?? wait)
+        try awaitSeat(admitted, limits: limits, wait: placeWait ?? wait, cancelled: isOver)
         let thread = try existing ?? threads.createThread(requested: requested, seat: resolved.seat.name, caller: caller,
                                                          substituted: resolved.substituted)
         guard let (exchange, transcript) = try threads.beginExchange(thread: thread.id, question: question, chain: chain) else {
@@ -203,9 +203,10 @@ extension Broker {
                 return fail("\(seat.harness) has no adapter")
             }
             if seat.harness == "opencode" {
-                if !holdOpencode(exchange: key, wait: placeWait ?? wait, cancelled: isOver) { return fail(isOver() ? "stopped" : "refused: busy") }
-                // The wait may have outlasted a stop of the thread or its sitting; nothing is launched after one.
-                if isOver() || tracking.withLock({ stoppedThreads.contains(key) }) { return fail("stopped") }
+                // A stop of the thread or of its sitting ends the wait, and nothing is launched after one.
+                func stopped() -> Bool { isOver() || tracking.withLock { stoppedThreads.contains(key) } }
+                if !holdOpencode(exchange: key, wait: placeWait ?? wait, cancelled: stopped) { return fail(stopped() ? "stopped" : "refused: busy") }
+                if stopped() { return fail("stopped") }
             }
             var workingDirectory = invocation.workingDirectory ?? runDirectory.path
             if let copy = packet.copy {

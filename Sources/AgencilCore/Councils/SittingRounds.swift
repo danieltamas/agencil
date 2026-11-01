@@ -47,6 +47,7 @@ extension Broker {
             thread = id
         } catch let refusal as Refusal {
             if let held { abandon(held) }
+            if s.isOver, refusal.message == "stopped" { return .stopped }
             return .unplaceable(refusal.message, refused: refusal.exit == 3)
         } catch {
             if let held { abandon(held) }

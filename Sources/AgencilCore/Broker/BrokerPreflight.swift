@@ -138,15 +138,23 @@ extension Broker {
             return busy("the process cap is reached")
         }
         defer { capacity.leave(id) }
-        // Like admission: a floor that cannot be measured is a floor not met.
-        if limits.memoryFloorMB > 0, freeMemoryMB().map({ $0 < limits.memoryFloorMB }) != false { return busy("below the memory floor") }
+        if memoryBelowFloor(limits) { return busy("below the memory floor") }
         let deadline = Date().addingTimeInterval(Double(cap(seat)))
         while true {
             guard let orphans = try? orphanCount() else { return busy("the ledger could not be read") }
-            if capacity.activate(id, limits: limits, orphans: orphans) { return run() }
+            if capacity.activate(id, limits: limits, orphans: orphans) {
+                // The waits above may have outlasted the memory the first check saw.
+                if memoryBelowFloor(limits) { return busy("below the memory floor") }
+                return run()
+            }
             if Date() >= deadline { return busy("no seat place within \(cap(seat)) seconds") }
             usleep(20_000)
         }
+    }
+
+    /// Like admission: a floor that cannot be measured is a floor not met.
+    private func memoryBelowFloor(_ limits: Limits) -> Bool {
+        limits.memoryFloorMB > 0 && freeMemoryMB().map({ $0 < limits.memoryFloorMB }) != false
     }
 
     /// One probe of one seat, recorded whatever it finds.

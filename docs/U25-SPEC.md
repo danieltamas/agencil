@@ -42,8 +42,13 @@ collision, and a sitting opened for a panel that cannot sit.
   budget never refuses it and it is charged 0 dollars; its token estimate is unchanged. `local` keeps the Ollama
   price-based bounded quote. `subscription` and `credit` are quoted as before (unbounded unless the harness is
   bounded). A usage report with dollars from a `free` seat is charged 0 dollars on every path that ends an exchange
-  (`finishExchange` reads the plan of the chain's last seat from the config; a crash-recovered exchange is charged the
-  same way).
+  (the plan is stored with the reservation at admission, migration `reservations.free`, and settlement reads it, never
+  the config as it is by then; a reservation with no stored plan charges the report as made). A crash-recovered
+  exchange is charged its reservation, which a free seat made at 0 dollars.
+- Waits stop with the sitting: the place wait of every harness and the opencode gate wait end as soon as the sitting is
+  stopped or over, or the ask's own thread is stopped (gate wait), and the exchange or reservation is given back as
+  `stopped`, not `refused: busy`. A probe re-measures the memory floor after its place and gate waits, immediately
+  before the probe process starts (unknown fails closed, `busy`, not recorded).
 - Replies: `plan` appears in the `preflight` reply and the panel seat items. The U18 `seats` list is unchanged.
 
 ## 3. Preflight (Sources/AgencilCore/Seats/Preflight.swift)

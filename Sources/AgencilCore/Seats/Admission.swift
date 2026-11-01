@@ -49,10 +49,15 @@ extension Broker {
         return Admitted(id: id, quote: quote)
     }
 
-    /// Step 4: waits up to `wait` seconds for one of the "seats at once" places; the reservation goes back when none frees.
-    func awaitSeat(_ admitted: Admitted, limits: Limits, wait: Int) throws {
+    /// Step 4: waits up to `wait` seconds for one of the "seats at once" places; the reservation goes back when none
+    /// frees, or when `cancelled` turns true (a stopped sitting must not take a place and launch after its stop).
+    func awaitSeat(_ admitted: Admitted, limits: Limits, wait: Int, cancelled: () -> Bool = { false }) throws {
         let deadline = Date().addingTimeInterval(Double(wait))
         while true {
+            if cancelled() {
+                abandon(admitted)
+                throw Refusal(exit: 3, message: "stopped")
+            }
             let orphans: Int
             do { orphans = try orphanCount() } catch {
                 abandon(admitted)
@@ -101,9 +106,8 @@ extension Broker {
     func finishExchange(thread: String, seq: Int, state: Exchange.State, answer: String?, reason: String?,
                         usage: (dollars: Double, tokens: Int)? = nil, runStatus: String? = nil) {
         // A charge that cannot be written stays reserved in full, and the next start settles it (settleOrphans).
-        // A free seat's report never carries dollars into the ledger, whatever it claims, on every path that ends it.
-        var reported = usage ?? reportedUsage(thread: thread, seq: seq)
-        if let found = reported, found.dollars > 0, seatPlan(thread: thread, seq: seq) == .free { reported = (dollars: 0, tokens: found.tokens) }
+        // A free seat's report never carries dollars into the ledger: settle reads the plan stored with the reservation.
+        let reported = usage ?? reportedUsage(thread: thread, seq: seq)
         for attempt in 0..<3 {
             if (try? budgets.settle(thread: thread, seq: seq, reported: reported)) != nil { break }
             if attempt < 2 { usleep(50_000) }
@@ -112,14 +116,6 @@ extension Broker {
         capacity.leave(exchange: "\(thread)-\(seq)")
         releaseOpencode(exchange: "\(thread)-\(seq)")
         removeCopy(thread: thread, seq: seq)
-    }
-
-    /// The plan of the seat that answers an exchange (the end of its chain), as the config reads now; nil when the
-    /// config or the exchange cannot be read, in which case the report is charged as made.
-    private func seatPlan(thread: String, seq: Int) -> Seat.Plan? {
-        guard let exchange = (try? threads.exchanges(thread: thread))?.first(where: { $0.seq == seq }), let name = exchange.chain.last,
-              let config = try? seatConfig().0 else { return nil }
-        return config.seat(named: name)?.plan
     }
 
     /// A process seat reports what it used in `usage.json` of its run directory; anything malformed is not a report.

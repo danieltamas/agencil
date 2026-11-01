@@ -56,10 +56,10 @@ struct BudgetStore: Sendable {
                 }
                 guard commit else { try rollback(); return nil }
                 try ledger.run("""
-                    INSERT INTO reservations (id, state, dollars, tokens, seconds, bounded, root_key, route_key, vendor, created_at)
-                    VALUES (?, 'reserved', ?, ?, ?, ?, ?, ?, ?, ?);
+                    INSERT INTO reservations (id, state, dollars, tokens, seconds, bounded, root_key, route_key, vendor, created_at, free)
+                    VALUES (?, 'reserved', ?, ?, ?, ?, ?, ?, ?, ?, ?);
                     """, [id, String(quote.dollars), String(quote.tokens), String(quote.seconds), quote.bounded ? "1" : "0",
-                          rootKey, routeKey, vendor, String(Date().timeIntervalSince1970)])
+                          rootKey, routeKey, vendor, String(Date().timeIntervalSince1970), free ? "1" : "0"])
                 for budget in budgets {
                     try ledger.run("INSERT INTO reservation_budgets (reservation_id, budget) VALUES (?, ?);", [id, budget.name])
                 }
@@ -123,18 +123,19 @@ struct BudgetStore: Sendable {
     }
 
     /// Turns the reservation of an exchange into a charge. A report replaces the reservation, and a bounded seat is
-    /// never charged above it; no report keeps the reservation in full.
+    /// never charged above it; no report keeps the reservation in full. A report from a seat admitted as `free` never
+    /// carries dollars, by the plan stored at admission; an unknown plan charges the report as made.
     func settle(thread: String, seq: Int, reported: (dollars: Double, tokens: Int)?) throws {
         try ledger.locked {
-            guard let row = try ledger.query("SELECT id, dollars, tokens, bounded FROM reservations WHERE thread_id = ? AND seq = ? AND state = 'reserved';",
+            guard let row = try ledger.query("SELECT id, dollars, tokens, bounded, free FROM reservations WHERE thread_id = ? AND seq = ? AND state = 'reserved';",
                                              [thread, String(seq)], row: {
                 (id: Ledger.text($0, 0) ?? "", dollars: Double(Ledger.text($0, 1) ?? "") ?? 0,
-                 tokens: Int(Ledger.text($0, 2) ?? "") ?? 0, bounded: Ledger.text($0, 3) == "1")
+                 tokens: Int(Ledger.text($0, 2) ?? "") ?? 0, bounded: Ledger.text($0, 3) == "1", free: Ledger.text($0, 4) == "1")
             }).first else { return }
             var dollars = row.dollars, tokens = row.tokens, basis = "reserved"
             if let reported {
                 basis = "provider"
-                dollars = row.bounded ? min(reported.dollars, row.dollars) : reported.dollars
+                dollars = row.free ? 0 : row.bounded ? min(reported.dollars, row.dollars) : reported.dollars
                 tokens = row.bounded ? min(reported.tokens, row.tokens) : reported.tokens
             }
             try ledger.run("UPDATE reservations SET state = 'settled', charged_dollars = ?, charged_tokens = ?, basis = ? WHERE id = ?;",
