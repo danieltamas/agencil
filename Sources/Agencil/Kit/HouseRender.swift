@@ -38,8 +38,8 @@ enum HouseRender {
         return data
     }
 
-    static func write<V: View>(_ view: V, to url: URL, look: Look = .agencil, scale: CGFloat = 2,
+    static func write<V: View>(_ view: V, to url: URL, look: Look = .agencil, scale: CGFloat = 2, now: Date = Date(timeIntervalSince1970: 0),
                                width: CGFloat? = nil, height: CGFloat? = nil) throws {
-        try png(view, look: look, scale: scale, width: width, height: height).write(to: url, options: .atomic)
+        try png(view, look: look, scale: scale, now: now, width: width, height: height).write(to: url, options: .atomic)
     }
 }

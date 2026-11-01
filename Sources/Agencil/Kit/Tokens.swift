@@ -64,6 +64,10 @@ enum Size {
     static let bentoSide: CGFloat = 140
     static let bentoRing: CGFloat = 96
     static let sidebarGlyph: CGFloat = 24
+    /// The icon on a More apps card, and the one beside the About version line.
+    static let paragraph: CGFloat = 360
+    static let appIcon: CGFloat = 52
+    static let aboutIcon: CGFloat = 64
 }
 
 /// Named opacities; literal opacities live only in `Kit/`.
@@ -96,4 +100,10 @@ extension Color {
 extension View {
     /// Detail text wraps to every line it needs: a reason is never cut short.
     func detailLines() -> some View { fixedSize(horizontal: false, vertical: true) }
+
+    /// A paragraph that wraps at `Size.paragraph` when nothing offers it a width, so a long text never sets the
+    /// natural width of a pane; given a width it wraps at that width.
+    func paragraph() -> some View {
+        frame(idealWidth: Size.paragraph, maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
+    }
 }

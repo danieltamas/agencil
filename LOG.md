@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Settings > More apps and About are MacMax's panes: the registry cards (bundled snapshot offline, a fresh read at most hourly, installed copy by bundle id, standing, install line with copy) and About with the version line from AgencilSource, the standing against the latest release, Update through the bundled installer, Why it exists and Made by; both render in `--render-screenshots`
 - UI pass (in progress): every panel tab is the same height (the tallest that fits the screen, at most 780), the search field and rows share the panel inset, thread rows reserve the accent slot so their text aligns, the footer offers "Star on GitHub" (the owner's own gh, remembered in config.json as starred_repo)
 - U24: outcomes get real evidence and adjudication: the broker scans the git history of repos councils sat on (every 10 minutes, read-only, no user git config) for fix and revert commits that name a finding, and `agencil adjudicate <claim-id>` (Ask a seat on a panel finding) asks a seat of an independent vendor to weigh the evidence and records its answer
 - U23: the learn loop reviews: `agencil learn review <id>` (and Review on the panel proposal row) asks the seat of another vendor through the ordinary ask path, reads ENDORSE or OBJECT from its first word and records the verdict and note; Approve follows an endorsement

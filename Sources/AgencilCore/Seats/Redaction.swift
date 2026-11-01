@@ -145,3 +145,23 @@ extension Redaction {
         }
     }
 }
+
+extension Redaction {
+    private static let terminalSequences = try! NSRegularExpression(
+        pattern: #"\x{1B}[PX^_].*?\x{1B}\\|\x{1B}\[[0-?]*[ -/]*[@-~]|\x{1B}\][^\x{07}\x{1B}]*(?:\x{07}|\x{1B}\\)|\x{1B}[@-Z\\-_]"#,
+        options: [.dotMatchesLineSeparators])
+
+    /// Removes control characters, terminal escapes and invisible Unicode (bidi marks, zero-width and soft hyphen)
+    /// from untrusted display text, such as an installer's log line.
+    static func sanitizeText(_ text: String) -> String {
+        let withoutSequences = terminalSequences.stringByReplacingMatches(in: text, range: NSRange(text.startIndex..., in: text), withTemplate: "")
+        var scalars = String.UnicodeScalarView()
+        for scalar in withoutSequences.unicodeScalars {
+            switch scalar.properties.generalCategory {
+            case .control, .format, .lineSeparator, .paragraphSeparator: continue
+            default: scalars.append(scalar)
+            }
+        }
+        return String(scalars)
+    }
+}

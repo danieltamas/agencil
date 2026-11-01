@@ -19,7 +19,8 @@ struct SettingsPaneView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.xxl) {
-            PaneHeader(symbol: pane.symbol, eyebrow: pane.title, color: pane.tint.color, title: pane.title, detail: Self.detail(pane))
+            PaneHeader(symbol: pane.symbol, eyebrow: pane.title, color: pane.tint.color,
+                       title: pane == .about ? "About Agencil" : pane.title, detail: Self.detail(pane))
             if let problem = store.configProblem { ProblemText(text: problem) }
             switch pane {
             case .general: general
@@ -33,8 +34,8 @@ struct SettingsPaneView: View {
             case .scoring: scoringPane
             case .leaderboard: leaderboardPane
             case .data: dataPane
-            case .apps: appsPane
-            case .about: about
+            case .apps: MoreAppsPane(store: store)
+            case .about: AboutPane(store: store)
             }
         }
         .onAppear { store.panes.begin() }
@@ -58,8 +59,8 @@ struct SettingsPaneView: View {
         case .leaderboard: "Publishing the seat leaderboard is off until you turn it on."
         case .data: "Where the ledger lives and what leaves this Mac."
         case .access: "Let your agents ask seats and councils through Agencil."
-        case .apps: "Other apps by the same maker."
-        case .about: "Agencil convenes councils of coding agents."
+        case .apps: "Other open source tools from the maker of Agencil, for a Mac that runs coding agents. All MIT, all free."
+        case .about: "Who makes it, where it lives, and which build this is."
         }
     }
 
@@ -150,12 +151,6 @@ struct SettingsPaneView: View {
                 }
             }
             ForEach(row?.drift ?? [], id: \.self) { line in ProblemText(text: line) }
-        }
-    }
-
-    private var about: some View {
-        SettingsCard(title: "Agencil") {
-            SettingsRow(title: "Version", detail: "Built from source") { Chip(text: AgencilVersion.current(), color: Theme.unknown) }
         }
     }
 }

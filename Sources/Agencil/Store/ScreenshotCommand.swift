@@ -40,9 +40,10 @@ enum ScreenshotCommand {
                 for tab in ["threads", "sittings", "findings", "seats"] {
                     try HouseRender.write(PanelView(store: PanelStore.demo(), tab: tab), to: directory.appendingPathComponent("panel-\(tab)\(suffix).png"), look: look, scale: scale)
                 }
-                for pane in [SettingsPane.general, .seats, .access] {
-                    try HouseRender.write(SettingsView(store: SettingsStore.demo(), pane: pane).frame(width: Size.settingsMin.width, height: Size.settingsMin.height),
-                                          to: directory.appendingPathComponent("settings-\(pane.rawValue)\(suffix).png"), look: look, scale: scale)
+                for pane in [SettingsPane.general, .seats, .access, .apps, .about] {
+                    try HouseRender.write(SettingsView(store: SettingsStore.demo(), pane: pane).frame(width: Size.settingsMin.width, height: height(of: pane)),
+                                          to: directory.appendingPathComponent("settings-\(pane.rawValue)\(suffix).png"), look: look, scale: scale,
+                                          now: DemoStore.now)
                 }
             }
             return 0
@@ -50,6 +51,11 @@ enum ScreenshotCommand {
             FileHandle.standardError.write(Data("render failed: \(error)\n".utf8))
             return 1
         }
+    }
+
+    /// The apps list and About are longer than the window: their shots show every card, not the scrolled-off top.
+    private static func height(of pane: SettingsPane) -> CGFloat {
+        pane == .apps ? Size.settingsMin.height * 2.4 : pane == .about ? Size.settingsMin.height * 1.5 : Size.settingsMin.height
     }
 
     private static func value(after option: String, in arguments: [String]) -> String? {

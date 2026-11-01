@@ -155,20 +155,4 @@ extension SettingsPaneView {
         }
     }
 
-    var appsPane: some View {
-        SettingsCard(title: "By the same maker", detail: "Small Mac apps that share this one's shape.") {
-            ForEach(Array(Self.apps.enumerated()), id: \.element.name) { index, app in
-                if index > 0 { RowDivider() }
-                SettingsRow(title: app.name, detail: app.detail) {
-                    if let url = URL(string: "https://github.com/\(app.repo)") { Link("Open", destination: url) }
-                }
-            }
-        }
-    }
-
-    private static let apps = [
-        (name: "MacMax", detail: "Menu bar system monitor.", repo: "danieltamas/macmax"),
-        (name: "Bton", detail: "Runs agents on your team's repos.", repo: "danieltamas/bton"),
-        (name: "RMJ", detail: "Run my job: builds and tests on the right machine.", repo: "danieltamas/runmyjob"),
-    ]
 }

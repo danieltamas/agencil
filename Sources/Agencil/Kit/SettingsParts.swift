@@ -19,7 +19,7 @@ struct PaneHeader: View {
             .padding(.horizontal, 9).padding(.vertical, 3)
             .background(color.opacity(0.1), in: Capsule())
             Text(title).font(.house.paneTitle).foregroundStyle(Theme.textPrimary)
-            Text(detail).font(.house.body).foregroundStyle(Theme.textSecondary)
+            Text(detail).font(.house.body).foregroundStyle(Theme.textSecondary).paragraph()
         }
     }
 }

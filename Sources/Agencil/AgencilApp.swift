@@ -23,6 +23,7 @@ struct AgencilApp: App {
         }
         LookLaunch.attach()
         AppBroker.start()
+        UpdateStore.shared.start()
         _store = State(initialValue: PanelStore.launch())
     }
 

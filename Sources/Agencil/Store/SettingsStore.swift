@@ -28,6 +28,9 @@ struct RouteForm { var callers = "", target = "", hops = "" }
     private(set) var wiring: [String: Wiring] = [:]
     /// The broker-fed panes (harnesses, models, budgets, data, leaderboard).
     var panes = PaneStore()
+    /// The More apps list and the release check About shows.
+    private(set) var apps = MoreAppsStore()
+    private(set) var update = UpdateStore(home: nil)
     private(set) var configProblem: String?
     private(set) var notify: Set<String> = NotifySettings.kinds
     private(set) var seatsAtOnce = ""
@@ -59,6 +62,8 @@ struct RouteForm { var callers = "", target = "", hops = "" }
         editor = ConfigEditor(directory: directory)
         agentAccess = AgentAccess(home: directory, environment: environment)
         self.environment = environment
+        apps = MoreAppsStore(directory: directory)
+        update = UpdateStore.shared
         reload()
     }
 
@@ -70,6 +75,8 @@ struct RouteForm { var callers = "", target = "", hops = "" }
         store.seatNames = DemoPanel.seatRows.map(\.id)
         store.targets = store.seatNames + DemoPanel.councils.map(\.name)
         store.seatsAtOnce = "3"
+        store.apps = MoreAppsStore.demo(now: DemoStore.now)
+        store.update = UpdateStore.demo(now: DemoStore.now)
         for harness in ["codex", "claude", "opencode"] {
             store.access[harness] = AccessState(harness: harness, installed: harness == "codex", path: "~/.\(harness)/config",
                                                 entry: harness == "codex" ? "[mcp_servers.agencil]" : nil, problem: nil)
