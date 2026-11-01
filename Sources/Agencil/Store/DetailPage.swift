@@ -42,6 +42,12 @@ extension DetailPage {
         count.map { $0.formatted(.number.grouping(.automatic)) }
     }
 
+    /// A cost that was worked out from a price list, or is not what a subscription bills, says so; the harness's own dollars do not.
+    private static func costText(_ dollars: Double, notes: [String?]) -> String {
+        let estimate = notes.compactMap { $0 }.first { $0 != "reported" }
+        return PanelFormat.money(dollars) + (estimate.map { " (\($0))" } ?? "")
+    }
+
     static func thread(_ row: PanelData.Thread, detail: ThreadDetail?) -> DetailPage {
         let card = DemoPanel.Thread(row)
         let word = row.state == "asking" ? "Asking" : row.state == "answered" ? "Answered" : card.status == "stopped" ? "Stopped" : "Failed"
@@ -55,7 +61,7 @@ extension DetailPage {
         page.facts = [
             fact("Asked by", row.caller), fact("Project", detail?.project), fact("Seat", row.seat), fact("Model", model),
             Fact(name: "Response time", value: card.live ? "still running" : PanelFormat.duration(from: row.started, to: row.ended)),
-            fact("Tokens", anyTokens ? tokens(tokenSum) : nil), fact("Cost", anyCost ? spent.map(PanelFormat.money) : nil),
+            fact("Tokens", anyTokens ? tokens(tokenSum) : nil), fact("Cost", anyCost ? spent.map { costText($0, notes: detail?.exchanges.map(\.costNote) ?? []) } : nil),
         ]
         guard let detail, !detail.exchanges.isEmpty else {
             page.sections = [Section(heading: "Question", text: row.question)]
@@ -83,7 +89,7 @@ extension DetailPage {
         page.facts = [
             fact("Project", detail?.project), fact("Repo", detail?.repo), fact("Change", detail?.changeKind), fact("Diff", detail?.diffRange),
             fact("Round", row.round), Fact(name: "Elapsed", value: PanelFormat.duration(from: row.started, to: row.ended)),
-            fact("Tokens", allTokens?.isEmpty == false ? tokens(allTokens?.reduce(0, +)) : nil), fact("Cost", spent.map(PanelFormat.money)),
+            fact("Tokens", allTokens?.isEmpty == false ? tokens(allTokens?.reduce(0, +)) : nil), fact("Cost", spent.map { costText($0, notes: detail?.rounds.flatMap(\.seats).map(\.costNote) ?? []) }),
             fact("Rule", detail?.rule), fact("Snapshot", detail?.snapshot),
         ]
         guard let detail else { page.loading = true; return page }
@@ -117,7 +123,7 @@ extension DetailPage {
     private static func answer(round seat: SittingDetail.Seat) -> Answer {
         let elapsed = seat.started.map { PanelFormat.duration(from: $0, to: seat.ended) }
         let model = seat.model.map { name in seat.harness.map { "\(name) (\($0))" } ?? name }
-        let meta = [model, elapsed, seat.costUSD.map(PanelFormat.money), tokens(seat.tokens).map { "\($0) tokens" }]
+        let meta = [model, elapsed, seat.costUSD.map { costText($0, notes: [seat.costNote]) }, tokens(seat.tokens).map { "\($0) tokens" }]
             .compactMap { $0 }.joined(separator: " - ")
         let text = seat.answer.map(ReadableAnswer.text) ?? seat.reason ?? (seat.state == "asking" ? "Thinking..." : "No answer recorded.")
         return Answer(seat: seat.name, meta: meta.isEmpty ? seat.state : meta, text: text, tone: PanelTone.signal(state: seat.state))

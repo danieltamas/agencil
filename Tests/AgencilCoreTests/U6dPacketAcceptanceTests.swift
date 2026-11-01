@@ -102,7 +102,7 @@ import Testing
         _ = try r.base.answered(r.ask(repo: false))
         let args = try r.base.contents(".argv").split(separator: "\n").map(String.init)
         #expect(Array(args.prefix(10)) == ["exec", "--ignore-user-config", "--disable", "hooks", "-s", "read-only", "--skip-git-repo-check", "-o", args.count > 8 ? args[8] : "", "-m"])
-        #expect(try r.base.contents(".argc") == "12\n")
+        #expect(try r.base.contents(".argc") == "13\n")
         #expect(try r.base.contents(".prompt") == "QUESTION:\ntest question")
         #expect(!FileManager.default.fileExists(atPath: r.base.record.path + ".sandbox"))
     }

@@ -201,7 +201,7 @@ extension Broker {
             }
             guard let executable = resolved.executable,
                   var invocation = try Adapter.command(seat: seat, executable: executable, prompt: prompt, answerFile: answerFile,
-                                                       runDirectory: runDirectory.path) else {
+                                                       runDirectory: runDirectory.path, reportUsage: true) else {
                 return fail("\(seat.harness) has no adapter")
             }
             if seat.harness == "opencode" {
@@ -220,6 +220,7 @@ extension Broker {
                                                 "env": invocation.environment.merging(["PWD": workingDirectory]) { _, mine in mine },
                                                 "reservation": ["seconds": seat.capSeconds]]
             if invocation.stdoutIsAnswer { launchRequest["stdout"] = answerFile }
+            else if invocation.usage == .codexEvents { launchRequest["stdout"] = UsageFormat.eventsFile(besides: answerFile) }
             // The token reaches the seat's environment but never the ledger, which keeps launch environments in clear.
             let capability = ThreadStore.newCapability()
             launchRequest["secret_env"] = ["AGENCIL_CAP": capability]
@@ -245,7 +246,7 @@ extension Broker {
             guard let launchID = started["run"] as? String else { return fail("the seat could not be started") }
             // A stop that arrived before the launch was attached found nothing to end; end it now.
             if tracking.withLock({ stoppedThreads.contains(key) }), let run = tracking.withLock({ tracked[launchID] }) { terminate(run) }
-            Thread.detachNewThread { [self] in complete(thread: thread, seq: exchange.seq, launchID: launchID, answerFile: answerFile, seat: seat, began: began) }
+            Thread.detachNewThread { [self] in complete(thread: thread, seq: exchange.seq, launchID: launchID, answerFile: answerFile, seat: seat, began: began, usage: invocation.usage) }
             return reply(thread, awaiting: exchange.seq, wait: wait)
         } catch {
             // Setup failed before any seat ran: the exchange must not stay asking and block every follow-up.
@@ -256,7 +257,7 @@ extension Broker {
     }
 
     /// Waits for the seat's leader to exit, ends whatever it left in the group, and records what it answered.
-    private func complete(thread: ThreadRecord, seq: Int, launchID: String, answerFile: String, seat: Seat, began: Date) {
+    private func complete(thread: ThreadRecord, seq: Int, launchID: String, answerFile: String, seat: Seat, began: Date, usage format: UsageFormat?) {
         var status: Int32?
         var ranFor = 0.0
         while true {
@@ -282,10 +283,14 @@ extension Broker {
         } else if ranFor >= Double(seat.capSeconds) {
             finishExchange(thread: thread.id, seq: seq, state: .failed, answer: nil, reason: "\(seat.harness) ran past its \(seat.capSeconds) second cap")
         } else if status == 0 {
-            let text = ((try? String(contentsOfFile: answerFile, encoding: .utf8)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            // The JSON stream, when the harness wrote one, carries the answer too; if it cannot be read the file is the answer as before.
+            let captured = format.map { UsageCapture.read($0, answerFile: answerFile) }
+            let written = (try? String(contentsOfFile: answerFile, encoding: .utf8)) ?? ""
+            let text = (captured?.answer ?? written).trimmingCharacters(in: .whitespacesAndNewlines)
             if text.isEmpty {
                 finishExchange(thread: thread.id, seq: seq, state: .failed, answer: nil, reason: "\(seat.harness) answered nothing")
             } else {
+                if let usage = captured?.usage { recordUsage(usage, thread: thread.id, seq: seq, seat: seat) }
                 finishExchange(thread: thread.id, seq: seq, state: .answered, answer: text, reason: nil)
             }
         } else {

@@ -68,6 +68,14 @@ The prompt is one argument (never a shell string). After placeholder expansion t
   directories (`{"permission": {"edit": "deny", "bash": "deny", "webfetch": "deny", "external_directory": "deny"}}`)
   and sets `OPENCODE_CONFIG=<runDirectory>/opencode.json`.
 - hermes: `[exe, "chat", "-q", <prompt>, "--model", <model>]`, `stdoutIsAnswer: true`
+  The argv above is the plain-text invocation, which the availability probe keeps. An ask (and so every sitting round)
+  passes `reportUsage: true`, which adds the harness's JSON output so tokens and cost can be read: claude
+  `--output-format json` appended (the answer is the result object's `result`), codex `--json` before the prompt (events go to
+  `<runDirectory>/events.jsonl`; the answer is still the `-o` file), opencode `--format json` before the prompt (the answer is
+  its `text` parts). When the stream cannot be read the answer is read as before and no usage is stored. The usage lands in
+  `exchanges.tokens_in/tokens_out/cost_usd/cost_basis`; the budget charge is unaffected. Cost is the harness's `total_cost_usd`
+  (claude) or summed step `cost` (opencode, 0 meaning unpriced), else the cached price list's price for the model, else none;
+  a subscription seat's cost is always `estimated, subscription`.
 - ollama: no process: the broker POSTs `{endpoint}/api/chat` with `{"model": <model>, "messages": [...], "stream": false}`
   and the answer is `message.content`; `options.num_predict` is the seat's `cap.tokens` when set.
 - gemini, aider, goose: not adapted in 0.1.0: `failed: <kind> has no adapter`.

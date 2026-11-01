@@ -138,5 +138,13 @@ enum LedgerSchema {
         CREATE TABLE run_origins (run_id TEXT PRIMARY KEY REFERENCES runs(id), project TEXT NOT NULL) WITHOUT ROWID;
         CREATE TABLE IF NOT EXISTS thread_rounds (thread_id TEXT PRIMARY KEY REFERENCES threads(id), sitting_id TEXT, round TEXT) WITHOUT ROWID;
         """,
+        // What the seat's harness reported for an exchange: tokens read and written, and the cost with how it was arrived
+        // at ('reported', 'estimated' or 'estimated, subscription'); NULL when the harness did not say.
+        """
+        ALTER TABLE exchanges ADD COLUMN tokens_in INTEGER;
+        ALTER TABLE exchanges ADD COLUMN tokens_out INTEGER;
+        ALTER TABLE exchanges ADD COLUMN cost_usd REAL;
+        ALTER TABLE exchanges ADD COLUMN cost_basis TEXT;
+        """,
     ]
 }

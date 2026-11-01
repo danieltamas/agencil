@@ -128,6 +128,16 @@ extension Broker {
         return (dollars, tokens)
     }
 
+    /// Keeps what the harness reported for an exchange, for the detail screens. It is display only: the budget charge is
+    /// settled from the reservation as before, so a report can never lower what policy charged.
+    func recordUsage(_ usage: HarnessUsage, thread: String, seq: Int, seat: Seat) {
+        // The cached price list is read only when the harness gave no dollars of its own.
+        let price = usage.reportedDollars == nil
+            ? (try? ModelCatalogService(directory: directory).load()).flatMap { ModelPriceList.price(of: seat.model, in: $0.priceEntries) } : nil
+        let cost = UsageCapture.cost(usage, price: price, subscription: seat.plan == .subscription)
+        try? threads.recordUsage(thread: thread, seq: seq, tokensIn: usage.tokensIn, tokensOut: usage.output, cost: cost)
+    }
+
     /// The `reserved` and `cost` fields of an exchange's reply.
     func costFields(thread: String, seq: Int) -> [String: Any] {
         guard let found = try? budgets.reservation(thread: thread, seq: seq) else { return [:] }
