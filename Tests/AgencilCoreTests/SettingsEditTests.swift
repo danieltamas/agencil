@@ -82,7 +82,7 @@ import Testing
 
     @Test func routesAreEditedByPlaceAndRefuseAStaleSheet() throws {
         let rig = try rig()
-        let was = RouteDraft(callers: ["owner"], target: "panel")
+        let was = try #require(rig.editor.current().routes.first)
         try rig.editor.update(routeAt: 0, was: was, with: RouteDraft(callers: ["owner", "maya"], target: "panel", hopLimit: 3))
         let route = try #require(SeatConfig(values: try rig.store.read().values).routes.first)
         #expect(route.callers == ["owner", "maya"] && route.hopLimit == 3 && route.fallbacks == ["b"])
