@@ -60,7 +60,7 @@ struct TabIsland: View {
                     }
                     .contentShape(Capsule())
                 }
-                .buttonStyle(PressStyle())
+                .buttonStyle(PressStyle(hit: AnyShape(Capsule())))
                 .help(tab.title)
             }
         }
