@@ -88,13 +88,17 @@ enum PreflightClassifier {
         return clean(String(output[range]), limit: 60)
     }
 
-    /// Exit status and output to a reason. An answer is `ok` only when the process exited 0, said something, and
-    /// named no limit, credit or sign-in problem.
+    /// Exit status and output to a reason. Any failure the output names wins, whatever the exit status; `ok` needs
+    /// exit 0 and the expected reply (`OK`, punctuation and case aside). Anything else is `error`, never `ok`.
     static func classify(status: Int32, output: String, answer: String) -> (PreflightReason, String) {
-        let named = reason(in: output + "\n" + answer)
-        if let named, [.usageLimit, .noCredit, .notLoggedIn].contains(named) || status != 0 { return (named, clean(output)) }
-        if status == 0 { return answer.isEmpty ? (.error, clean(output.isEmpty ? "answered nothing" : output)) : (.ok, "") }
-        return (.error, clean(output.isEmpty ? "exit \(status)" : output))
+        if let named = reason(in: output + "\n" + answer) { return (named, clean(output)) }
+        guard status == 0 else { return (.error, clean(output.isEmpty ? "exit \(status)" : output)) }
+        guard !answer.isEmpty else { return (.error, clean(output.isEmpty ? "answered nothing" : output)) }
+        return isExpectedReply(answer) ? (.ok, "") : (.error, clean("unexpected reply: " + answer))
+    }
+
+    static func isExpectedReply(_ answer: String) -> Bool {
+        answer.trimmingCharacters(in: .punctuationCharacters.union(.whitespacesAndNewlines)).lowercased() == "ok"
     }
 
     /// Stored and shown text: no terminal escapes, no credential-looking run, one line, bounded.

@@ -30,7 +30,7 @@ extension Broker {
         }
         let probing = request["probe"] as? Bool == true
         if probing { try requireOwner(request, peer: peer, peerStart: peerStart) }
-        let probed = probing ? Self.byName(standings(of: seats, limits: config.limits, force: true)) : [:]
+        let probed = probing ? Self.byName(standings(of: seats, limits: config.limits, parent: nil, force: true)) : [:]
         let rows = try seats.map { seat -> [String: Any] in
             let standing = probing ? probed[seat.name] : try preflights.fresh(seat)
             var row: [String: Any] = ["name": seat.name, "harness": seat.harness, "model": seat.model, "plan": seat.plan.rawValue,
@@ -56,6 +56,9 @@ extension Broker {
                        caller: String, parent: CapabilityRun?, question: String) throws -> Bool {
         let seated = slots.filter { $0.phase == .pending }
         let synthesizers = council.synthesizers.compactMap { config.seat(named: $0) }.filter { author == "unknown" || $0.vendor != author }
+        if !council.synthesizers.isEmpty, synthesizers.isEmpty {
+            throw Refusal(exit: 4, message: "failed: preflight: every synthesizer is of the author's vendor")
+        }
         // The budget is checked the way admission will check it, without a reservation: the question stands in for
         // the blind prompt, so an unbounded seat under a hard budget is refused here, before any probe process.
         let rootKey = try parent.flatMap { try budgets.reservation(thread: $0.thread, seq: $0.seq)?.rootKey } ?? caller
@@ -69,7 +72,7 @@ extension Broker {
         for seat in seated.map(\.seat) + synthesizers {
             if let message = try budgetRefusal(seat) { refused[seat.name] = message } else { probing.append(seat) }
         }
-        let standings = Self.byName(self.standings(of: probing, limits: config.limits, force: false))
+        let standings = Self.byName(self.standings(of: probing, limits: config.limits, parent: parent, force: false))
         func isOK(_ seat: Seat) -> Bool { refused[seat.name] == nil && standings[seat.name]?.reason == .ok }
         func failure(_ seat: Seat) -> String? {
             refused[seat.name].map { "\(seat.name) \($0)" } ?? standings[seat.name].map { "\($0.seat) \($0.summary)" }
@@ -85,7 +88,7 @@ extension Broker {
                 // A spare that is not ok is spent either way; one of a seated vendor may still serve another slot.
                 spares.remove(at: index)
                 if try budgetRefusal(candidate) == nil,
-                   self.standings(of: [candidate], limits: config.limits, force: false).first?.reason == .ok {
+                   self.standings(of: [candidate], limits: config.limits, parent: parent, force: false).first?.reason == .ok {
                     slot.seat = candidate; fallbackUsed = true; replaced = true
                     break
                 }
@@ -103,7 +106,8 @@ extension Broker {
 
     /// The standing of every seat, probing those without a fresh one (`force` probes all). Seats are probed side by
     /// side within the broker's places (`seats_at_once`, the process cap); opencode seats also take turns at the gate.
-    func standings(of seats: [Seat], limits: Limits, force: Bool) -> [PreflightStanding] {
+    /// `parent` is the seat whose wake this is: it yields its place to the probes as it would to its children.
+    func standings(of seats: [Seat], limits: Limits, parent: CapabilityRun?, force: Bool) -> [PreflightStanding] {
         let box = StandingBox()
         var pending: [Seat] = []
         for seat in seats {
@@ -116,23 +120,26 @@ extension Broker {
             group.enter()
             Thread.detachNewThread { [self] in
                 defer { group.leave() }
-                box.set(placed(seat, limits: limits) { probe(seat) })
+                box.set(placed(seat, limits: limits, parentExchange: parent.map { "\($0.thread)-\($0.seq)" }) { probe(seat) })
             }
         }
         group.wait()
         return seats.compactMap { box.get($0.name) }
     }
 
-    /// Runs a probe holding a place like a seat run does. A probe that gets no place within the seat's cap is `busy`,
-    /// and that standing is not recorded: a full broker says nothing about the seat itself.
-    private func placed(_ seat: Seat, limits: Limits, _ run: () -> PreflightStanding) -> PreflightStanding {
+    /// Runs a probe holding a place like a seat run does (process cap, memory floor, `seats_at_once`). A probe that
+    /// gets no place within the seat's cap is `busy`, and that standing is not recorded: a full broker says nothing
+    /// about the seat itself.
+    private func placed(_ seat: Seat, limits: Limits, parentExchange: String?, _ run: () -> PreflightStanding) -> PreflightStanding {
         func busy(_ detail: String) -> PreflightStanding { standing(seat, .busy, detail) }
         let id = "pf_" + UUID().uuidString.lowercased()
         guard let orphans = try? orphanCount() else { return busy("the ledger could not be read") }
-        guard capacity.enter(id, parentExchange: nil, isProcess: seat.harness != "ollama", limits: limits, orphans: orphans) else {
+        guard capacity.enter(id, parentExchange: parentExchange, isProcess: seat.harness != "ollama", limits: limits, orphans: orphans) else {
             return busy("the process cap is reached")
         }
         defer { capacity.leave(id) }
+        // Like admission: a floor that cannot be measured is a floor not met.
+        if limits.memoryFloorMB > 0, freeMemoryMB().map({ $0 < limits.memoryFloorMB }) != false { return busy("below the memory floor") }
         let deadline = Date().addingTimeInterval(Double(cap(seat)))
         while true {
             guard let orphans = try? orphanCount() else { return busy("the ledger could not be read") }
@@ -176,13 +183,14 @@ extension Broker {
 
     private func cap(_ seat: Seat) -> Int { min(seat.capSeconds, Self.probeCap) }
 
-    /// The one-line probe through the seat's own adapter, inside its own run directory.
+    /// The one-line probe through the seat's own adapter, inside a run directory of its own: two probes of one seat
+    /// at once (a wake and a `preflight --probe`) never share an answer file. The directory goes when the probe ends.
     private func answer(_ seat: Seat, executable: String) -> (PreflightReason, String, String?) {
-        let runDirectory = directory.appendingPathComponent("runs/preflight/\(seat.name)")
+        let runDirectory = directory.appendingPathComponent("runs/preflight/\(seat.name)/\(UUID().uuidString.lowercased())")
         let answerFile = runDirectory.appendingPathComponent("answer.txt")
+        defer { try? FileManager.default.removeItem(at: runDirectory) }
         do {
             try FileManager.default.createDirectory(at: runDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-            try? FileManager.default.removeItem(at: answerFile)
             guard let invocation = try Adapter.command(seat: seat, executable: executable, prompt: Self.probePrompt,
                                                        answerFile: answerFile.path, runDirectory: runDirectory.path) else {
                 return (.error, "\(seat.harness) has no adapter", nil)

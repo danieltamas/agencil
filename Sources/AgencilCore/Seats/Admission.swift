@@ -81,7 +81,7 @@ extension Broker {
     }
 
     /// Free plus inactive memory in MB; nil when the kernel does not say. Tests replace it under the seams.
-    private func freeMemoryMB() -> Int? {
+    func freeMemoryMB() -> Int? {
         if environment["AGENCIL_TEST_SEAMS"] == "1", let injected = environment["AGENCIL_TEST_FREE_MEMORY_MB"] { return Int(injected) }
         var info = vm_statistics64()
         var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.stride / MemoryLayout<integer_t>.stride)
@@ -101,7 +101,9 @@ extension Broker {
     func finishExchange(thread: String, seq: Int, state: Exchange.State, answer: String?, reason: String?,
                         usage: (dollars: Double, tokens: Int)? = nil, runStatus: String? = nil) {
         // A charge that cannot be written stays reserved in full, and the next start settles it (settleOrphans).
-        let reported = usage ?? reportedUsage(thread: thread, seq: seq)
+        // A free seat's report never carries dollars into the ledger, whatever it claims, on every path that ends it.
+        var reported = usage ?? reportedUsage(thread: thread, seq: seq)
+        if let found = reported, found.dollars > 0, seatPlan(thread: thread, seq: seq) == .free { reported = (dollars: 0, tokens: found.tokens) }
         for attempt in 0..<3 {
             if (try? budgets.settle(thread: thread, seq: seq, reported: reported)) != nil { break }
             if attempt < 2 { usleep(50_000) }
@@ -110,6 +112,14 @@ extension Broker {
         capacity.leave(exchange: "\(thread)-\(seq)")
         releaseOpencode(exchange: "\(thread)-\(seq)")
         removeCopy(thread: thread, seq: seq)
+    }
+
+    /// The plan of the seat that answers an exchange (the end of its chain), as the config reads now; nil when the
+    /// config or the exchange cannot be read, in which case the report is charged as made.
+    private func seatPlan(thread: String, seq: Int) -> Seat.Plan? {
+        guard let exchange = (try? threads.exchanges(thread: thread))?.first(where: { $0.seq == seq }), let name = exchange.chain.last,
+              let config = try? seatConfig().0 else { return nil }
+        return config.seat(named: name)?.plan
     }
 
     /// A process seat reports what it used in `usage.json` of its run directory; anything malformed is not a report.

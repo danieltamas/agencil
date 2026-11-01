@@ -13,10 +13,17 @@ enum SheetKind: String, Identifiable, CaseIterable {
 }
 
 struct SeatForm {
-    var name = "", harness = "codex", model = "", endpoint = "", pin = "", cap = ""
+    var name = ""
+    /// A harness or model edited after a preset leaves the preset's vendor, plan and hosted flag behind: the config
+    /// infers them from the new harness and model instead (a free preset's plan must not follow a paid model).
+    var harness = "codex" { didSet { if harness != oldValue { forgetPreset() } } }
+    var model = "" { didSet { if model != oldValue { forgetPreset() } } }
+    var endpoint = "", pin = "", cap = ""
     /// Set by a chosen preset; the sheet has no fields for them.
     var preset = "", vendor = "", plan = ""
     var hosted: Bool?
+
+    private mutating func forgetPreset() { preset = ""; vendor = ""; plan = ""; hosted = nil }
 }
 struct CouncilForm { var name = "", seats: [String] = [], rule = "majority", quorum = "" }
 struct RouteForm { var callers = "", target = "", hops = "" }

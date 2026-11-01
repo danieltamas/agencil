@@ -41,7 +41,9 @@ collision, and a sitting opened for a panel that cannot sit.
 - Admission: a `free` seat is quoted at 0 dollars and is bounded in dollars (it cannot spend any), so a hard dollar
   budget never refuses it and it is charged 0 dollars; its token estimate is unchanged. `local` keeps the Ollama
   price-based bounded quote. `subscription` and `credit` are quoted as before (unbounded unless the harness is
-  bounded). A usage report with dollars from a `free` seat is charged 0 dollars.
+  bounded). A usage report with dollars from a `free` seat is charged 0 dollars on every path that ends an exchange
+  (`finishExchange` reads the plan of the chain's last seat from the config; a crash-recovered exchange is charged the
+  same way).
 - Replies: `plan` appears in the `preflight` reply and the panel seat items. The U18 `seats` list is unchanged.
 
 ## 3. Preflight (Sources/AgencilCore/Seats/Preflight.swift)
@@ -50,7 +52,7 @@ A deterministic availability check per seat, before any work. Reasons are a clos
 
 | Reason | Meaning | How it is decided |
 |--------|---------|-------------------|
-| `ok` | the seat answered a one-line probe | probe exit 0 and a non-empty answer |
+| `ok` | the seat answered the one-line probe as asked | probe exit 0, the answer reads `OK` (case and punctuation aside) and no failure text matched |
 | `not_installed` | no executable found | `Resolver.usable` |
 | `not_logged_in` | signed out or sign-in unknowable on a harness with a status command, or the probe output names it | `Resolver.usable`; probe text `not logged in`, `unauthorized`, `please log in`, `login required`, `invalid api key`, `authentication` |
 | `usage_limit` | a subscription limit; `until` carries the reset text when the harness gives one (`try again at <text>`) | probe text `usage limit`, `rate limit`, `too many requests`, `try again at`, `try again in`, `quota exceeded`. Checked before `no_credit` (codex's limit text also says "purchase more credits") |
@@ -59,11 +61,12 @@ A deterministic availability check per seat, before any work. Reasons are a clos
 | `busy` | another run holds the harness's own store | probe text `database is locked` |
 | `unreachable` | the host or provider did not answer | ollama endpoint down; probe text `could not connect`, `connection refused`, `econnrefused`, `enotfound`, `getaddrinfo`, `network is unreachable`, `fetch failed`, `502`, `503`, `overloaded` |
 | `timeout` | the probe ran past its cap | ProcessRunner deadline |
-| `error` | anything else: a non-zero exit or an empty answer without a matching text | catch-all, never read as ok |
+| `error` | anything else: a non-zero exit, an empty answer or a reply other than `OK`, without a matching text | catch-all, never read as ok |
 
 Pattern matching is case-insensitive over stdout, stderr and the answer file together. Order: `usage_limit`,
-`no_credit`, `not_logged_in`, `model_unavailable`, `busy`, `unreachable`; the first match wins; `ok` only on exit 0
-with a non-empty answer and no `usage_limit`, `no_credit` or `not_logged_in` match.
+`no_credit`, `not_logged_in`, `model_unavailable`, `busy`, `unreachable`; the first match wins and does so whatever
+the exit status (a harness that prints `503` or `database is locked` and still exits 0 is not `ok`); `ok` needs exit
+0, no match, and the expected reply.
 
 Steps per seat, in order, stopping at the first failure:
 
@@ -73,8 +76,9 @@ Steps per seat, in order, stopping at the first failure:
    appear as a whole line; else `model_unavailable` with detail `not in opencode models`. A list command that fails or
    times out is not a verdict: the probe decides.
 3. The probe: the seat's adapter argv (`Adapter.command`) with the prompt exactly `Reply with exactly: OK`, the answer
-   file and run directory `<home>/runs/preflight/<seat>/`, cap `min(cap.seconds, 60)`, stdin closed, the broker's
-   environment plus the adapter's. Classified as above. The answer is the file (codex) or stdout (the rest).
+   file and run directory `<home>/runs/preflight/<seat>/<attempt>/` (one per probe, removed when it ends, so a wake
+   and a `preflight --probe` of one seat never share an answer file), cap `min(cap.seconds, 60)`, stdin closed, the
+   broker's environment plus the adapter's. Classified as above. The answer is the file (codex) or stdout (the rest).
 4. The result is appended to the ledger (migration `preflights`: `id, seat, harness, model, plan, reason, detail,
    until, probed_at`; append-only like `trigger_fires`). `detail` is at most 200 characters of the matched output after
    `Redaction.sanitizeText` and `Redaction.scrubbed` (no credential-looking run is ever stored).
@@ -98,9 +102,11 @@ Wake gate (Sources/AgencilCore/Councils/Sitting.swift): after the recusal of the
 sitting is opened, every seated slot and every non-recused synthesizer is preflighted. The budget comes first: each seat
 is checked against the matching hard budgets the way admission checks it (the question stands in for the blind prompt,
 no reservation is written); a seat the budget refuses is never probed and fails the gate as `<seat> refused: budget`.
-The rest are probed side by side, each probe holding a place like a seat run (the process cap and `seats_at_once`
-bound probes too; a probe that gets no place within the seat's cap is `busy` and that standing is not recorded);
-opencode probes are also serialized. A slot whose seat is not `ok` is filled by the first spare of the council that is `ok` (budget and probe), whose vendor is not
+The rest are probed side by side, each probe holding a place like a seat run (the process cap, the memory floor and
+`seats_at_once` bound probes too, and a waking seat yields its own place to the probes as it would to its children; a
+probe that gets no place within the seat's cap is `busy` and that standing is not recorded); opencode probes are also
+serialized. A council that names synthesizers of which every one is recused (the author's vendor) is refused up front
+with `failed: preflight: every synthesizer is of the author's vendor`, before any probe or work row. A slot whose seat is not `ok` is filled by the first spare of the council that is `ok` (budget and probe), whose vendor is not
 the author's and not already seated, and that is not already taken; this sets the `fallback_used` flag of the verdict.
 A slot that cannot be filled, or no `ok` synthesizer when the council names synthesizers, refuses the wake with exit 4:
 `failed: preflight: <seat> <reason>[ until <text>]; <seat> <reason>` (every failed seat, config order), the request
@@ -158,7 +164,8 @@ subscription seats, 600 s for the free ones, 300 s for ollama. `SeatDraft` gains
 (all optional; the U9 initializer keeps working). CLI: `agencil seats presets` lists the table; `agencil seats add
 --preset <name>` adds one (exit 64 for an unknown preset, 4 for a refused draft with the sheet's field messages on
 stderr). Settings > Seats > New seat has a Preset menu that fills the form (name, harness, model, endpoint, time
-limit) and keeps the preset's vendor and plan for the save.
+limit) and keeps the preset's vendor, plan and hosted flag for the save; editing the harness or the model afterwards
+drops them, so the config infers vendor, plan and hosted from what the owner actually chose.
 
 A review council over these seats, for the owner to add (vendor spread OpenAI, NVIDIA, Zhipu, DeepSeek; Anthropic
 synthesizes): `{"name": "review", "seats": ["gpt-codex", "nemotron-free", "glm-free", "deepseek-free"], "spare":
