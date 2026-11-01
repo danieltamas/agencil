@@ -77,7 +77,7 @@ extension DemoPanel {
                 ["id": "s2", "no": 213, "council": "security", "state": "BLOCK", "round": "verdict", "started": stamp(-3600), "ended": stamp(-3238),
                  "cost_usd": 1.1, "verdict": "BLOCK"],
             ],
-            "findings": findings.map { ["id": $0.id, "severity": $0.severity.lowercased(), "file": $0.place, "line": 1, "body": $0.claim,
+            "findings": findings.map { ["id": $0.id, "severity": $0.severity.lowercased(), "file": String($0.place.split(separator: ":")[0]), "line": Int($0.place.split(separator: ":")[1]) ?? 1, "body": $0.claim,
                                          "backers": $0.backers, "dissenters": $0.dissent, "minority": $0.dissent > 0, "disposition": "open"] },
             "proposals_pending": 1, "week": ["spend_usd": 6.4, "budget_usd": 20], "live": live ? 2 : 0,
         ]

@@ -35,10 +35,11 @@ struct PanelView: View {
             }
             .padding(.horizontal, Space.panelInset)
             .padding(.bottom, Space.l)
+            .frame(maxHeight: .infinity, alignment: .top)
             footer
         }
         .frame(width: Size.panelWidth)
-        .frame(maxHeight: Size.panelMaxHeight)
+        .frame(height: Size.panelHeight)
         .background(Backdrop())
         .houseScheme()
         .trackPanelVisibility()
@@ -120,7 +121,7 @@ struct PanelView: View {
         if store.data == nil {
             WaitingState(title: waiting)
         } else {
-            FittingScroll { rows }
+            ScrollView { rows }.scrollIndicators(.hidden)
         }
     }
 
@@ -169,6 +170,11 @@ struct PanelView: View {
 
     private var footer: some View {
         HStack(spacing: Space.m) {
+            if store.starOffer {
+                AsyncPress(id: "star", action: store.star) { running, press in
+                    StarOffer(starring: running, help: "Star \(RepoStar.repo) on GitHub with your gh account", star: press)
+                }
+            }
             Text(store.problem ?? store.footer).font(.house.meta)
                 .foregroundStyle(store.problem == nil ? Theme.textTertiary : Theme.crit).lineLimit(1)
             Spacer(minLength: 0)

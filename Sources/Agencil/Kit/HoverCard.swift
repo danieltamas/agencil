@@ -11,10 +11,9 @@ struct HoverCard<Content: View>: View {
     var body: some View {
         Bezel(fill: hovering && action != nil ? Theme.coreHover : Theme.core) {
             HStack(spacing: 0) {
-                if let accent {
-                    Capsule().fill(accent.gradient).frame(width: 3).padding(.vertical, 10).padding(.leading, Space.s)
-                        .shadow(color: accent.opacity(0.6), radius: 4)
-                }
+                // The accent slot is always there, so the text of every row starts at the same x.
+                Capsule().fill((accent ?? .clear).gradient).frame(width: 3).padding(.vertical, 10).padding(.leading, Space.s)
+                    .shadow(color: (accent ?? .clear).opacity(0.6), radius: 4)
                 content.padding(.horizontal, Space.l).padding(.vertical, 10)
             }
         }

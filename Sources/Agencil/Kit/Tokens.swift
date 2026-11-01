@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Every number and size a view may use. Views name a token, never a literal (docs/DESIGN.md "Tokens").
@@ -54,6 +55,8 @@ enum Size {
     static let menuBarGlyph: CGFloat = 18
     static let panelWidth: CGFloat = 404
     static let panelMaxHeight: CGFloat = 780
+    /// The open panel is this tall in every tab, like its sibling apps: the tallest that fits the screen, at most `panelMaxHeight`.
+    static var panelHeight: CGFloat { min(panelMaxHeight, (NSScreen.main?.visibleFrame.height ?? 820) - 40) }
     static let settingsMin = CGSize(width: 760, height: 540)
     static let settingsSidebar: CGFloat = 196
     static let modalWidth: CGFloat = 520

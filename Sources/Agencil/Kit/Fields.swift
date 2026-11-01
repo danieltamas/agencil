@@ -50,7 +50,6 @@ struct SearchField: View {
         }
         .fieldCapsule(active: focused, capsule: true)
         .animation(Motion.snappy, value: focused)
-        .padding(.horizontal, Space.panelInset)
     }
 }
 

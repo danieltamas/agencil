@@ -15,6 +15,9 @@ import SwiftUI
     private(set) var seen: Set<String> = []
     private(set) var problem: String?
     private(set) var readAt: Date?
+    private(set) var starOffer = false
+    @ObservationIgnored private var repoStar: RepoStar?
+    @ObservationIgnored private var starChecked = false
 
     @ObservationIgnored private var client: PanelClient?
     @ObservationIgnored private var notifier: PanelNotifier?
@@ -27,7 +30,11 @@ import SwiftUI
 
     static func waiting() -> PanelStore { PanelStore(data: nil) }
 
-    static func demo() -> PanelStore { PanelStore(data: DemoPanel.data) }
+    static func demo() -> PanelStore {
+        let store = PanelStore(data: DemoPanel.data)
+        store.starOffer = true
+        return store
+    }
 
     /// The running app reads the broker in `~/.agencil`; a home that cannot be opened leaves the panel waiting.
     static func launch() -> PanelStore {
@@ -41,6 +48,7 @@ import SwiftUI
         let store = PanelStore(data: nil)
         let client = PanelClient(home: home)
         store.client = client
+        store.repoStar = RepoStar(directory: home.directory)
         store.notifier = PanelNotifier(settings: { (try? ConfigStore(directory: home.directory).read()).flatMap { try? NotifySettings(values: $0.values) } })
         store.control = StopControl(stop: { id in try await client.stop(id) })
         store.start()
@@ -70,6 +78,7 @@ import SwiftUI
             control?.observe(next)
             syncStopping(next)
             await readProposals(client)
+            await refreshStarOffer()
         } catch {
             problem = error.localizedDescription
         }
@@ -136,6 +145,19 @@ import SwiftUI
             await refresh()
             if let failure { problem = failure }
         }
+    }
+
+    /// Asks GitHub once per run, on the first open, and only while `config.json` does not already say starred.
+    func refreshStarOffer() async {
+        guard let repoStar, !starChecked else { return }
+        starChecked = true
+        guard repoStar.shouldOffer() else { return }
+        starOffer = await repoStar.refresh() == .notStarred
+    }
+
+    func star() async {
+        guard let repoStar else { return }
+        if await repoStar.star() { starOffer = false } else { problem = "Could not star " + RepoStar.repo + ": is gh logged in?" }
     }
 
     func open(sitting id: String) { seen.insert(id) }
