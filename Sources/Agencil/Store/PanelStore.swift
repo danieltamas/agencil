@@ -181,6 +181,14 @@ import SwiftUI
         return "\(seats.up)/\(seats.total) seats up"
     }
 
+    /// The chip's colour: all up is ok, a seat down is crit (warn when every down seat is only busy), nothing to judge is unknown.
+    var seatChipColor: Color {
+        guard let seats = data?.seats, seats.total > 0 else { return Theme.unknown }
+        let down = seats.items.filter { !$0.up }
+        if down.isEmpty { return Theme.ok }
+        return down.allSatisfy { $0.reason == "busy" } ? Theme.warn : Theme.crit
+    }
+
     /// How old the last read of each source is, for the footer: the seats' probe and the panel read itself.
     var pollAges: [(symbol: String, age: String)] {
         guard let readAt else { return [] }

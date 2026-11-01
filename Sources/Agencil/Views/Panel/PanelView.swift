@@ -50,7 +50,7 @@ struct PanelView: View {
         HStack(spacing: Space.m) {
             BrandGlyph()
             Text("Agencil").font(.house.header).foregroundStyle(Theme.textPrimary)
-            Chip(text: store.seatChip, color: store.data == nil ? Theme.unknown : Theme.ok)
+            Chip(text: store.seatChip, color: store.seatChipColor)
             Spacer(minLength: 0)
             AsyncIconButton(symbol: "arrow.clockwise", help: "Refresh", id: "refresh", action: store.refresh)
             IconButton(symbol: "gearshape", help: "Settings") { AppRelaunch.activate(); openSettings() }

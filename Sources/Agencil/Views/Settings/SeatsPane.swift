@@ -16,9 +16,9 @@ struct SeatsPane: View {
                 if let problem = store.panes.problem { ProblemText(text: problem) }
                 ScrollViewReader { proxy in
                     VStack(spacing: 0) {
-                        ForEach(store.seatInfos) { seat in
-                            if seat.id != store.seatInfos.first?.id { RowDivider() }
-                            entry(seat).id(seat.id)
+                        ForEach(Array(store.seatInfos.enumerated()), id: \.element.id) { index, seat in
+                            if index > 0 { RowDivider() }
+                            entry(seat, index: index).id(seat.id)
                         }
                     }
                     .onAppear { reveal(proxy) }
@@ -32,14 +32,25 @@ struct SeatsPane: View {
         if let seat = route.seat { proxy.scrollTo(seat, anchor: .center) }
     }
 
-    private func entry(_ seat: SettingsStore.SeatInfo) -> some View {
+    /// The whole entry opens the Edit seat sheet. Re-check is a sibling of that button, laid over the trailing edge: the
+    /// row's own trailing slot holds an invisible copy of it, so the two controls share one measured position.
+    private func entry(_ seat: SettingsStore.SeatInfo, index: Int) -> some View {
         let standing = store.panes.standings[seat.id]
-        return SeatEntry(vendor: seat.vendor, name: seat.id, model: seat.model, meta: store.panes.seatMeta(seat.harness, plan: seat.plan, model: seat.model),
-                         status: standing?.line, statusOK: standing?.ok ?? false, detail: standing?.ok == false ? standing?.detail ?? "" : "",
-                         marked: route.seat == seat.id) {
-            AsyncPress(id: "recheck:\(seat.id)", action: store.panes.recheckAction(seat: seat.id)) { running, press in
-                ChipButton(title: running ? "Checking..." : "Re-check", action: press)
+        let recheck = AsyncPress(id: "recheck:\(seat.id)", action: store.panes.recheckAction(seat: seat.id)) { running, press in
+            ChipButton(title: running ? "Checking..." : "Re-check", action: press)
+        }
+        let chevron = Image(systemName: "chevron.right").font(.house.meta).foregroundStyle(Theme.textTertiary)
+        return PressRow(label: "Edit \(seat.id)") { store.startEdit(.seat, index: index) } content: {
+            SeatEntry(vendor: seat.vendor, name: seat.id, model: seat.model, meta: store.panes.seatMeta(seat.harness, plan: seat.plan, model: seat.model),
+                      status: standing?.line, statusOK: standing?.ok ?? false, detail: standing?.ok == false ? standing?.detail ?? "" : "",
+                      marked: route.seat == seat.id) {
+                HStack(spacing: Space.m) { recheck.hidden(); chevron }
             }
+        }
+        .overlay(alignment: .topTrailing) {
+            HStack(spacing: Space.m) { recheck; chevron.hidden() }
+                .padding(.top, Space.m)
+                .padding(.trailing, SettingsMetrics.rowInset)
         }
     }
 }
