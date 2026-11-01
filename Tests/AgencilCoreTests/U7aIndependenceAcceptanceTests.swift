@@ -76,10 +76,20 @@ import Testing
         #expect(r.observations("d", suffix: "argv").isEmpty)
         #expect(try r.vote(v, "a")["state"] as? String == "recused")
     }
-    @Test func onlyConfiguredSynthesizerOfAuthorsVendorIsIncomplete() throws {
+    @Test func onlyConfiguredSynthesizerOfAuthorsVendorRefusesTheWakeBeforeAnyWork() throws {
         let r = try U7aRig(); try r.configure(u7aCouncil(["seats": ["b", "c"], "synthesizer": "a"]))
-        _ = try r.decided("INCOMPLETE", "synthesizer failed", extra: ["--author-vendor", "openai"])
-        #expect(r.observations("a").isEmpty)
+        try r.put("refused.brief", "change_kind: design\nquestion: inspect\n")
+        let (code, out, error) = try r.home.cli(["wake", "panel", "--brief",
+            r.control.appendingPathComponent("refused.brief").path, "--wait", "15",
+            "--author-vendor", "openai", "--json"])
+        #expect(code == 4)
+        #expect(out.isEmpty)
+        #expect(error.hasPrefix("agencil: failed: preflight: every synthesizer is of the author's vendor"))
+        #expect(try r.sql("SELECT outcome FROM requests;") == "failed\n")
+        for table in ["briefs", "snapshots", "runs", "sittings", "seat_runs", "preflights"] {
+            #expect(try r.sql("SELECT count(*) FROM \(table);") == "0\n")
+        }
+        #expect(r.observations().isEmpty)
     }
     @Test func secondSynthesizerFromAnotherVendorRuns() throws {
         let r = try U7aRig(); try r.configure(u7aCouncil(["seats": ["b", "c"], "synthesizer": ["a", "d"]]))
