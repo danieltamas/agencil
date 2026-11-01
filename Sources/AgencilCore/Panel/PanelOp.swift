@@ -16,9 +16,11 @@ extension Broker {
             let thinking = try panelThinking()
             let items = try config.seats.map { seat -> [String: Any] in
                 var item: [String: Any] = ["name": seat.name, "model": seat.model, "up": harnessInstalled(seat),
-                                           "thinking": thinking.contains(seat.name), "plan": seat.plan.rawValue, "standing": "not probed"]
+                                           "thinking": thinking.contains(seat.name), "plan": seat.plan.rawValue, "standing": "not probed",
+                                           "harness": seat.harness, "vendor": seat.vendor]
                 if let standing = try preflights.fresh(seat, insideLock: true) {
                     item["standing"] = standing.display
+                    item["reason"] = standing.reason.rawValue
                     item["probed_ago"] = Date().timeIntervalSince(standing.probedAt)
                 }
                 return item

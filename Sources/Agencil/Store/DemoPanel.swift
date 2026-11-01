@@ -11,6 +11,10 @@ enum DemoPanel {
     struct SeatRow: Identifiable {
         let id: String; let model: String; let up: Bool; let confirmed: String; let coverage: String
         let cost: String; let median: String; let overlap: String; let enough: Bool
+        /// Who the seat is and, when it is down, why in plain words (empty while it is up).
+        var vendor = ""; var harness = ""; var plan = ""; var reason = ""
+        /// The line under the model: harness, plan and `alias` when the model id is a short name we cannot resolve.
+        var meta: String { PanelFormat.seatMeta(harness: harness, plan: plan, model: model) }
     }
 
     static let threads = [
@@ -29,9 +33,12 @@ enum DemoPanel {
         Finding(id: "f3", severity: "P3", place: "web/Cart.tsx:31", claim: "The total is formatted before the currency is known.", backers: 2, dissent: 0),
     ]
     static let seatRows = [
-        SeatRow(id: "codex-gpt", model: "gpt-5.5", up: true, confirmed: "61% (48-72)", coverage: "74%", cost: "$0.18", median: "52s", overlap: "92% like claude-opus", enough: true),
-        SeatRow(id: "claude-opus", model: "opus-5.5", up: true, confirmed: "68% (55-79)", coverage: "81%", cost: "$0.31", median: "1m 10s", overlap: "92% like codex-gpt", enough: true),
-        SeatRow(id: "box-qwen3", model: "qwen3-coder 480b", up: false, confirmed: "n=7, too few", coverage: "n=7, too few", cost: "$0.00", median: "2m 40s", overlap: "none yet", enough: false),
+        SeatRow(id: "codex-gpt", model: "gpt-5.5", up: true, confirmed: "61% (48-72)", coverage: "74%", cost: "$0.18", median: "52s", overlap: "92% like claude-opus", enough: true,
+                vendor: "openai", harness: "codex", plan: "subscription"),
+        SeatRow(id: "claude-opus", model: "opus", up: true, confirmed: "68% (55-79)", coverage: "81%", cost: "$0.31", median: "1m 10s", overlap: "92% like codex-gpt", enough: true,
+                vendor: "anthropic", harness: "claude", plan: "subscription"),
+        SeatRow(id: "box-qwen3", model: "qwen3-coder 480b", up: false, confirmed: "n=7, too few", coverage: "n=7, too few", cost: "$0.00", median: "2m 40s", overlap: "none yet", enough: false,
+                vendor: "alibaba", harness: "opencode", plan: "local", reason: "usage limit until Nov 3, 9:00"),
     ]
     static func refresh() async { try? await Task.sleep(for: .seconds(1)) }
     struct ListRow: Identifiable { let name: String; let detail: String; let up: Bool; var id: String { name } }
@@ -64,7 +71,9 @@ extension DemoPanel {
         let json: [String: Any] = [
             "configured": true,
             "seats": ["total": 5 + extraSeats, "up": 4 + extraSeats, "thinking": live ? 1 : 0,
-                      "items": seatRows.map { ["name": $0.id, "model": $0.model, "up": $0.up, "thinking": live && $0.id == "codex-gpt"] as [String: Any] } + extras],
+                      "items": seatRows.map { ["name": $0.id, "model": $0.model, "up": $0.up, "thinking": live && $0.id == "codex-gpt",
+                                                      "harness": $0.harness, "vendor": $0.vendor, "plan": $0.plan, "standing": $0.up ? "ok" : $0.reason,
+                                                      "reason": $0.up ? "ok" : "usage_limit"] as [String: Any] } + extras],
             "threads": [
                 ["id": "t1", "caller": "claude", "seat": "codex-gpt", "question": threads[0].question, "state": live ? "asking" : "answered", "started": stamp(-30)],
                 ["id": "t2", "caller": "opencode", "seat": "claude-opus", "question": threads[1].question, "state": "answered",

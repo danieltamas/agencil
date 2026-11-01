@@ -10,6 +10,13 @@ public struct PanelData: Sendable, Equatable {
         public let probedAgo: Double?
         /// The preflight standing in the panel's words (docs/U25-SPEC.md); `not probed` without a fresh one.
         public let standing: String
+        /// What the seat is: its harness, the vendor that trained the model and how it is paid for (`subscription`,
+        /// `credit`, `free`, `local`). Empty when the broker predates them.
+        public let harness: String
+        public let vendor: String
+        public let plan: String
+        /// The preflight reason (`not_logged_in`, `usage_limit`, ...) of a fresh standing; nil without one.
+        public let reason: String?
     }
 
     public struct Seats: Sendable, Equatable {
@@ -98,7 +105,9 @@ public struct PanelData: Sendable, Equatable {
                           SeatItem(name: try field($0, "name", "seats.items."), model: try field($0, "model", "seats.items."),
                                    up: try field($0, "up", "seats.items."), thinking: try field($0, "thinking", "seats.items."),
                                    probedAgo: ($0["probed_ago"] as? NSNumber)?.doubleValue,
-                                   standing: $0["standing"] as? String ?? "not probed")
+                                   standing: $0["standing"] as? String ?? "not probed", harness: $0["harness"] as? String ?? "",
+                                   vendor: $0["vendor"] as? String ?? "", plan: $0["plan"] as? String ?? "",
+                                   reason: $0["reason"] as? String)
                       })
         threads = try list("threads").map {
             Thread(id: try field($0, "id", "threads."), caller: try field($0, "caller", "threads."), seat: try field($0, "seat", "threads."),

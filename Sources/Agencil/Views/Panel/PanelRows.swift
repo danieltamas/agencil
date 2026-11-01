@@ -102,15 +102,22 @@ struct FindingRow: View {
 
 struct SeatScoreRow: View {
     let seat: DemoPanel.SeatRow
+    var open: () -> Void = {}
 
     var body: some View {
-        HoverCard(accent: seat.up ? Theme.ok : Theme.crit, action: {}) {
+        // The band is the one health signal: ok while the seat can sit, crit with the reason underneath when not.
+        HoverCard(accent: seat.up ? Theme.ok : Theme.crit, action: open) {
             VStack(alignment: .leading, spacing: Space.s) {
-                HStack(spacing: Space.s) {
-                    PulseDot(color: seat.up ? Theme.ok : Theme.crit, live: false)
-                    Text(seat.id).font(.house.rowTitle).foregroundStyle(Theme.textPrimary).lineLimit(1)
+                HStack(alignment: .top, spacing: Space.m) {
+                    VendorMark(vendor: seat.vendor).padding(.top, Space.xxs)
+                    VStack(alignment: .leading, spacing: Space.xxs) {
+                        Text(seat.id).font(.house.rowTitle).foregroundStyle(Theme.textPrimary).lineLimit(1)
+                        // The whole model id: it wraps, it is never cut in the middle.
+                        Text(seat.model).font(.house.mono).foregroundStyle(Theme.textSecondary).detailLines()
+                        if !seat.meta.isEmpty { Text(seat.meta).font(.house.meta).foregroundStyle(Theme.textTertiary).detailLines() }
+                        if !seat.up { Text(seat.reason).font(.house.meta).foregroundStyle(Theme.crit).detailLines() }
+                    }
                     Spacer(minLength: 0)
-                    Text(seat.model).font(.house.mono).foregroundStyle(Theme.textTertiary).lineLimit(1).truncationMode(.middle)
                 }
                 HStack(spacing: Space.l) {
                     stat("Confirmed", seat.confirmed)

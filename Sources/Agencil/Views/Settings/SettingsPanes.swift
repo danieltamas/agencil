@@ -25,7 +25,7 @@ struct SettingsPaneView: View {
             if let problem = store.configProblem { ProblemText(text: problem) }
             switch pane {
             case .general: general
-            case .seats: list(.seat, rows: store.seatRows)
+            case .seats: SeatsPane(store: store)
             case .councils: list(.council, rows: store.councilRows)
             case .routes: list(.route, rows: store.routeRows)
             case .access: accessPane

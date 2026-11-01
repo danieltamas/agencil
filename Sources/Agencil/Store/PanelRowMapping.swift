@@ -32,12 +32,24 @@ extension DemoPanel.Finding {
 
 extension DemoPanel.SeatRow {
     init(_ row: PanelData.SeatItem) {
-        self.init(id: row.name, model: row.model, up: row.up, confirmed: "n=0, too few", coverage: "n=0, too few",
-                  cost: "-", median: "-", overlap: row.up ? row.standing : "not reachable", enough: false)
+        // A fresh standing that names a failure settles it; `busy` says nothing about the seat itself.
+        let failed = row.reason.map { $0 != "ok" && $0 != "busy" } ?? false
+        let down = !row.up || failed
+        self.init(id: row.name, model: row.model, up: !down, confirmed: "n=0, too few", coverage: "n=0, too few",
+                  cost: "-", median: "-", overlap: "no overlap data yet", enough: false, vendor: row.vendor,
+                  harness: row.harness, plan: row.plan, reason: down ? (failed ? row.standing : "harness not installed") : "")
     }
 }
 
 enum PanelFormat {
+    /// A short model name (`opus`, `sonnet`) has no digit; the harness resolves it to a version we cannot see.
+    static func isAlias(_ model: String) -> Bool { !model.contains(where: \.isNumber) }
+
+    /// `claude - subscription - alias`: what runs the model, how it is paid for, and whether the id is a short name.
+    static func seatMeta(harness: String, plan: String, model: String) -> String {
+        [harness, plan, isAlias(model) ? "alias" : ""].filter { !$0.isEmpty }.joined(separator: " - ")
+    }
+
     static func money(_ dollars: Double) -> String { String(format: "$%.2f", dollars) }
 
     static func duration(from start: Date, to end: Date?) -> String {

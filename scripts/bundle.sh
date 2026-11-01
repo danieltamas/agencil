@@ -84,7 +84,7 @@ fi
 [[ -n $source ]] || source=$(git describe --tags --always 2>/dev/null || echo unknown)
 plutil -replace AgencilSource -string "$source" "$app/Contents/Info.plist"
 cp Support/AppIcon.icns Support/MenuBarIcon.pdf Support/mesh.png "$app/Contents/Resources/"
-cp -R Support/MenuBarFrames "$app/Contents/Resources/"
+cp -R Support/MenuBarFrames Support/Vendors "$app/Contents/Resources/"
 # Settings > More apps starts from this copy of the app registry (scripts/registry-snapshot.sh takes it).
 cp -R Support/Registry "$app/Contents/Resources/"
 # About's Update runs the same installer as the curl line, pinned to the release it showed.
