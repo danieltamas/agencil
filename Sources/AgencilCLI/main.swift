@@ -1,5 +1,10 @@
 import AgencilCore
 import Foundation
 
-// The installer recognises its own command by the `agencil:` prefix of the usage error before it replaces or removes the file.
-exit(CommandLineTool().run(Array(CommandLine.arguments.dropFirst())))
+let arguments = Array(CommandLine.arguments.dropFirst())
+// install.sh finds this literal in the binary with `strings` before it replaces or removes the file.
+if arguments == ["--identify"] {
+    print("agencil-cli: the Agencil command")
+    exit(0)
+}
+exit(CommandLineTool().run(arguments))
