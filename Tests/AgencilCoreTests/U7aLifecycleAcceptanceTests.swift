@@ -53,7 +53,7 @@ import Testing
     }
     @Test func shortWaitIsPendingStatusDescribesSeatsThenResultWaitCompletes() throws {
         let r = try U7aRig(); let id = try pending(r)
-        try brokerPoll(15) { r.observations().count == 3 }
+        try brokerPoll(15) { r.observations(nil, "blind").count == 3 }
         let s = try r.cli(["status", id], exit: 0)
         #expect(Set(s.keys) == Set(["sitting", "council", "state", "round", "seats"]))
         #expect(s["sitting"] as? String == id); #expect(s["council"] as? String == "panel")
@@ -69,13 +69,18 @@ import Testing
         let r = try U7aRig(); try r.configure(u7aCouncil(["silent_after": 0.95]))
         for s in ["a", "b", "c"] { try r.put(s + ".blind.silent") }
         let id = try pending(r)
-        try brokerPoll(15) { r.observations().count == 3 }
+        try brokerPoll(15) { r.observations(nil, "blind").count == 3 }
+        #expect(try r.sql("SELECT seat,reason FROM preflights ORDER BY seat;") == "a|ok\nb|ok\nc|ok\n")
         try r.put("release")
         try brokerPoll(15) { r.observations(suffix: "child-pid").count == 3 }
         _ = try r.cli(["stop", id], exit: 0)
         let v = try r.cli(["result", id, "--wait", "15"], exit: 4)
         #expect(v["state"] as? String == "failed"); #expect(v["reason"] as? String == "stopped")
-        for s in ["a", "b", "c"] { try r.stoppedPIDs(s) }
+        for s in ["a", "b", "c"] {
+            #expect(r.observations(s, "blind", suffix: "pid").count == 1)
+            #expect(r.observations(s, "blind", suffix: "child-pid").count == 1)
+            try r.stoppedPIDs(s)
+        }
     }
     @Test func ledgerRecordsSnapshotBriefClaimsAssessmentsVerdictAndEverySeatRound() throws {
         let r = try U7aRig(); try r.configure(u7aCouncil(["rounds": ["rebuttal": true]]))

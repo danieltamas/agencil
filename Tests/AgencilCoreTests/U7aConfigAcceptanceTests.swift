@@ -80,7 +80,29 @@ import Testing
     @Test func councilNeverUsesRouteFallbacks() throws {
         let r = try U7aRig(); try r.put("codex.signed-out")
         try r.configure(u7aCouncil(["seats": ["a"]]), routes: [u6aRoute("panel", fallbacks: ["b"])])
-        _ = try r.decided("INCOMPLETE", "quorum")
+        try r.wakeRefused("failed: preflight: a not_logged_in")
         #expect(r.observations("b").isEmpty)
+        #expect(try r.sql("SELECT seat,reason FROM preflights;") == "a|not_logged_in\n")
+    }
+}
+
+extension U7aRig {
+    // Probe processes are availability checks, never council participation.
+    func seatStarts() throws -> [URL] {
+        try observations().filter { try text($0) != "Reply with exactly: OK" }
+    }
+
+    func wakeRefused(_ message: String) throws {
+        try put("refused.brief", "change_kind: design\nquestion: inspect\nauthor_vendor: google\n")
+        let (code, out, error) = try home.cli(["wake", "panel", "--brief",
+            control.appendingPathComponent("refused.brief").path, "--wait", "15", "--json"])
+        #expect(code == 4)
+        #expect(out.isEmpty)
+        #expect(error.hasPrefix("agencil: " + message))
+        #expect(try sql("SELECT outcome FROM requests;") == "failed\n")
+        for table in ["briefs", "snapshots", "runs", "sittings", "seat_runs"] {
+            #expect(try sql("SELECT count(*) FROM \(table);") == "0\n")
+        }
+        #expect(try seatStarts().isEmpty)
     }
 }

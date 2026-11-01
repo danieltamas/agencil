@@ -2,6 +2,10 @@
 # Only the test control directory and the seat's run directory are touched.
 kind=${0##*/}
 if [ "$1" = --version ]; then echo "$kind 0.9.4"; exit 0; fi
+if [ "$kind" = opencode ] && [ "$1" = models ]; then
+    echo test-model
+    exit 0
+fi
 if [ "$1 $2" = 'login status' ] || [ "$1 $2" = 'auth status' ]; then
     if [ -f "$STUB_DIR/$kind.signed-out" ]; then
         if [ "$kind" = codex ]; then echo 'Not logged in'; else echo '{"loggedIn":false}'; fi

@@ -27,7 +27,8 @@ import AgencilCore
         #expect(try r.rows(v, "votes").compactMap { $0["seat"] as? String } == ["a", "c"])
         #expect(r.observations("a", "blind").count == 1)
         #expect(r.observations("c", "blind").count == 1)
-        #expect(r.observations().count == 2)
+        #expect(try r.seatStarts().count == 2)
+        #expect(try r.sql("SELECT seat,reason FROM preflights ORDER BY seat;") == "a|ok\nc|ok\n")
         #expect(r.observations("b").isEmpty)
         #expect(r.observations("d").isEmpty)
         let lines = try r.sql("SELECT body FROM briefs;").split(separator: "\n").map(String.init)
@@ -92,7 +93,8 @@ import AgencilCore
         let r = try U7aRig()
         let v = try verdict(r, ["cap_seconds": cap])
         #expect(v["verdict"] as? String == "PASS")
-        #expect(r.observations().count == 3)
+        #expect(try r.seatStarts().count == 3)
+        #expect(try r.sql("SELECT seat,reason FROM preflights ORDER BY seat;") == "a|ok\nb|ok\nc|ok\n")
     }
 
     @Test func omittedOverridesKeepFullPanelAndConfiguredCaps() throws {
@@ -100,7 +102,8 @@ import AgencilCore
         let v = try verdict(r)
         #expect(v["verdict"] as? String == "PASS")
         #expect(try r.rows(v, "votes").compactMap { $0["seat"] as? String } == ["a", "b", "c"])
-        #expect(r.observations().count == 3)
+        #expect(try r.seatStarts().count == 3)
+        #expect(try r.sql("SELECT seat,reason FROM preflights ORDER BY seat;") == "a|ok\nb|ok\nc|ok\n")
         #expect(try r.sql("SELECT reserved_seconds FROM launches ORDER BY id;") == "10\n10\n10\n")
     }
 
@@ -108,7 +111,8 @@ import AgencilCore
         let r = try U7aRig()
         let v = try r.decided("PASS", extra: ["--seats", "c,a", "--cap", "5"])
         #expect(try r.rows(v, "votes").compactMap { $0["seat"] as? String } == ["a", "c"])
-        #expect(r.observations().count == 2)
+        #expect(try r.seatStarts().count == 2)
+        #expect(try r.sql("SELECT seat,reason FROM preflights ORDER BY seat;") == "a|ok\nc|ok\n")
         #expect(try r.sql("SELECT reserved_seconds FROM launches ORDER BY id;") == "5\n5\n")
     }
 
