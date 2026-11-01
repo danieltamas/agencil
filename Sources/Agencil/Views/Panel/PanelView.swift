@@ -53,7 +53,7 @@ struct PanelView: View {
             Chip(text: store.seatChip, color: store.data == nil ? Theme.unknown : Theme.ok)
             Spacer(minLength: 0)
             AsyncIconButton(symbol: "arrow.clockwise", help: "Refresh", id: "refresh", action: store.refresh)
-            IconButton(symbol: "gearshape", help: "Settings") { openSettings() }
+            IconButton(symbol: "gearshape", help: "Settings") { AppRelaunch.activate(); openSettings() }
             HStack(spacing: Space.xs) {
                 PulseDot(live: store.liveCount > 0)
                 Text("\(store.liveCount) live").font(.house.meta).foregroundStyle(Theme.textSecondary).lineLimit(1)
@@ -82,7 +82,7 @@ struct PanelView: View {
             BentoTile(eyebrow: "First step", value: "Add a seat", tint: Theme.accent, big: true) {
                 VStack(alignment: .leading, spacing: Space.s) {
                     Text("A council needs seats and a council type.").font(.house.meta).foregroundStyle(Theme.textTertiary)
-                    ChipButton(title: "Open Settings") { openSettings() }
+                    ChipButton(title: "Open Settings") { AppRelaunch.activate(); openSettings() }
                 }
             }
         case .council:
@@ -184,7 +184,7 @@ struct PanelView: View {
             } else {
                 ForEach(Array(store.pollAges.enumerated()), id: \.offset) { _, item in
                     HStack(spacing: Space.xs) {
-                        Image(systemName: item.symbol).font(.system(size: 9.5, weight: .medium))
+                        Image(systemName: item.symbol).font(.house.badge)
                         Text(item.age).font(.house.meta).monospacedDigit()
                     }
                     .foregroundStyle(Theme.textTertiary)

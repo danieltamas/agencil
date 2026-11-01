@@ -21,7 +21,7 @@ struct AppControls: View {
             .foregroundStyle(Theme.textSecondary)
             .contentShape(Rectangle())
         }
-        .buttonStyle(PressStyle())
+        .buttonStyle(PressStyle(lift: 0))
         .help(help)
     }
 }

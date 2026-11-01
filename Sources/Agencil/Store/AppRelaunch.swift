@@ -11,4 +11,7 @@ enum AppRelaunch {
     }
 
     @MainActor static func quit() { NSApplication.shared.terminate(nil) }
+
+    /// A menu bar app is not frontmost: without this the Settings window opens behind whatever is.
+    @MainActor static func activate() { NSApp.activate(ignoringOtherApps: true) }
 }
