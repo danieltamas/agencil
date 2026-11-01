@@ -26,12 +26,12 @@ struct U6aAdapterAcceptanceTests {
             #expect(Array(lines.prefix(8)) == ["exec", "--ignore-user-config", "--disable", "hooks", "-s", "read-only", "--skip-git-repo-check", "-o"])
             let answer = try #require(lines.count > 8 ? lines[8] : nil)
             #expect(answer.hasPrefix(rig.home.url.appendingPathComponent("runs").path + "/"))
-            prefix = ["exec", "--ignore-user-config", "--disable", "hooks", "-s", "read-only", "--skip-git-repo-check", "-o", answer, "-m", "test-model"]
+            prefix = ["exec", "--ignore-user-config", "--disable", "hooks", "-s", "read-only", "--skip-git-repo-check", "-o", answer, "-m", "test-model", "--json"]
             suffix = []
         case "claude":
             prefix = ["-p"]
-            suffix = ["--model", "test-model", "--setting-sources", "user", "--strict-mcp-config", "--permission-mode", "plan"]
-        case "opencode": prefix = ["run", "--model", "test-model"]; suffix = []
+            suffix = ["--model", "test-model", "--setting-sources", "user", "--strict-mcp-config", "--permission-mode", "plan", "--output-format", "json"]
+        case "opencode": prefix = ["run", "--model", "test-model", "--format", "json"]; suffix = []
         default: prefix = ["chat", "-q"]; suffix = ["--model", "test-model"]
         }
         #expect(try rig.contents(".argc") == String(prefix.count + suffix.count + 1) + "\n")
