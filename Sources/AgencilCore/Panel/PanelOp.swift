@@ -96,8 +96,11 @@ extension Broker {
               (SELECT ended_at FROM runs WHERE id = t.id)
             FROM threads t
             -- A sitting's per-round seat exchanges are threads too; they belong to the sitting's detail, not to the direct asks.
-            WHERE NOT EXISTS (SELECT 1 FROM exchanges r WHERE r.thread_id = t.id AND r.seq = 1
-              AND r.question LIKE 'ROUND: %' AND instr(r.question, char(10) || 'SITTING: sit_') > 0)
+            -- A thread with a thread_rounds row is classified by it; only one from before that table is read from its prompt.
+            WHERE NOT EXISTS (SELECT 1 FROM thread_rounds l WHERE l.thread_id = t.id AND l.sitting_id IS NOT NULL)
+              AND NOT (NOT EXISTS (SELECT 1 FROM thread_rounds l WHERE l.thread_id = t.id)
+                AND EXISTS (SELECT 1 FROM exchanges r WHERE r.thread_id = t.id AND r.seq = 1
+                  AND r.question LIKE 'ROUND: %' AND instr(r.question, char(10) || 'SITTING: sit_') > 0))
             ORDER BY t.created_at DESC, t.id DESC LIMIT \(Self.listLimit);
             """, []) { row -> [String: Any] in
             let raw = Ledger.text(row, 5) ?? "failed"
@@ -114,7 +117,7 @@ extension Broker {
     private func panelSittings() throws -> [[String: Any]] {
         try ledger.query("""
             SELECT s.id, s.no, s.council, s.state, s.round, s.created_at, s.ended_at, s.verdict,
-              (SELECT COALESCE(SUM(cost_usd), 0) FROM seat_runs WHERE run_id = s.id)
+              (SELECT COALESCE(SUM(cost_usd), 0) FROM seat_runs WHERE run_id = s.id), s.reason
             FROM sittings s ORDER BY s.created_at DESC, s.id DESC LIMIT \(Self.listLimit);
             """, []) { row -> [String: Any] in
             var item: [String: Any] = ["id": Ledger.text(row, 0) ?? "", "no": Int(Ledger.text(row, 1) ?? "") ?? 0,
@@ -122,6 +125,7 @@ extension Broker {
                                        "round": Ledger.text(row, 4) ?? "", "started": Ledger.text(row, 5) ?? "",
                                        "cost_usd": Double(Ledger.text(row, 8) ?? "") ?? 0]
             if let ended = Ledger.text(row, 6) { item["ended"] = ended }
+            if let reason = Ledger.text(row, 9), !reason.isEmpty { item["reason"] = reason }
             if let stored = Ledger.text(row, 7), !stored.isEmpty {
                 let parsed = (try? JSONSerialization.jsonObject(with: Data(stored.utf8))) as? [String: Any]
                 item["verdict"] = parsed.map { $0["verdict"] as? String ?? stored } ?? stored

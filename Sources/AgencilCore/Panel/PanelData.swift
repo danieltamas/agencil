@@ -49,6 +49,8 @@ public struct PanelData: Sendable, Equatable {
         public let ended: Date?
         public let costUSD: Double
         public let verdict: String?
+        /// Why a failed sitting failed; `stopped` when the owner stopped it.
+        public var reason: String? = nil
     }
 
     public struct Finding: Sendable, Equatable {
@@ -121,7 +123,8 @@ public struct PanelData: Sendable, Equatable {
             Sitting(id: try field($0, "id", "sittings."), no: try whole($0, "no", "sittings."), council: try field($0, "council", "sittings."),
                     state: try field($0, "state", "sittings."), round: try field($0, "round", "sittings."),
                     started: try date($0, "started", "sittings."), ended: try optionalDate($0, "ended", "sittings."),
-                    costUSD: try number($0, "cost_usd", "sittings."), verdict: $0["verdict"] as? String)
+                    costUSD: try number($0, "cost_usd", "sittings."), verdict: $0["verdict"] as? String,
+                    reason: $0["reason"] as? String)
         }
         findings = try list("findings").map {
             Finding(id: try field($0, "id", "findings."), severity: try field($0, "severity", "findings."),

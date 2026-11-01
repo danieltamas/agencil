@@ -132,6 +132,11 @@ enum LedgerSchema {
         // that may have changed since.
         "ALTER TABLE reservations ADD COLUMN free INTEGER;",
         // The asking agent's project (git top-level name and path), as the CLI or `agencil mcp` reported it; NULL when not recorded.
-        "CREATE TABLE run_origins (run_id TEXT PRIMARY KEY REFERENCES runs(id), project TEXT NOT NULL) WITHOUT ROWID;",
+        // And which sitting round a thread belongs to (NULL sitting: a direct ask); threads from before that table have no row
+        // and are still recognised by their round prompt header.
+        """
+        CREATE TABLE run_origins (run_id TEXT PRIMARY KEY REFERENCES runs(id), project TEXT NOT NULL) WITHOUT ROWID;
+        CREATE TABLE IF NOT EXISTS thread_rounds (thread_id TEXT PRIMARY KEY REFERENCES threads(id), sitting_id TEXT, round TEXT) WITHOUT ROWID;
+        """,
     ]
 }

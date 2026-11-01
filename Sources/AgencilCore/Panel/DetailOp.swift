@@ -66,10 +66,12 @@ extension Broker {
         if let project = source?.project { data["project"] = project }
 
         let seats = try ledger.query("""
-            SELECT t.id, t.seat, t.created_at, (SELECT ended_at FROM runs WHERE id = t.id), e.question, e.answer, e.state, e.reason
-            FROM threads t JOIN exchanges e ON e.thread_id = t.id AND e.seq = 1
-            WHERE e.question LIKE 'ROUND: %' AND instr(e.question, ?) > 0 ORDER BY t.created_at, t.id;
-            """, ["\nSITTING: \(id)\n"]) { row -> (header: RoundPromptHeader?, seat: [String: Any]) in
+            SELECT t.id, t.seat, t.created_at, (SELECT ended_at FROM runs WHERE id = t.id), e.question, e.answer, e.state, e.reason, l.round
+            FROM threads t JOIN exchanges e ON e.thread_id = t.id AND e.seq = 1 LEFT JOIN thread_rounds l ON l.thread_id = t.id
+            WHERE l.sitting_id = ?1
+               OR (l.thread_id IS NULL AND e.question LIKE 'ROUND: %' AND instr(e.question, ?2) > 0)
+            ORDER BY t.created_at, t.id;
+            """, [id, "\nSITTING: \(id)\n"]) { row -> (header: RoundPromptHeader?, round: String?, seat: [String: Any]) in
             let thread = Ledger.text(row, 0) ?? ""
             let name = Ledger.text(row, 1) ?? ""
             var seat: [String: Any] = ["seat": name, "thread": thread, "started": Ledger.text(row, 2) ?? "", "state": Ledger.text(row, 6) ?? "failed"]
@@ -78,20 +80,18 @@ extension Broker {
             if let reason = Ledger.text(row, 7) { seat["reason"] = reason }
             addReport(&seat, thread: thread, seq: 1)
             addSeat(&seat, name: name, config: config)
-            return (RoundPromptHeader(prompt: Ledger.text(row, 4) ?? ""), seat)
+            return (RoundPromptHeader(prompt: Ledger.text(row, 4) ?? ""), Ledger.text(row, 8), seat)
         }
         if let first = seats.first?.header {
             data["change_kind"] = first.changeKind
             data["question"] = Self.capped(first.question)
             if let range = first.diffRange { data["diff_range"] = range }
         }
-        var order: [String] = []
         var bySeats: [String: [[String: Any]]] = [:]
-        for (header, seat) in seats {
-            let round = header?.round ?? "round"
-            if bySeats[round] == nil { order.append(round) }
-            bySeats[round, default: []].append(seat)
-        }
+        for (header, linked, seat) in seats { bySeats[linked ?? header?.round ?? "round", default: []].append(seat) }
+        // Rounds run in a fixed order and their threads can share a second, so the timestamp cannot order them.
+        let held = ["blind", "rebuttal", "challenge", "synthesis"]
+        let order = bySeats.keys.sorted { (held.firstIndex(of: $0) ?? held.count, $0) < (held.firstIndex(of: $1) ?? held.count, $1) }
         data["rounds"] = order.map { ["round": $0, "seats": bySeats[$0] ?? []] as [String: Any] }
         return data
     }

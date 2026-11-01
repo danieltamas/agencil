@@ -17,7 +17,7 @@ extension DemoPanel.Thread {
 extension DemoPanel.Sitting {
     init(_ row: PanelData.Sitting) {
         self.init(id: row.id, kind: row.council, hue: PanelFormat.hue(row.council), target: "\(row.council) sitting \(row.no)",
-                  wokenBy: "", state: row.state == "running" ? "Sitting" : row.verdict ?? row.state, seats: 0,
+                  wokenBy: "", state: row.state == "running" ? "Sitting" : row.reason == "stopped" ? "stopped" : row.verdict ?? row.state, seats: 0,
                   elapsed: PanelFormat.duration(from: row.started, to: row.ended), cost: row.costUSD > 0 ? PanelFormat.money(row.costUSD) : DetailPage.unknownCost,
                   live: row.state == "running")
     }

@@ -13,7 +13,9 @@ public enum ProjectLabel {
             if manager.fileExists(atPath: cursor.appendingPathComponent(".git").path) { top = cursor; break }
             cursor = cursor.deletingLastPathComponent()
         }
-        let path = top.path.hasPrefix(home) ? "~" + top.path.dropFirst(home.count) : top.path
+        // A path boundary, so /Users/dan2/x is not read as being inside /Users/dan.
+        let inHome = top.path == home || top.path.hasPrefix(home + "/")
+        let path = inHome ? "~" + top.path.dropFirst(home.count) : top.path
         return "\(top.lastPathComponent)  \(path)"
     }
 

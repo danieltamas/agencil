@@ -185,7 +185,7 @@ extension Broker {
             var retried = false
             while true {
                 let began = Date()
-                let outcome = sitRun(s, seat: seat, prompt: text)
+                let outcome = sitRun(s, seat: seat, round: "synthesis", prompt: text)
                 func record(exit: Int) { _ = try? sittingRows.seatRun(sitting: s.id, seat: seat, started: began, ended: Date(), exit: exit) }
                 switch outcome {
                 case .unplaceable: break

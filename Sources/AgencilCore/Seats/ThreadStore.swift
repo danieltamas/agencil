@@ -47,7 +47,8 @@ public struct ThreadStore: Sendable {
         }
     }
 
-    public func createThread(requested: String, seat: String, caller: String, substituted: String?, project: String? = nil) throws -> ThreadRecord {
+    public func createThread(requested: String, seat: String, caller: String, substituted: String?, project: String? = nil,
+                             sittingRound: (sitting: String, round: String)? = nil) throws -> ThreadRecord {
         var bytes = [UInt8](repeating: 0, count: 8)
         if SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) != errSecSuccess { bytes = Array(UUID().uuidString.utf8.prefix(8)) }
         let id = "th_" + bytes.map { String(format: "%02x", $0) }.joined()
@@ -55,6 +56,8 @@ public struct ThreadStore: Sendable {
             try ledger.run("INSERT INTO runs (id, kind, status, started_at) VALUES (?, 'thread', 'asking', ?);", [id, Self.now()])
             try ledger.run("INSERT INTO threads (id, requested, seat, caller, substituted, created_at) VALUES (?, ?, ?, ?, ?, ?);",
                            [id, requested, seat, caller, substituted, Self.now()])
+            try ledger.run("INSERT INTO thread_rounds (thread_id, sitting_id, round) VALUES (?, ?, ?);",
+                           [id, sittingRound?.sitting, sittingRound?.round])
             if let project { try ledger.run("INSERT INTO run_origins (run_id, project) VALUES (?, ?);", [id, project]) }
         }
         return ThreadRecord(id: id, requested: requested, seat: seat, caller: caller, substituted: substituted)

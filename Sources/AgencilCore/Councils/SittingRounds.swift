@@ -15,7 +15,7 @@ extension Broker {
         ((try? FileManager.default.attributesOfItem(atPath: path)[.size]) as? NSNumber)?.intValue ?? 0
     }
 
-    func sitRun(_ s: SittingRun, seat: Seat, prompt: String) -> Outcome {
+    func sitRun(_ s: SittingRun, seat: Seat, round: String, prompt: String) -> Outcome {
         if s.isOver { return .stopped }
         // Like an ask, a seat already in the chain is refused at any hop limit.
         if s.chain.contains(seat.name) {
@@ -40,7 +40,7 @@ extension Broker {
             let resolved = Resolved(seat: seat, route: s.route, substituted: nil, executable: executable, admitted: admitted)
             let reply = try run(resolved, caller: s.caller, chain: s.chain + [seat.name], parent: s.parent, requested: s.council.name,
                                 question: prompt, files: [], repo: repo, thread: nil, limits: s.config.limits, wait: 0,
-                                placeWait: max(1, Int(s.deadline.timeIntervalSinceNow)), snapshot: s.snapshot, verbatim: true, isOver: { s.isOver })
+                                placeWait: max(1, Int(s.deadline.timeIntervalSinceNow)), snapshot: s.snapshot, verbatim: true, sittingRound: (s.id, round), isOver: { s.isOver })
             guard let id = (reply["data"] as? [String: Any])?["thread"] as? String else {
                 return .failed("the seat could not be started")
             }
@@ -117,7 +117,7 @@ extension Broker {
         }
         while true {
             let began = Date()
-            let outcome = sitRun(s, seat: seat, prompt: text)
+            let outcome = sitRun(s, seat: seat, round: round, prompt: text)
             // An attempt without a usable answer still ran, so the ledger keeps it as exit 1; a usable one is stored with
             // its round as exit 0. A seat that could not be placed never ran: availability is not a run (docs/U25-SPEC.md).
             if case .answer(let answer) = outcome, case .success = AnswerContract.parse(answer, requireVote: round != "challenge") {

@@ -11,7 +11,8 @@ public struct ClaimBody: Sendable, Equatable {
     public init(text: String, fix: String?, confidence: Double?) {
         self.text = text
         self.fix = fix.flatMap { $0.isEmpty ? nil : $0 }
-        self.confidence = confidence.map { "\(Int(($0 * 100).rounded()))%" }
+        // A confidence outside 0...1 is clamped and a non-number is dropped: the conversion to Int traps on either.
+        self.confidence = confidence.flatMap { $0.isFinite ? "\(Int((min(max($0, 0), 1) * 100).rounded()))%" : nil }
     }
 
     public init(_ body: String) {
@@ -51,7 +52,8 @@ public enum ReadableAnswer {
         case let text as String: return text
         case let number as NSNumber:
             if CFGetTypeID(number) == CFBooleanGetTypeID() { return number.boolValue ? "yes" : "no" }
-            return String(format: "%g", number.doubleValue)
+            let value = number.doubleValue
+            return value.rounded() == value && abs(value) < 1e15 ? String(Int64(value)) : "\(value)"
         case is NSNull: return "none"
         default: return nil
         }

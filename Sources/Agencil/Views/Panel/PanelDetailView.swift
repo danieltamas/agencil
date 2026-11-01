@@ -79,6 +79,7 @@ struct PanelDetailView: View {
                         Text(styled(answer.text)).font(.house.body).foregroundStyle(Theme.textPrimary)
                             .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
