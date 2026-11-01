@@ -178,10 +178,13 @@ import SwiftUI
         return "\(seats.up)/\(seats.total) seats up"
     }
 
-    var footer: String {
-        guard let readAt else { return "Reading..." }
-        if let newest = (data?.seats.items ?? []).compactMap(\.probedAgo).min() { return "probed " + Self.age(newest) }
-        return "Updated " + readAt.formatted(date: .omitted, time: .standard)
+    /// How old the last read of each source is, for the footer: the seats' probe and the panel read itself.
+    var pollAges: [(symbol: String, age: String)] {
+        guard let readAt else { return [] }
+        var ages: [(symbol: String, age: String)] = []
+        if let probed = (data?.seats.items ?? []).compactMap(\.probedAgo).min() { ages.append(("person.2.wave.2", Self.age(probed))) }
+        ages.append(("arrow.triangle.2.circlepath", Self.age(max(0, Date().timeIntervalSince(readAt)))))
+        return ages
     }
 
     /// The ring's seats are the configured ones; its events arrive with `feedRing` as claims land.

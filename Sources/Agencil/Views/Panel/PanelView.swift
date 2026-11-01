@@ -179,8 +179,17 @@ struct PanelView: View {
                     StarOffer(starring: running, help: "Star \(RepoStar.repo) on GitHub with your gh account", star: press)
                 }
             }
-            Text(store.problem ?? store.footer).font(.house.meta)
-                .foregroundStyle(store.problem == nil ? Theme.textTertiary : Theme.crit).lineLimit(1)
+            if let problem = store.problem {
+                Text(problem).font(.house.meta).foregroundStyle(Theme.crit).lineLimit(1)
+            } else {
+                ForEach(Array(store.pollAges.enumerated()), id: \.offset) { _, item in
+                    HStack(spacing: Space.xs) {
+                        Image(systemName: item.symbol).font(.system(size: 9.5, weight: .medium))
+                        Text(item.age).font(.house.meta).monospacedDigit()
+                    }
+                    .foregroundStyle(Theme.textTertiary)
+                }
+            }
             Spacer(minLength: 0)
             AppControls(restart: AppRelaunch.restart, quit: AppRelaunch.quit)
         }
