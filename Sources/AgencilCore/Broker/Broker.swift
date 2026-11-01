@@ -190,6 +190,7 @@ public final class Broker: @unchecked Sendable {
             case "findings": return try findingsOp(request)
             case "data": return try dataOp()
             case "proposals": return try proposalsOp(request)
+            case "adjudicate": return try adjudicateOp(request, peer: peer, peerStart: peerStart)
             case "learn": return try learnOp(request, peer: peer, peerStart: peerStart)
             case "prune": return try pruneOp(request, peer: peer, peerStart: peerStart)
             case "leaderboard": return try leaderboardOp(request, peer: peer, peerStart: peerStart)

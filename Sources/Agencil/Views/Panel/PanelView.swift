@@ -148,7 +148,8 @@ struct PanelView: View {
             case "findings":
                 let items = store.findings(search: search)
                 if items.isEmpty { EmptyState(symbol: "checkmark.seal", title: "Nothing to decide", detail: "Claims from a sitting wait here for your call.") }
-                ForEach(items) { item in FindingRow(finding: item, confirm: store.decideAction(item.id, confirm: true), dismiss: store.decideAction(item.id, confirm: false)) }
+                ForEach(items) { item in FindingRow(finding: item, confirm: store.decideAction(item.id, confirm: true), dismiss: store.decideAction(item.id, confirm: false),
+                                       adjudicate: store.adjudicateAction(item.id)) }
             default:
                 ForEach(store.proposals) { item in
                     ProposalRow(proposal: item, approve: store.learnAction(item.id, "approve"), reject: store.learnAction(item.id, "reject"),

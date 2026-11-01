@@ -64,6 +64,7 @@ struct FindingRow: View {
     let finding: DemoPanel.Finding
     var confirm: (() async -> Void)?
     var dismiss: (() async -> Void)?
+    var adjudicate: (() async -> Void)?
 
     private var tone: Signal { finding.severity == "P1" ? .crit : finding.severity == "P2" ? .warn : .unknown }
 
@@ -81,6 +82,11 @@ struct FindingRow: View {
                     Text("\(finding.backers) back, \(finding.dissent) dissent").font(.house.meta).foregroundStyle(Theme.textTertiary)
                     Spacer(minLength: 0)
                     if let confirm, let dismiss {
+                        if let adjudicate {
+                            AsyncPress(id: "adjudicate:\(finding.id)", action: adjudicate) { running, press in
+                                ChipButton(title: running ? "Asking..." : "Ask a seat", action: press)
+                            }
+                        }
                         AsyncPress(id: "dismiss:\(finding.id)", action: dismiss) { running, press in
                             ChipButton(title: running ? "..." : "Dismiss", action: press)
                         }

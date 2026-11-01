@@ -125,6 +125,19 @@ import SwiftUI
         }
     }
 
+    /// Asks an independent seat to weigh one finding's evidence: one broker call, then a fresh read.
+    func adjudicateAction(_ id: String) -> () async -> Void {
+        { [self] in
+            guard let client, !deciding.contains(id) else { return }
+            deciding.insert(id)
+            defer { deciding.remove(id) }
+            var failure: String?
+            do { _ = try await client.call("adjudicate", ["id": id]) } catch { failure = error.localizedDescription }
+            await refresh()
+            if let failure { problem = failure }
+        }
+    }
+
     func open(sitting id: String) { seen.insert(id) }
 
     private func syncStopping(_ data: PanelData) {

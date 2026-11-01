@@ -37,6 +37,7 @@ public final class Maintenance: @unchecked Sendable {
         let jobs: [(name: String, due: (Entry) -> Bool, work: () throws -> Void)] = [
             ("prune", { Self.elapsed($0, seconds, 86_400) }, { _ = try Retention(ledger: self.ledger, directory: self.directory).prune(now: now) }),
             ("memory", { Self.elapsed($0, seconds, 600) }, { _ = try MemoryExport(ledger: self.ledger, directory: self.directory).run(now: now) }),
+            ("evidence", { Self.elapsed($0, seconds, 600) }, { _ = try CommitScan(ledger: self.ledger, directory: self.directory).run(now: now) }),
             ("learn", { Self.elapsed($0, seconds, 7 * 86_400) }, {
                 let config = try SeatConfig(values: values)
                 try LearnLoop(ledger: self.ledger, directory: self.directory).propose(now: now, candidates: config.seats, ideas: [])

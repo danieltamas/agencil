@@ -33,10 +33,10 @@ struct U20MaintenanceAcceptanceTests {
     @Test func emptyHomePersistsPrivateStateAndRestartDoesNotRepeat() throws {
         let f = try U14Fixture(), github = U14GitHub()
         let runner = maintenance(f, github)
-        #expect(runner.run(now: morning, calendar: calendar) == ["prune", "memory", "learn"])
+        #expect(runner.run(now: morning, calendar: calendar) == ["prune", "memory", "evidence", "learn"])
         let saved = try state(f.directory)
-        #expect(Set(saved.keys) == ["prune", "memory", "learn"])
-        for name in ["prune", "memory", "learn"] {
+        #expect(Set(saved.keys) == ["prune", "memory", "evidence", "learn"])
+        for name in ["prune", "memory", "evidence", "learn"] {
             #expect(saved[name]?["last_run"] as? Double == morning.timeIntervalSince1970)
             #expect(saved[name]?["last_attempt"] as? Double == morning.timeIntervalSince1970)
             #expect(saved[name]?["last_error"] == nil)
@@ -51,13 +51,13 @@ struct U20MaintenanceAcceptanceTests {
 
     @Test func intervalsIncludeExactBoundaries() throws {
         let f = try U14Fixture(), runner = maintenance(f, U14GitHub())
-        #expect(runner.run(now: morning, calendar: calendar) == ["prune", "memory", "learn"])
+        #expect(runner.run(now: morning, calendar: calendar) == ["prune", "memory", "evidence", "learn"])
         #expect(runner.run(now: morning.addingTimeInterval(599), calendar: calendar).isEmpty)
-        #expect(runner.run(now: morning.addingTimeInterval(600), calendar: calendar) == ["memory"])
-        #expect(runner.run(now: morning.addingTimeInterval(86_399), calendar: calendar) == ["memory"])
+        #expect(runner.run(now: morning.addingTimeInterval(600), calendar: calendar) == ["memory", "evidence"])
+        #expect(runner.run(now: morning.addingTimeInterval(86_399), calendar: calendar) == ["memory", "evidence"])
         #expect(runner.run(now: morning.addingTimeInterval(86_400), calendar: calendar) == ["prune"])
         #expect(runner.run(now: morning.addingTimeInterval(7 * 86_400 - 1), calendar: calendar)
-            == ["prune", "memory"])
+            == ["prune", "memory", "evidence"])
         #expect(runner.run(now: morning.addingTimeInterval(7 * 86_400), calendar: calendar) == ["learn"])
     }
 
@@ -69,7 +69,7 @@ struct U20MaintenanceAcceptanceTests {
         try f.exchange(1, state: "answered", at: u13Now.addingTimeInterval(-91 * u13Day))
         let durable = try f.preserved()
         let runner = Maintenance(ledger: f.ledger, directory: f.directory, github: U14GitHub())
-        #expect(runner.run(now: u13Now, calendar: calendar) == ["prune", "memory", "learn"])
+        #expect(runner.run(now: u13Now, calendar: calendar) == ["prune", "memory", "evidence", "learn"])
         #expect(!f.exists(old))
         #expect(try f.sql("SELECT question,answer FROM exchanges") == [["", "NULL"]])
         #expect(try f.preserved() == durable)
@@ -91,7 +91,7 @@ struct U20MaintenanceAcceptanceTests {
         let f = try U14Fixture(settings: ["leaderboard_enabled": "1"]), github = try successes(2)
         try f.seed()
         let runner = maintenance(f, github)
-        #expect(runner.run(now: morning.addingTimeInterval(-60), calendar: calendar) == ["prune", "memory", "learn"])
+        #expect(runner.run(now: morning.addingTimeInterval(-60), calendar: calendar) == ["prune", "memory", "evidence", "learn"])
         #expect(github.calls.isEmpty)
         #expect(runner.run(now: morning, calendar: calendar) == ["leaderboard"])
         published(github, 1)
@@ -130,13 +130,13 @@ struct U20MaintenanceAcceptanceTests {
         try f.seed()
         let github = U14GitHub(try [u14Response(500), u14Response(404), u14Response(201)])
         let runner = maintenance(f, github)
-        #expect(runner.run(now: morning, calendar: calendar) == ["prune", "memory", "learn"])
+        #expect(runner.run(now: morning, calendar: calendar) == ["prune", "memory", "evidence", "learn"])
         let failed = try #require(state(f.directory)["leaderboard"])
         #expect(!(try #require(failed["last_error"] as? String)).isEmpty)
         #expect(failed["last_run"] == nil)
         #expect(failed["last_attempt"] as? Double == morning.timeIntervalSince1970)
         let attempts = github.calls.count
-        #expect(runner.run(now: morning.addingTimeInterval(600), calendar: calendar) == ["memory"])
+        #expect(runner.run(now: morning.addingTimeInterval(600), calendar: calendar) == ["memory", "evidence"])
         let restarted = maintenance(f, github)
         #expect(!restarted.run(now: morning.addingTimeInterval(3_599), calendar: calendar).contains("leaderboard"))
         #expect(github.calls.count == attempts)
@@ -153,7 +153,7 @@ struct U20MaintenanceAcceptanceTests {
     func corruptStateIsEmpty(_ corrupt: String) throws {
         let f = try U14Fixture(), github = U14GitHub()
         try Data(corrupt.utf8).write(to: f.directory.appendingPathComponent("maintenance.json"))
-        #expect(maintenance(f, github).run(now: morning, calendar: calendar) == ["prune", "memory", "learn"])
+        #expect(maintenance(f, github).run(now: morning, calendar: calendar) == ["prune", "memory", "evidence", "learn"])
         #expect(try state(f.directory)["prune"]?["last_run"] as? Double == morning.timeIntervalSince1970)
         #expect(github.calls.isEmpty)
     }
@@ -182,14 +182,14 @@ struct U20MaintenanceAcceptanceTests {
             let reply = try home.request(["op": "data", "caller": "owner"])
             guard let data = reply["data"] as? [String: Any],
                   let jobs = data["jobs"] as? [String: [String: Any]] else { return false }
-            return ["prune", "memory", "learn"].allSatisfy { jobs[$0]?["last_run"] != nil }
+            return ["prune", "memory", "evidence", "learn"].allSatisfy { jobs[$0]?["last_run"] != nil }
         }
         let reply = try home.request(["op": "data", "caller": "owner"])
         #expect(reply["ok"] as? Bool == true)
         let data = try #require(reply["data"] as? [String: Any])
         let jobs = try #require(data["jobs"] as? [String: [String: Any]])
         let persisted = try state(home.url)
-        for name in ["prune", "memory", "learn"] {
+        for name in ["prune", "memory", "evidence", "learn"] {
             let job = try #require(jobs[name])
             #expect(Set(job.keys).isSubset(of: ["last_run", "last_error"]))
             #expect(job["last_run"] as? Double == persisted[name]?["last_run"] as? Double)

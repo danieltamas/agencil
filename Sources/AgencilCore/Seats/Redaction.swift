@@ -10,7 +10,7 @@ struct Redaction {
                                        "id_ecdsa*", ".npmrc", ".netrc", ".git-credentials", "credentials*", "*secret*", "*token*",
                                        ".ssh", ".aws"]
     private static let contentLimit = 1_048_576
-    private static let contentPatterns: [NSRegularExpression] = [
+    fileprivate static let contentPatterns: [NSRegularExpression] = [
         "-----BEGIN [A-Z ]*PRIVATE KEY-----", "AKIA[0-9A-Z]{16}", "gh[pousr]_[A-Za-z0-9]{20,}", "github_pat_", "xox[baprs]-",
         "sk-[A-Za-z0-9_-]{20,}",
     ].compactMap { try? NSRegularExpression(pattern: $0) }
@@ -133,6 +133,15 @@ struct Redaction {
                     pending.append(path)
                 }
             }
+        }
+    }
+}
+
+extension Redaction {
+    /// Seat-written text that is stored or echoed keeps no credential-looking run.
+    static func scrubbed(_ text: String) -> String {
+        contentPatterns.reduce(text) { result, pattern in
+            pattern.stringByReplacingMatches(in: result, range: NSRange(result.startIndex..., in: result), withTemplate: "[redacted]")
         }
     }
 }

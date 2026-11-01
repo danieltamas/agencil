@@ -30,6 +30,7 @@ public struct CommandLineTool: Sendable {
         "findings": Spec(positionals: 0...0, switches: ["--json", "--open"]),
         "dispose": Spec(positionals: 2...2), "leaderboard": Spec(positionals: 1...1),
         "proposals": Spec(positionals: 0...0, switches: ["--json", "--all"]), "learn": Spec(positionals: 1...2, valued: ["--wait"]),
+        "adjudicate": Spec(positionals: 1...1, valued: ["--wait"]),
         "mcp": Spec(positionals: 0...0, valued: ["--caller"]),
         "install-mcp": Spec(positionals: 1...1, valued: ["--caller"], switches: ["--json", "--dry-run", "--uninstall"]),
         "access": Spec(positionals: 0...0),
@@ -116,7 +117,7 @@ public struct CommandLineTool: Sendable {
                 guard let seconds = Int(cap) else { throw Usage(message: "--cap takes a whole number of seconds") }
                 request["cap_seconds"] = seconds
             }
-        case "result", "status", "stop":
+        case "result", "status", "stop", "adjudicate":
             request["id"] = parsed.positionals[0]
         case "dispose":
             guard ["confirm", "dismiss", "will-fix"].contains(parsed.positionals[1]) else {
