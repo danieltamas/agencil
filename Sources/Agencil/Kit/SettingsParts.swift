@@ -70,7 +70,7 @@ struct SettingsCard<Content: View>: View {
             VStack(alignment: .leading, spacing: 10) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title).font(.house.rowTitle).foregroundStyle(Theme.textPrimary)
-                    if let detail { Text(detail).font(.house.meta).foregroundStyle(Theme.textTertiary) }
+                    if let detail { Text(detail).font(.house.meta).foregroundStyle(Theme.textTertiary).paragraph() }
                 }
                 VStack(alignment: .leading, spacing: Space.s) { content }
             }

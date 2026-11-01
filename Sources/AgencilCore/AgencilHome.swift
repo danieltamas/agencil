@@ -20,3 +20,8 @@ public struct AgencilHome: Sendable {
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: self.directory.path)
     }
 }
+
+extension AgencilHome {
+    /// The Unix socket the broker serves and every `agencil` process connects to.
+    public var socketPath: String { directory.appendingPathComponent("agencil.sock").path }
+}

@@ -61,7 +61,7 @@ public final class Broker: @unchecked Sendable {
         directory = home.directory
         self.launcherExecutable = launcherExecutable
         self.environment = environment
-        socketPath = directory.appendingPathComponent("agencil.sock").path
+        socketPath = home.socketPath
         let descriptor = open(directory.appendingPathComponent("broker.lock").path, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0o600)
         guard descriptor >= 0 else { throw Failure(message: "cannot open broker.lock: \(String(cString: strerror(errno)))") }
         guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {

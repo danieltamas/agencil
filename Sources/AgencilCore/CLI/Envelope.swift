@@ -24,7 +24,7 @@ public struct BrokerClient: Sendable {
     let socketPath: String
 
     public init(home: AgencilHome) {
-        socketPath = home.directory.appendingPathComponent("agencil.sock").path
+        socketPath = home.socketPath
     }
 
     public func send(_ request: [String: Any]) throws -> [String: Any] {

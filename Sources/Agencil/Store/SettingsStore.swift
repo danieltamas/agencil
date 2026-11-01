@@ -38,6 +38,8 @@ struct RouteForm { var callers = "", target = "", hops = "" }
     private(set) var targets: [String] = []
     private(set) var access: [String: AccessState] = [:]
     private(set) var wiring: [String: Wiring] = [:]
+    /// The broker socket as last probed (on open and after every change); nil until a home is known.
+    private(set) var socket: AccessFacts.Socket?
     /// The broker-fed panes (harnesses, models, budgets, data, leaderboard).
     var panes = PaneStore()
     /// The More apps list and the release check About shows.
@@ -89,9 +91,17 @@ struct RouteForm { var callers = "", target = "", hops = "" }
         store.seatsAtOnce = "3"
         store.apps = MoreAppsStore.demo(now: DemoStore.now)
         store.update = UpdateStore.demo(now: DemoStore.now)
-        for harness in ["codex", "claude", "opencode"] {
-            store.access[harness] = AccessState(harness: harness, installed: harness == "codex", path: "~/.\(harness)/config",
-                                                entry: harness == "codex" ? "[mcp_servers.agencil]" : nil, problem: nil)
+        store.agentAccessOn = true
+        store.socket = AccessFacts.Socket(path: NSHomeDirectory() + "/.agencil/agencil.sock", reachable: true, ownerOnly: true)
+        let states: [(String, Bool, InstructionState, [String])] = [
+            ("claude", true, .current, ["lumen-review"]), ("codex", true, .outdated, []), ("opencode", false, .absent, []),
+        ]
+        for (harness, installed, instruction, routes) in states {
+            let state = AccessState(harness: harness, installed: installed, path: "~/.\(harness)/config",
+                                    entry: installed ? "[mcp_servers.agencil]" : nil, problem: nil)
+            store.access[harness] = state
+            store.wiring[harness] = Wiring(harness: harness, mcp: state, instruction: instruction, caller: harness, routes: routes,
+                                           drift: instruction == .outdated ? ["instructions outdated"] : [])
         }
         return store
     }
@@ -133,6 +143,13 @@ struct RouteForm { var callers = "", target = "", hops = "" }
             access[harness] = try? agentAccess?.state(harness)
         }
         refreshWiring()
+        probeSocket()
+    }
+
+    /// A connect and an immediate close: cheap, and the broker treats it as a client that said nothing.
+    private func probeSocket() {
+        guard let directory, let home = try? AgencilHome(directory: directory, environment: environment) else { return }
+        socket = AccessFacts.socket(home: home)
     }
 
     private func refreshWiring() {
@@ -232,6 +249,9 @@ struct RouteForm { var callers = "", target = "", hops = "" }
         catch { limitsProblem = (error as? SheetProblems)?.fields.values.first }
     }
 
+    /// Where a harness reads the Agencil paragraph, with `~` for the home directory.
+    func instructionPath(_ harness: String) -> String { AccessFacts.instructionPath(harness, environment: environment) }
+
     var openAtLogin: Bool { SMAppService.mainApp.status == .enabled }
 
     func setOpenAtLogin(_ on: Bool) {
@@ -260,7 +280,7 @@ struct RouteForm { var callers = "", target = "", hops = "" }
             catch { return .failure(AccessError(message: error.localizedDescription)) }
         }.value
         switch result {
-        case .success(let state): access[harness] = state; accessProblem = nil; refreshWiring()
+        case .success(let state): access[harness] = state; accessProblem = nil; refreshWiring(); probeSocket()
         case .failure(let error): accessProblem = error.message
         }
     }

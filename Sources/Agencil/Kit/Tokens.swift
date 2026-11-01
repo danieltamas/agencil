@@ -66,6 +66,8 @@ enum Size {
     static let sidebarGlyph: CGFloat = 24
     /// The icon on a More apps card, and the one beside the About version line.
     static let paragraph: CGFloat = 360
+    /// The wrapping text of a row that shares its line with a state chip and a button.
+    static let rowText: CGFloat = 240
     static let appIcon: CGFloat = 52
     static let aboutIcon: CGFloat = 64
 }
@@ -103,7 +105,7 @@ extension View {
 
     /// A paragraph that wraps at `Size.paragraph` when nothing offers it a width, so a long text never sets the
     /// natural width of a pane; given a width it wraps at that width.
-    func paragraph() -> some View {
-        frame(idealWidth: Size.paragraph, maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
+    func paragraph(ideal: CGFloat = Size.paragraph) -> some View {
+        frame(idealWidth: ideal, maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
     }
 }

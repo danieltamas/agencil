@@ -97,6 +97,15 @@ public struct Wiring: Equatable, Sendable {
     public let caller: String
     public let routes: [String]
     public let drift: [String]
+
+    public init(harness: String, mcp: AccessState, instruction: InstructionState, caller: String, routes: [String], drift: [String]) {
+        self.harness = harness
+        self.mcp = mcp
+        self.instruction = instruction
+        self.caller = caller
+        self.routes = routes
+        self.drift = drift
+    }
 }
 
 extension AgentAccess {

@@ -7,7 +7,7 @@ public enum Launcher {
     /// Returns only on failure (the exit code); on success the process image is replaced.
     public static func run(nonce: String, home: AgencilHome) -> Int32 {
         setpgid(0, 0)
-        let socketPath = home.directory.appendingPathComponent("agencil.sock").path
+        let socketPath = home.socketPath
         guard let descriptor = try? UnixSocket.connect(to: socketPath) else { return fail("the broker is not reachable") }
         let request: [String: Any] = ["op": "register", "nonce": nonce, "pid": Int(getpid()), "pgid": Int(getpgrp())]
         guard UnixSocket.write(descriptor, line: UnixSocket.json(request)) else { return fail("cannot register with the broker") }

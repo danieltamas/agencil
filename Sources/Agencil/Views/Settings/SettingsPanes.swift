@@ -28,7 +28,7 @@ struct SettingsPaneView: View {
             case .seats: list(.seat, rows: store.seatRows)
             case .councils: list(.council, rows: store.councilRows)
             case .routes: list(.route, rows: store.routeRows)
-            case .access: accessPane
+            case .access: AccessPane(store: store)
             case .harnesses: harnessesPane
             case .models: modelsPane
             case .budgets: budgetsPane
@@ -120,50 +120,6 @@ struct SettingsPaneView: View {
                     }
                 }
             }
-        }
-    }
-
-    private var accessPane: some View {
-        VStack(spacing: Space.xxl) {
-            SettingsCard(title: "MCP server", detail: "Off by default. Agents are refused while it is off.") {
-                SwitchRow(title: "Agent access", isOn: Binding(get: { store.agentAccessOn }, set: { store.setAgentAccess($0) }))
-            }
-            SettingsCard(title: "Per harness", detail: store.wiringSummary) {
-                ForEach(Array(["claude", "codex", "opencode"].enumerated()), id: \.element) { index, harness in
-                    if index > 0 { RowDivider() }
-                    accessRow(harness)
-                }
-                if let problem = store.accessProblem { ProblemText(text: problem) }
-            }
-        }
-    }
-
-    private func accessRow(_ harness: String) -> some View {
-        let state = store.access[harness]
-        let installed = state?.installed ?? false
-        return VStack(alignment: .leading, spacing: Space.s) {
-            SettingsRow(title: harness, detail: state?.path ?? (installed ? "installed" : "not installed")) {
-                AsyncPress(id: "access:\(harness)", action: store.installAction(harness, uninstall: installed)) { running, press in
-                    ChipButton(title: running ? "Working..." : installed ? "Uninstall" : "Install for \(harness)", destructive: installed, action: press)
-                }
-            }
-            if let entry = state?.entry { Text(entry).font(.house.mono).foregroundStyle(Theme.textTertiary).textSelection(.enabled) }
-            if let problem = state?.problem { ProblemText(text: problem) }
-            instructionRow(harness)
-        }
-    }
-
-    private func instructionRow(_ harness: String) -> some View {
-        let row = store.wiring[harness]
-        let present = (row?.instruction ?? .absent) != .absent
-        let routes = (row?.routes ?? []).isEmpty ? "no routes" : "routes: " + (row?.routes ?? []).joined(separator: ", ")
-        return VStack(alignment: .leading, spacing: Space.s) {
-            SettingsRow(title: "Instructions", detail: "\(row?.instruction.rawValue ?? "absent"), \(routes)") {
-                AsyncPress(id: "instructions:\(harness)", action: store.instructionAction(harness, remove: present)) { running, press in
-                    ChipButton(title: running ? "Working..." : present ? "Remove" : "Add", destructive: present, action: press)
-                }
-            }
-            ForEach(row?.drift ?? [], id: \.self) { line in ProblemText(text: line) }
         }
     }
 }
