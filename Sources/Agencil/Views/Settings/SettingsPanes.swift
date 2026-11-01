@@ -6,6 +6,7 @@ struct SettingsPaneView: View {
     @Bindable var store: SettingsStore
     let pane: SettingsPane
     @State private var look = Appearance.shared.look
+    @State private var lookProblem: String?
     @State var budgetVendor = ""
     @State var budgetDollars = ""
     @State var budgetHard = false
@@ -64,16 +65,28 @@ struct SettingsPaneView: View {
         }
     }
 
+    /// The look is kept in config.json: a choice that cannot be saved is not applied, and says why.
+    private func choose(_ item: Look) {
+        do {
+            try Appearance.shared.choose(item)
+            look = item
+            lookProblem = nil
+        } catch {
+            lookProblem = "The look could not be saved: \(error.localizedDescription)"
+        }
+    }
+
     private var general: some View {
         VStack(spacing: Space.xxl) {
             SettingsCard(title: "Look", detail: "Applies at once.") {
                 HStack(spacing: Space.s) {
                     ForEach(Look.allCases) { item in
-                        SegmentChip(title: item.title, selected: look == item) { look = item; Appearance.shared.look = item }
+                        SegmentChip(title: item.title, selected: look == item) { choose(item) }
                     }
                     Spacer(minLength: 0)
                 }
                 .padding(.vertical, Space.m)
+                if let lookProblem { ProblemText(text: lookProblem) }
             }
             SettingsCard(title: "Running") {
                 SwitchRow(title: "Open at login", isOn: Binding(get: { store.openAtLogin }, set: { store.setOpenAtLogin($0) }))
