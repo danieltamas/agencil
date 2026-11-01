@@ -64,7 +64,10 @@ extension Broker {
             // written, so a council that cannot sit leaves no run behind.
             let commit = try pinnedCommit(request["commit"], repo: repo)
             let fallbackUsed: Bool
-            do { fallbackUsed = try preflightGate(slots: slots, spares: &spares, council: council, config: config, author: author) }
+            do {
+                fallbackUsed = try preflightGate(slots: slots, spares: &spares, council: council, config: config, author: author,
+                                                 caller: caller, parent: parent, question: question)
+            }
             catch let refusal as Refusal { return settle(refusal, "failed") }
             let snapshot = try Snapshot.take(repo: repo, uncommitted: request["uncommitted"] as? Bool ?? false, question: question, commit: commit)
             let councilRoute = Route(callers: route.callers, target: route.target, hopLimit: route.hopLimit, fallbacks: [],

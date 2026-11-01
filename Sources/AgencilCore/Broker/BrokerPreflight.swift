@@ -30,7 +30,7 @@ extension Broker {
         }
         let probing = request["probe"] as? Bool == true
         if probing { try requireOwner(request, peer: peer, peerStart: peerStart) }
-        let probed = probing ? Self.byName(standings(of: seats, force: true)) : [:]
+        let probed = probing ? Self.byName(standings(of: seats, limits: config.limits, force: true)) : [:]
         let rows = try seats.map { seat -> [String: Any] in
             let standing = probing ? probed[seat.name] : try preflights.fresh(seat)
             var row: [String: Any] = ["name": seat.name, "harness": seat.harness, "model": seat.model, "plan": seat.plan.rawValue,
@@ -48,16 +48,35 @@ extension Broker {
 
     // MARK: the wake gate
 
-    /// Every seated slot and every non-recused synthesizer must stand `ok` before the sitting opens. A failed slot
-    /// takes the first `ok` spare whose vendor is not seated already; anything left failing refuses the wake with every
-    /// failed seat named. Returns whether a spare sat down.
-    func preflightGate(slots: [Slot], spares: inout [Seat], council: Council, config: SeatConfig, author: String) throws -> Bool {
+    /// Every seated slot and every non-recused synthesizer must stand `ok` before the sitting opens. A seat that a
+    /// hard budget refuses is never probed and fails with the budget's words. A failed slot takes the first `ok`
+    /// spare whose vendor is not seated already; anything left failing refuses the wake with every failed seat named.
+    /// Returns whether a spare sat down.
+    func preflightGate(slots: [Slot], spares: inout [Seat], council: Council, config: SeatConfig, author: String,
+                       caller: String, parent: CapabilityRun?, question: String) throws -> Bool {
         let seated = slots.filter { $0.phase == .pending }
         let synthesizers = council.synthesizers.compactMap { config.seat(named: $0) }.filter { author == "unknown" || $0.vendor != author }
-        let standings = Self.byName(self.standings(of: seated.map(\.seat) + synthesizers, force: false))
+        // The budget is checked the way admission will check it, without a reservation: the question stands in for
+        // the blind prompt, so an unbounded seat under a hard budget is refused here, before any probe process.
+        let rootKey = try parent.flatMap { try budgets.reservation(thread: $0.thread, seq: $0.seq)?.rootKey } ?? caller
+        func budgetRefusal(_ seat: Seat) throws -> String? {
+            let matching = BudgetStore.matching(config.budgets, route: council.name, root: rootKey, vendor: seat.harness)
+            return try budgets.admit(id: "", quote: Self.quote(seat, prompt: question), budgets: matching, routeKey: council.name,
+                                     rootKey: rootKey, vendor: seat.harness, commit: false, free: seat.plan == .free)?.message
+        }
+        var refused: [String: String] = [:]
+        var probing: [Seat] = []
+        for seat in seated.map(\.seat) + synthesizers {
+            if let message = try budgetRefusal(seat) { refused[seat.name] = message } else { probing.append(seat) }
+        }
+        let standings = Self.byName(self.standings(of: probing, limits: config.limits, force: false))
+        func isOK(_ seat: Seat) -> Bool { refused[seat.name] == nil && standings[seat.name]?.reason == .ok }
+        func failure(_ seat: Seat) -> String? {
+            refused[seat.name].map { "\(seat.name) \($0)" } ?? standings[seat.name].map { "\($0.seat) \($0.summary)" }
+        }
         var failures: [String] = []
         var fallbackUsed = false
-        for slot in seated where standings[slot.seat.name]?.reason != .ok {
+        for slot in seated where !isOK(slot.seat) {
             var replaced = false
             var index = 0
             while index < spares.count {
@@ -65,15 +84,16 @@ extension Broker {
                 guard !seated.contains(where: { $0 !== slot && $0.seat.vendor == candidate.vendor }) else { index += 1; continue }
                 // A spare that is not ok is spent either way; one of a seated vendor may still serve another slot.
                 spares.remove(at: index)
-                if self.standings(of: [candidate], force: false).first?.reason == .ok {
+                if try budgetRefusal(candidate) == nil,
+                   self.standings(of: [candidate], limits: config.limits, force: false).first?.reason == .ok {
                     slot.seat = candidate; fallbackUsed = true; replaced = true
                     break
                 }
             }
-            if !replaced, let failed = standings[slot.seat.name] { failures.append("\(failed.seat) \(failed.summary)") }
+            if !replaced, let line = failure(slot.seat) { failures.append(line) }
         }
-        if !synthesizers.isEmpty, !synthesizers.contains(where: { standings[$0.name]?.reason == .ok }) {
-            for seat in synthesizers { if let failed = standings[seat.name] { failures.append("\(failed.seat) \(failed.summary)") } }
+        if !synthesizers.isEmpty, !synthesizers.contains(where: isOK) {
+            for seat in synthesizers { if let line = failure(seat) { failures.append(line) } }
         }
         guard failures.isEmpty else { throw Refusal(exit: 4, message: "failed: preflight: " + failures.joined(separator: "; ")) }
         return fallbackUsed
@@ -82,8 +102,8 @@ extension Broker {
     // MARK: probing
 
     /// The standing of every seat, probing those without a fresh one (`force` probes all). Seats are probed side by
-    /// side; opencode seats take turns at the gate.
-    func standings(of seats: [Seat], force: Bool) -> [PreflightStanding] {
+    /// side within the broker's places (`seats_at_once`, the process cap); opencode seats also take turns at the gate.
+    func standings(of seats: [Seat], limits: Limits, force: Bool) -> [PreflightStanding] {
         let box = StandingBox()
         var pending: [Seat] = []
         for seat in seats {
@@ -96,20 +116,43 @@ extension Broker {
             group.enter()
             Thread.detachNewThread { [self] in
                 defer { group.leave() }
-                box.set(probe(seat))
+                box.set(placed(seat, limits: limits) { probe(seat) })
             }
         }
         group.wait()
         return seats.compactMap { box.get($0.name) }
     }
 
+    /// Runs a probe holding a place like a seat run does. A probe that gets no place within the seat's cap is `busy`,
+    /// and that standing is not recorded: a full broker says nothing about the seat itself.
+    private func placed(_ seat: Seat, limits: Limits, _ run: () -> PreflightStanding) -> PreflightStanding {
+        func busy(_ detail: String) -> PreflightStanding { standing(seat, .busy, detail) }
+        let id = "pf_" + UUID().uuidString.lowercased()
+        guard let orphans = try? orphanCount() else { return busy("the ledger could not be read") }
+        guard capacity.enter(id, parentExchange: nil, isProcess: seat.harness != "ollama", limits: limits, orphans: orphans) else {
+            return busy("the process cap is reached")
+        }
+        defer { capacity.leave(id) }
+        let deadline = Date().addingTimeInterval(Double(cap(seat)))
+        while true {
+            guard let orphans = try? orphanCount() else { return busy("the ledger could not be read") }
+            if capacity.activate(id, limits: limits, orphans: orphans) { return run() }
+            if Date() >= deadline { return busy("no seat place within \(cap(seat)) seconds") }
+            usleep(20_000)
+        }
+    }
+
     /// One probe of one seat, recorded whatever it finds.
     func probe(_ seat: Seat) -> PreflightStanding {
         let (reason, detail, until) = measure(seat)
-        let standing = PreflightStanding(seat: seat.name, harness: seat.harness, model: seat.model, plan: seat.plan.rawValue,
-                                         reason: reason, detail: detail, until: until, probedAt: Date())
-        try? preflights.record(standing)
-        return standing
+        let result = standing(seat, reason, detail, until: until)
+        try? preflights.record(result)
+        return result
+    }
+
+    private func standing(_ seat: Seat, _ reason: PreflightReason, _ detail: String, until: String? = nil) -> PreflightStanding {
+        PreflightStanding(seat: seat.name, harness: seat.harness, model: seat.model, plan: seat.plan.rawValue,
+                          reason: reason, detail: detail, until: until, probedAt: Date())
     }
 
     private func measure(_ seat: Seat) -> (PreflightReason, String, String?) {

@@ -95,8 +95,12 @@ the wake gate write standings). The route's fallbacks are then tried as before, 
 preflight reason.
 
 Wake gate (Sources/AgencilCore/Councils/Sitting.swift): after the recusal of the author's vendor and before the
-sitting is opened, every seated slot and every non-recused synthesizer is preflighted (seats in parallel, opencode
-serialized). A slot whose seat is not `ok` is filled by the first spare of the council that is `ok`, whose vendor is not
+sitting is opened, every seated slot and every non-recused synthesizer is preflighted. The budget comes first: each seat
+is checked against the matching hard budgets the way admission checks it (the question stands in for the blind prompt,
+no reservation is written); a seat the budget refuses is never probed and fails the gate as `<seat> refused: budget`.
+The rest are probed side by side, each probe holding a place like a seat run (the process cap and `seats_at_once`
+bound probes too; a probe that gets no place within the seat's cap is `busy` and that standing is not recorded);
+opencode probes are also serialized. A slot whose seat is not `ok` is filled by the first spare of the council that is `ok` (budget and probe), whose vendor is not
 the author's and not already seated, and that is not already taken; this sets the `fallback_used` flag of the verdict.
 A slot that cannot be filled, or no `ok` synthesizer when the council names synthesizers, refuses the wake with exit 4:
 `failed: preflight: <seat> <reason>[ until <text>]; <seat> <reason>` (every failed seat, config order), the request
@@ -105,6 +109,16 @@ is recorded `failed`, and no brief, snapshot, run, sitting or seat run row is wr
 malformed request (`commit`, `seats`, `cap_seconds`) is refused before any seat is probed. A council whose every seat is
 `ok` opens as before; nothing else about the sitting changes. The older wake rigs (U7a and the units built on it) answer
 the probe through the stub's `<kind>.ask` fixture, added to `U7aRig` by the test vendor with the manifests refreshed.
+
+Superseded (owner's decision, 2026-11-01): the gate replaces the in-sitting handling of an unusable seat that U7a
+accepted. A signed-out, missing or budget-refused seat is no longer swapped or failed inside a running sitting
+(U7a `signedOutSeatIsReplacedBySpare`, `unusableSeatWithoutSpareFailsAndDoesNotVote`,
+`secondSynthesizerFromAnotherVendorRuns`, `councilNeverUsesRouteFallbacks`, `synthesizerFailureWinsOverAllApprovals`,
+`unparsableSynthesizerIsIncomplete`, `independenceFlagsHaveContractOrder`, `hardBudgetOnCouncilNameRefusesUnboundedSeatBeforeSpawn`):
+the wake is refused with exit 4 before any work, or the spare sits from the first round. Probe processes are stub
+invocations too: observation counts in U7a, U7b, U9 and U15b (`observations()`, the `events` concurrency walk, the
+`stop` poll) include one probe per probed seat, within `seats_at_once`. The test vendor rewrites those lines from this
+section.
 
 Op `preflight`: `{"op": "preflight", "seats": [names]?, "probe": bool?}`. Without `probe` it answers from the cache
 for any local caller and never probes. With `probe: true` it needs the owner (`requireOwner`) and probes every

@@ -75,7 +75,7 @@ extension Broker {
 
     /// Seat processes of a dead broker that are still alive: they hold places until their group is proven empty.
     /// An unreadable ledger is an error, never zero: occupancy is not assumed away.
-    private func orphanCount() throws -> Int {
+    func orphanCount() throws -> Int {
         let open = Set(try store.open().map(\.id))
         return tracking.withLock { startupOrphans.intersection(open).count }
     }
