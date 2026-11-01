@@ -148,7 +148,8 @@ import Testing
     @Test func aSittingShowsBriefVerdictReasonsVotesRoundsAndClaims() throws {
         let page = DetailPage.sitting(try sittingRow(verdict: "BLOCK"), detail: sittingDetail())
         #expect(!page.loading)
-        #expect(section(page, "Brief")?.text.contains("inspect") == true)
+        #expect(page.brief.map(\.name) == ["Change kind", "Question"])
+        #expect(page.brief.last?.value == "inspect")
         let verdict = try #require(section(page, "Verdict: BLOCK"))
         #expect(verdict.text == "- blocker AG-1-1\n- second reason")
         #expect(verdict.tone == .crit)

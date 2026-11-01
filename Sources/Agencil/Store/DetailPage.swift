@@ -12,6 +12,7 @@ struct DetailPage: Equatable, Identifiable {
     }
     struct Answer: Equatable, Identifiable {
         let seat: String; let meta: String; let text: String; let tone: Signal
+        var vendor = ""; var structured: StructuredAnswer?
         var id: String { seat + meta + String(text.prefix(24)) }
     }
     struct Round: Equatable, Identifiable { let name: String; let answers: [Answer]; var id: String { name } }
@@ -29,6 +30,9 @@ struct DetailPage: Equatable, Identifiable {
     var facts: [Fact] = []
     var sections: [Section] = []
     var seats: [Fact] = []
+    /// The seat's model vendor, for the mark beside a thread's title; "" when unknown.
+    var vendor = ""
+    var brief: [Fact] = []
     var rounds: [Round] = []
     var claims: [DemoPanel.Finding] = []
     var loading = false
@@ -48,11 +52,12 @@ extension DetailPage {
         return PanelFormat.money(dollars) + (estimate.map { " (\($0))" } ?? "")
     }
 
-    static func thread(_ row: PanelData.Thread, detail: ThreadDetail?) -> DetailPage {
+    static func thread(_ row: PanelData.Thread, detail: ThreadDetail?, vendor: String = "") -> DetailPage {
         let card = DemoPanel.Thread(row)
         let word = row.state == "asking" ? "Asking" : row.state == "answered" ? "Answered" : card.status == "stopped" ? "Stopped" : "Failed"
         var page = DetailPage(id: row.id, kind: .thread, title: "\(row.caller) to \(row.seat)", state: word,
                               tone: PanelTone.signal(state: card.status), live: card.live)
+        page.vendor = vendor
         let spent = detail?.exchanges.compactMap(\.costUSD).reduce(0, +)
         let tokenSum = detail?.exchanges.compactMap(\.tokens).reduce(0, +)
         let anyCost = detail?.exchanges.contains { $0.costUSD != nil } == true
@@ -78,7 +83,7 @@ extension DetailPage {
         return page
     }
 
-    static func sitting(_ row: PanelData.Sitting, detail: SittingDetail?) -> DetailPage {
+    static func sitting(_ row: PanelData.Sitting, detail: SittingDetail?, vendors: [String: String] = [:]) -> DetailPage {
         let card = DemoPanel.Sitting(row)
         let state = row.state == "running" ? "Sitting" : row.verdict ?? (row.state == "failed" ? "Stopped" : row.state)
         var page = DetailPage(id: row.id, kind: .sitting, title: "\(row.council) sitting \(row.no)", state: state,
@@ -93,14 +98,17 @@ extension DetailPage {
             fact("Rule", detail?.rule), fact("Snapshot", detail?.snapshot),
         ]
         guard let detail else { page.loading = true; return page }
-        if let brief = detail.brief { page.sections.append(Section(heading: "Brief", text: brief)) }
+        if let brief = detail.brief {
+            if let facts = BriefFacts.parse(brief) { page.brief = facts.map { Fact(name: $0.name, value: $0.value) } }
+            else { page.sections.append(Section(heading: "Brief", text: brief)) }
+        }
         if !detail.reasons.isEmpty {
             page.sections.append(Section(heading: "Verdict: \(detail.verdict ?? state)", text: detail.reasons.map { "- " + $0 }.joined(separator: "\n"), tone: page.tone))
         }
         if let reason = detail.reason { page.sections.append(Section(heading: "Why it ended", text: reason, tone: page.tone)) }
         page.seats = detail.votes.map { Fact(name: $0.seat, value: $0.vote ?? $0.state) }
         page.rounds = detail.rounds.map { round in
-            Round(name: String(round.name.prefix(1).uppercased() + round.name.dropFirst()), answers: round.seats.map { answer(round: $0) })
+            Round(name: String(round.name.prefix(1).uppercased() + round.name.dropFirst()), answers: round.seats.map { answer(round: $0, vendor: vendors[$0.name] ?? "") })
         }
         page.claims = detail.claims.map { claim in
             DemoPanel.Finding(id: claim.id, severity: claim.severity.uppercased(), place: claim.place, claim: claim.body.text,
@@ -120,13 +128,14 @@ extension DetailPage {
         return page
     }
 
-    private static func answer(round seat: SittingDetail.Seat) -> Answer {
+    private static func answer(round seat: SittingDetail.Seat, vendor: String) -> Answer {
         let elapsed = seat.started.map { PanelFormat.duration(from: $0, to: seat.ended) }
         let model = seat.model.map { name in seat.harness.map { "\(name) (\($0))" } ?? name }
         let meta = [model, elapsed, seat.costUSD.map { costText($0, notes: [seat.costNote]) }, tokens(seat.tokens).map { "\($0) tokens" }]
             .compactMap { $0 }.joined(separator: " - ")
         let text = seat.answer.map(ReadableAnswer.text) ?? seat.reason ?? (seat.state == "asking" ? "Thinking..." : "No answer recorded.")
-        return Answer(seat: seat.name, meta: meta.isEmpty ? seat.state : meta, text: text, tone: PanelTone.signal(state: seat.state))
+        return Answer(seat: seat.name, meta: meta.isEmpty ? seat.state : meta, text: text, tone: PanelTone.signal(state: seat.state),
+                      vendor: vendor, structured: seat.answer.flatMap { StructuredAnswer($0) })
     }
 
     private static func voices(_ claim: SittingDetail.Claim) -> String {

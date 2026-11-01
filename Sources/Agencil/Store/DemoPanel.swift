@@ -4,6 +4,7 @@ import Foundation
 enum DemoPanel {
     struct Thread: Identifiable {
         let id: String; let caller: String; let seat: String; let question: String; let state: String; let live: Bool; let failed: Bool
+        var vendor = ""
         /// The state word `PanelTone` colours: a stop is not a fault, so it reads orange.
         var status: String { live ? "asking" : failed ? (state.contains("stopped") ? "stopped" : "failed") : "answered" }
     }

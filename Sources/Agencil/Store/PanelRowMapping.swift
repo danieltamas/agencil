@@ -3,14 +3,14 @@ import Foundation
 
 /// Presentation values for the panel rows, built from a read. The row views take these, not the wire types.
 extension DemoPanel.Thread {
-    init(_ row: PanelData.Thread) {
+    init(_ row: PanelData.Thread, vendor: String = "") {
         let state: String = switch row.state {
         case "asking": "asking"
         case "answered": "answered " + PanelFormat.duration(from: row.started, to: row.ended)
         default: "failed: " + (row.reason ?? "no reason given")
         }
         self.init(id: row.id, caller: row.caller, seat: row.seat, question: row.question, state: state,
-                  live: row.state == "asking", failed: row.state == "failed")
+                  live: row.state == "asking", failed: row.state == "failed", vendor: vendor)
     }
 }
 

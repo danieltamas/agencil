@@ -8,8 +8,8 @@ struct ThreadRow: View {
     var body: some View {
         let tone = Theme.color(for: PanelTone.signal(state: thread.status))
         HoverCard(accent: tone, action: open) {
-            HStack(spacing: Space.l) {
-                GlyphDisc(symbol: thread.failed ? "exclamationmark" : thread.live ? "ellipsis" : "checkmark", color: tone)
+            HStack(alignment: .top, spacing: Space.m) {
+                VendorMark(vendor: thread.vendor).padding(.top, Space.xxs)
                 VStack(alignment: .leading, spacing: Space.xxs) {
                     HStack(spacing: Space.s) {
                         Text(thread.caller).font(.house.meta)

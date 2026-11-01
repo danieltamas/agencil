@@ -180,15 +180,18 @@ import SwiftUI
     @ObservationIgnored private var detailLoad: Task<Void, Never>?
     private(set) var detail: DetailPage?
 
+    /// Model vendor by seat name, for the marks beside threads and answers.
+    private var vendors: [String: String] { Dictionary(uniqueKeysWithValues: (data?.seats.items ?? []).map { ($0.name, $0.vendor) }) }
+
     func open(thread id: String) {
         guard let row = data?.threads.first(where: { $0.id == id }) else { return }
-        present(.thread(row, detail: nil))
+        present(.thread(row, detail: nil, vendor: vendors[row.seat] ?? ""))
     }
 
     func open(sitting id: String) {
         seen.insert(id)
         guard let row = data?.sittings.first(where: { $0.id == id }) else { return }
-        present(.sitting(row, detail: nil))
+        present(.sitting(row, detail: nil, vendors: vendors))
     }
 
     func open(finding id: String) {
@@ -226,10 +229,10 @@ import SwiftUI
         switch open.kind {
         case .thread:
             guard let row = data?.threads.first(where: { $0.id == open.id }) else { return open }
-            return .thread(row, detail: ThreadDetail(json: json))
+            return .thread(row, detail: ThreadDetail(json: json), vendor: vendors[row.seat] ?? "")
         case .sitting:
             guard let row = data?.sittings.first(where: { $0.id == open.id }) else { return open }
-            return .sitting(row, detail: SittingDetail(json: json))
+            return .sitting(row, detail: SittingDetail(json: json), vendors: vendors)
         case .finding:
             return open
         }
@@ -299,7 +302,7 @@ import SwiftUI
             default: true
             }
         }
-        .map(DemoPanel.Thread.init)
+        .map { DemoPanel.Thread($0, vendor: vendors[$0.seat] ?? "") }
         .filter { Self.matches(search, [$0.question, $0.caller, $0.seat]) }
     }
 

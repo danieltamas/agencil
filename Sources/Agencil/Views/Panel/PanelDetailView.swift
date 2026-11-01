@@ -12,12 +12,16 @@ struct PanelDetailView: View {
                 Spacer(minLength: 0)
                 Chip(text: page.state, color: Theme.color(for: page.tone))
             }
-            Text(page.title).font(.house.header).foregroundStyle(Theme.textPrimary).fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: Space.m) {
+                if !page.vendor.isEmpty { VendorMark(vendor: page.vendor) }
+                Text(page.title).font(.house.header).foregroundStyle(Theme.textPrimary).fixedSize(horizontal: false, vertical: true)
+            }
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.l) {
                     if let problem = page.problem { ProblemText(text: problem) }
                     if page.loading { WaitingState(title: "Reading the record...") }
-                    facts
+                    factsCard(page.facts)
+                    if !page.brief.isEmpty { VStack(alignment: .leading, spacing: Space.xs) { Eyebrow(text: "Brief"); factsCard(page.brief) } }
                     ForEach(page.sections) { section in block(section) }
                     if !page.seats.isEmpty { seats }
                     ForEach(page.rounds) { round in roundView(round) }
@@ -28,11 +32,11 @@ struct PanelDetailView: View {
         }
     }
 
-    @ViewBuilder private var facts: some View {
-        if !page.facts.isEmpty {
+    @ViewBuilder private func factsCard(_ facts: [DetailPage.Fact]) -> some View {
+        if !facts.isEmpty {
             HoverCard(accent: nil, action: nil) {
                 VStack(alignment: .leading, spacing: Space.xs) {
-                    ForEach(page.facts) { fact in
+                    ForEach(facts) { fact in
                         HStack(alignment: .top, spacing: Space.m) {
                             Text(fact.name).font(.house.meta).foregroundStyle(Theme.textTertiary).frame(width: Size.detailLabel, alignment: .leading)
                             Text(fact.value).font(.house.meta)
@@ -74,10 +78,16 @@ struct PanelDetailView: View {
             ForEach(round.answers) { answer in
                 HoverCard(accent: Theme.color(for: answer.tone), action: nil) {
                     VStack(alignment: .leading, spacing: Space.xs) {
-                        Text(answer.seat).font(.house.rowTitle).foregroundStyle(Theme.textPrimary)
+                        HStack(spacing: Space.s) {
+                            VendorMark(vendor: answer.vendor)
+                            Text(answer.seat).font(.house.rowTitle).foregroundStyle(Theme.textPrimary)
+                        }
                         Text(answer.meta).font(.house.meta).foregroundStyle(Theme.textTertiary).fixedSize(horizontal: false, vertical: true)
-                        Text(styled(answer.text)).font(.house.body).foregroundStyle(Theme.textPrimary)
-                            .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                        if let structured = answer.structured { AnswerBody(answer: structured) }
+                        else {
+                            Text(styled(answer.text)).font(.house.body).foregroundStyle(Theme.textPrimary)
+                                .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }

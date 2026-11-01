@@ -37,7 +37,7 @@ public enum ReadableAnswer {
         return lines(value, depth: 0).joined(separator: "\n")
     }
 
-    private static func unfenced(_ text: String) -> String {
+    static func unfenced(_ text: String) -> String {
         guard text.hasPrefix("```"), text.hasSuffix("```"), let newline = text.firstIndex(of: "\n") else { return text }
         return String(text[text.index(after: newline)..<text.index(text.endIndex, offsetBy: -3)]).trimmingCharacters(in: .whitespacesAndNewlines)
     }
