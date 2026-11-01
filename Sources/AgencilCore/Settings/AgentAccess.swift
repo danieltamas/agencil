@@ -37,10 +37,14 @@ public struct AgentAccess: Sendable {
 
     public func state(_ harness: String) throws -> AccessState {
         try require(harness)
-        guard harness != "claude" else {
-            return AccessState(harness: harness, installed: installer.recordsClaude, path: nil, entry: nil, problem: nil)
-        }
         let path = installer.location(harness)
+        guard harness != "claude" else {
+            // Claude's own CLI writes its config; Agencil's record says the entry is its own, the file shows what it holds.
+            let installed = installer.recordsClaude
+            let text = installed ? (try? Data(contentsOf: path)).flatMap { String(data: $0, encoding: .utf8) } : nil
+            return AccessState(harness: harness, installed: installed, path: path.path,
+                               entry: text.flatMap { Self.entry(harness, in: $0) }, problem: nil)
+        }
         guard let data = try? Data(contentsOf: path) else {
             return AccessState(harness: harness, installed: false, path: path.path, entry: nil, problem: nil)
         }
@@ -83,7 +87,7 @@ public struct AgentAccess: Sendable {
             return joined.isEmpty ? nil : joined
         }
         guard let root = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any],
-              let entry = (root["mcp"] as? [String: Any])?["agencil"],
+              let entry = (root[harness == "claude" ? "mcpServers" : "mcp"] as? [String: Any])?["agencil"],
               let data = try? JSONSerialization.data(withJSONObject: entry, options: [.sortedKeys]) else { return nil }
         return String(decoding: data, as: UTF8.self)
     }
@@ -91,6 +95,17 @@ public struct AgentAccess: Sendable {
 
 /// One harness as the Mac is wired now: the server entry, the instruction paragraph, the routes and what drifted.
 public struct Wiring: Equatable, Sendable {
+    /// The drift line for an entry whose command is not this app's installed CLI.
+    public static let entryMismatch = "server entry does not match this app"
+    public static let accessOff = "access is off"
+    public static let instructionsOutdated = "instructions outdated"
+    public static let instructionsBroken = "instructions markers broken"
+
+    /// The drift lines a state badge already says, which the pane leaves out of its notes.
+    public var notes: [String] {
+        drift.filter { ![Self.accessOff, Self.instructionsOutdated, Self.instructionsBroken].contains($0) }
+    }
+
     public let harness: String
     public let mcp: AccessState
     public let instruction: InstructionState
@@ -121,15 +136,15 @@ extension AgentAccess {
             if mcp.installed {
                 if instruction == .absent { drift.append("instructions missing") }
                 if masterOn && targets.isEmpty { drift.append("no route for this caller") }
-                if !masterOn { drift.append("access is off") }
+                if !masterOn { drift.append(Wiring.accessOff) }
                 if let entry = mcp.entry, !Self.runsThisApp(harness, entry) {
-                    drift.append("server entry does not match this app")
+                    drift.append(Wiring.entryMismatch)
                 }
             } else if instruction != .absent {
                 drift.append("instructions without server")
             }
-            if instruction == .outdated { drift.append("instructions outdated") }
-            if instruction == .broken { drift.append("instructions markers broken") }
+            if instruction == .outdated { drift.append(Wiring.instructionsOutdated) }
+            if instruction == .broken { drift.append(Wiring.instructionsBroken) }
             return Wiring(harness: harness, mcp: mcp, instruction: instruction, caller: harness, routes: targets, drift: drift)
         }
     }
@@ -146,6 +161,7 @@ extension AgentAccess {
             }
         }
         guard let object = (try? JSONSerialization.jsonObject(with: Data(entry.utf8))) as? [String: Any] else { return false }
-        return (object["command"] as? [String])?.first == path
+        // opencode keeps the whole command line in one array; claude keeps a command string and an args array.
+        return ((object["command"] as? [String])?.first ?? object["command"] as? String) == path
     }
 }

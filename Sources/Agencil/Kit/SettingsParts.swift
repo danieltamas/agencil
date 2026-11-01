@@ -33,6 +33,9 @@ enum SettingsMetrics {
     static let wideFieldWidth: CGFloat = 168
     static let unitWidth: CGFloat = 168
     static let resetWidth: CGFloat = 52
+    /// A status row's trailing columns: the badge, then the button, the same in every row of a card.
+    static let statusWidth: CGFloat = 96
+    static let actionWidth: CGFloat = 92
 }
 
 /// A name on the left, its control on the right, on one baseline-centred line.
@@ -74,16 +77,33 @@ struct RowDivider: View {
 }
 
 /// One setting: its name and why it matters on the left of the card, the control below.
-struct SettingsCard<Content: View>: View {
+/// `mark` puts a vendor's mark before the title, `accessory` a chip or two at the trailing edge of the header.
+struct SettingsCard<Content: View, Accessory: View>: View {
     let title: String
     var detail: String?
+    var mark: String?
+    @ViewBuilder let accessory: Accessory
     @ViewBuilder let content: Content
+
+    init(title: String, detail: String? = nil, mark: String? = nil,
+         @ViewBuilder accessory: () -> Accessory, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.detail = detail
+        self.mark = mark
+        self.accessory = accessory()
+        self.content = content()
+    }
 
     var body: some View {
         Bezel {
             VStack(alignment: .leading, spacing: 10) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(title).font(.house.rowTitle).foregroundStyle(Theme.textPrimary)
+                    HStack(spacing: Space.s) {
+                        if let mark { VendorMark(vendor: mark) }
+                        Text(title).font(.house.rowTitle).foregroundStyle(Theme.textPrimary)
+                        Spacer(minLength: Space.s)
+                        accessory
+                    }
                     if let detail { Text(detail).font(.house.meta).foregroundStyle(Theme.textTertiary).paragraph() }
                 }
                 VStack(alignment: .leading, spacing: Space.s) { content }
@@ -91,6 +111,61 @@ struct SettingsCard<Content: View>: View {
             .padding(Space.xl)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+}
+
+extension SettingsCard where Accessory == EmptyView {
+    init(title: String, detail: String? = nil, mark: String? = nil, @ViewBuilder content: () -> Content) {
+        self.init(title: title, detail: detail, mark: mark, accessory: { EmptyView() }, content: content)
+    }
+}
+
+/// A step of a card: its name and where it lives on the left, then a badge column and a button column of fixed
+/// widths, so every row of the card ends in the same two edges.
+struct StatusRow<Action: View>: View {
+    let title: String
+    let detail: String
+    let status: String
+    let color: Color
+    @ViewBuilder let action: Action
+
+    var body: some View {
+        HStack(spacing: Space.l) {
+            VStack(alignment: .leading, spacing: Space.xxs) {
+                Text(title).font(.house.body.weight(.medium)).foregroundStyle(Theme.textPrimary).lineLimit(1)
+                Text(detail).font(.house.meta).foregroundStyle(Theme.textTertiary)
+                    .lineLimit(1).truncationMode(.middle).help(detail)
+            }
+            Spacer(minLength: Space.s)
+            Chip(text: status, color: color)
+                .frame(width: SettingsMetrics.statusWidth, alignment: .leading)
+            action.frame(width: SettingsMetrics.actionWidth, alignment: .trailing)
+        }
+        .frame(minHeight: SettingsMetrics.rowHeight)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+/// The fields of a server entry as mono key and value lines in a recessed well; values are selectable.
+struct EntryLines: View {
+    struct Field { let key: String; let value: String }
+
+    let fields: [Field]
+
+    var body: some View {
+        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: Space.l, verticalSpacing: Space.xxs) {
+            ForEach(fields, id: \.key) { field in
+                GridRow {
+                    Text(field.key).font(.house.mono).foregroundStyle(Theme.textTertiary)
+                    Text(field.value).font(.house.mono).foregroundStyle(Theme.textSecondary)
+                        .lineLimit(1).truncationMode(.middle).textSelection(.enabled)
+                }
+            }
+        }
+        .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.wash.opacity(Theme.opacity.faint), in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 }
 

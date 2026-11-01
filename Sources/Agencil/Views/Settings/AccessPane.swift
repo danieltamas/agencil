@@ -22,13 +22,16 @@ struct AccessPane: View {
                 RowDivider().padding(.vertical, Space.s)
                 tools
             }
-            SettingsCard(title: "How agents know", detail: "Two things per agent: an MCP entry that starts the server, and a paragraph in its instruction file that says when to use it. No hooks are involved.") {
-                ForEach(Array(Self.harnesses.enumerated()), id: \.element) { index, harness in
-                    if index > 0 { RowDivider().padding(.vertical, Space.s) }
-                    harnessBlock(harness)
+            VStack(alignment: .leading, spacing: Space.l) {
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    Text("How agents know").font(.house.rowTitle).foregroundStyle(Theme.textPrimary)
+                    Text("Two things per agent: an MCP entry that starts the server, and a paragraph in its instruction file that says when to use it. No hooks are involved.")
+                        .font(.house.meta).foregroundStyle(Theme.textTertiary).paragraph()
                 }
+                ForEach(Self.harnesses, id: \.self) { harnessCard($0) }
                 if let problem = store.accessProblem { ProblemText(text: problem) }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -79,61 +82,53 @@ struct AccessPane: View {
 
     // MARK: per harness
 
-    private func harnessBlock(_ harness: String) -> some View {
+    private static let vendors = ["claude": "anthropic", "codex": "openai", "opencode": "opencode"]
+
+    /// One agent as one card: its name, mark and route count on top, then the two steps on aligned rows.
+    private func harnessCard(_ harness: String) -> some View {
         let state = store.access[harness]
-        let installed = state?.installed ?? false
         let wiring = store.wiring[harness]
+        let status = AccessFacts.mcpStatus(wiring)
         let instruction = wiring?.instruction ?? .absent
         let present = instruction != .absent
         let routes = wiring?.routes ?? []
-        return VStack(alignment: .leading, spacing: Space.s) {
-            HStack(spacing: Space.s) {
-                Text(harness).font(.house.rowTitle).foregroundStyle(Theme.textPrimary)
-                Spacer(minLength: Space.s)
-                Chip(text: routes.isEmpty ? "no routes" : "\(routes.count) route\(routes.count == 1 ? "" : "s")",
-                     color: Theme.color(for: routes.isEmpty ? .warn : .ok))
-            }
+        return SettingsCard(title: harness, mark: Self.vendors[harness],
+                            accessory: {
+            Chip(text: routes.isEmpty ? "no routes" : "\(routes.count) route\(routes.count == 1 ? "" : "s")",
+                 color: Theme.color(for: routes.isEmpty ? .warn : .ok))
+        }, content: {
             if !routes.isEmpty {
-                Text(routes.joined(separator: ", ")).font(.house.meta).foregroundStyle(Theme.textTertiary)
-                    .paragraph()
+                Text(routes.joined(separator: ", ")).font(.house.meta).foregroundStyle(Theme.textTertiary).paragraph()
             }
-            step("MCP entry", detail: state?.path ?? "not found", chip: installed ? "installed" : "absent", signal: installed ? .ok : .unknown) {
-                AsyncPress(id: "access:\(harness)", action: store.installAction(harness, uninstall: installed)) { running, press in
-                    ChipButton(title: running ? "Working..." : installed ? "Uninstall" : "Install", destructive: installed, action: press)
+            StatusRow(title: "MCP entry", detail: AccessFacts.mcpDetail(state, status: status), status: status.label,
+                      color: Theme.color(for: Self.signal(status))) {
+                AsyncPress(id: "access:\(harness)", action: store.installAction(harness, uninstall: status.present)) { running, press in
+                    ChipButton(title: running ? "Working..." : status.present ? "Uninstall" : "Install",
+                               destructive: status.present, width: SettingsMetrics.actionWidth, action: press)
+                        .accessibilityLabel("\(status.present ? "Uninstall" : "Install") the \(harness) MCP entry")
                 }
             }
-            if let entry = state?.entry { Text(entry).font(.house.mono).foregroundStyle(Theme.textTertiary).textSelection(.enabled) }
+            let fields = state?.entry.map(AccessFacts.entryFields) ?? []
+            if !fields.isEmpty { EntryLines(fields: fields.map { field in EntryLines.Field(key: field.key, value: field.value) }) }
             if let problem = state?.problem { ProblemText(text: problem) }
-            step("Instructions", detail: store.instructionPath(harness), chip: instruction.rawValue, signal: Self.signal(instruction)) {
+            RowDivider()
+            StatusRow(title: "Instructions", detail: store.instructionPath(harness), status: AccessFacts.instructionLabel(instruction),
+                      color: Theme.color(for: Self.signal(instruction))) {
                 AsyncPress(id: "instructions:\(harness)", action: store.instructionAction(harness, remove: present)) { running, press in
-                    ChipButton(title: running ? "Working..." : present ? "Remove" : "Add", destructive: present, action: press)
+                    ChipButton(title: running ? "Working..." : present ? "Remove" : "Add",
+                               destructive: present, width: SettingsMetrics.actionWidth, action: press)
+                        .accessibilityLabel("\(present ? "Remove" : "Add") the \(harness) instructions")
                 }
             }
-            ForEach(wiring?.drift ?? [], id: \.self) { line in ProblemText(text: line) }
-        }
+            ForEach(wiring?.notes ?? [], id: \.self) { line in ProblemText(text: line) }
+        })
     }
 
-    /// A step's name and where it lives on the left; its state and its button on the right, wrapping under at narrow widths.
-    private func step<Control: View>(_ title: String, detail: String, chip: String, signal: Signal,
-                                    @ViewBuilder control: () -> Control) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: Space.l) {
-                stepText(title, detail)
-                Spacer(minLength: Space.l)
-                Chip(text: chip, color: Theme.color(for: signal))
-                control()
-            }
-            VStack(alignment: .leading, spacing: Space.s) {
-                stepText(title, detail)
-                HStack(spacing: Space.s) { Chip(text: chip, color: Theme.color(for: signal)); control() }
-            }
-        }
-    }
-
-    private func stepText(_ title: String, _ detail: String) -> some View {
-        VStack(alignment: .leading, spacing: Space.xxs) {
-            Text(title).font(.house.rowTitle).foregroundStyle(Theme.textPrimary)
-            Text(detail).font(.house.meta).foregroundStyle(Theme.textTertiary).paragraph(ideal: Size.rowText)
+    private static func signal(_ status: AccessFacts.McpStatus) -> Signal {
+        switch status {
+        case .installed: .ok
+        case .drifted: .warn
+        case .notInstalled: .unknown
         }
     }
 

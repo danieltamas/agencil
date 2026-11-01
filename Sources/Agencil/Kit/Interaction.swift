@@ -92,11 +92,13 @@ struct LinkButton: View {
 }
 
 /// The compact button for an action inside a row or card: a bordered capsule at the control height.
-/// Destructive ones are red; plain accent text is only for a link that goes somewhere (`LinkButton`).
+/// Destructive ones are a quiet red outline, the same weight as the plain ones; plain accent text is only for a
+/// link that goes somewhere (`LinkButton`). `width` fixes the button so a column of them lines up.
 struct ChipButton: View {
     let title: String
     var destructive = false
     var symbol: String?
+    var width: CGFloat?
     let action: () -> Void
 
     var body: some View {
@@ -108,9 +110,9 @@ struct ChipButton: View {
             }
                 .foregroundStyle(tint)
                 .padding(.horizontal, 11)
-                .frame(height: Size.control)
-                .background(tint.opacity(destructive ? 0.12 : Theme.opacity.wash), in: Capsule())
-                .overlay(Capsule().strokeBorder(tint.opacity(destructive ? 0.4 : 0.14), lineWidth: 0.5))
+                .frame(width: width, height: Size.control)
+                .background(tint.opacity(destructive ? Theme.opacity.faint : Theme.opacity.wash), in: Capsule())
+                .overlay(Capsule().strokeBorder(tint.opacity(destructive ? 0.3 : 0.14), lineWidth: 0.5))
                 .contentShape(Capsule())
                 .fixedSize()
         }
