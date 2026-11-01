@@ -19,12 +19,12 @@ struct AccessPane: View {
             SettingsCard(title: "How agents reach Agencil",
                          detail: "No network port and no HTTP. Each agent starts its own copy of the command below as a stdio MCP server, and that copy talks to this app over a Unix socket.") {
                 reach
-                RowDivider()
+                RowDivider().padding(.vertical, Space.s)
                 tools
             }
             SettingsCard(title: "How agents know", detail: "Two things per agent: an MCP entry that starts the server, and a paragraph in its instruction file that says when to use it. No hooks are involved.") {
                 ForEach(Array(Self.harnesses.enumerated()), id: \.element) { index, harness in
-                    if index > 0 { RowDivider() }
+                    if index > 0 { RowDivider().padding(.vertical, Space.s) }
                     harnessBlock(harness)
                 }
                 if let problem = store.accessProblem { ProblemText(text: problem) }

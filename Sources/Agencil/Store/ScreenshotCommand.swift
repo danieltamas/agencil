@@ -45,7 +45,11 @@ enum ScreenshotCommand {
                                           to: directory.appendingPathComponent("settings-\(pane.rawValue)\(suffix).png"), look: look, scale: scale,
                                           now: DemoStore.now)
                 }
+                if looks.count > 1 { try copy(directory, "settings-access-\(look.rawValue).png", "access-full-\(look.rawValue).png") }
             }
+            let off = SettingsView(store: SettingsStore.demo(accessOn: false), pane: .access)
+                .frame(width: Size.settingsMin.width, height: height(of: .access))
+            try HouseRender.write(off, to: directory.appendingPathComponent("access-off.png"), look: looks[0], scale: scale, now: DemoStore.now)
             return 0
         } catch {
             FileHandle.standardError.write(Data("render failed: \(error)\n".utf8))
@@ -55,7 +59,14 @@ enum ScreenshotCommand {
 
     /// The apps list and About are longer than the window: their shots show every card, not the scrolled-off top.
     private static func height(of pane: SettingsPane) -> CGFloat {
-        pane == .apps ? Size.settingsMin.height * 2.4 : pane == .about ? Size.settingsMin.height * 1.5 : Size.settingsMin.height
+        pane == .apps ? Size.settingsMin.height * 2.4 : pane == .access ? Size.settingsMin.height * 3 : pane == .about ? Size.settingsMin.height * 1.5 : Size.settingsMin.height
+    }
+
+    /// The full-height access pane under the name the review asks for.
+    private static func copy(_ directory: URL, _ from: String, _ to: String) throws {
+        let target = directory.appendingPathComponent(to)
+        try? FileManager.default.removeItem(at: target)
+        try FileManager.default.copyItem(at: directory.appendingPathComponent(from), to: target)
     }
 
     private static func value(after option: String, in arguments: [String]) -> String? {

@@ -81,7 +81,7 @@ struct RouteForm { var callers = "", target = "", hops = "" }
         reload()
     }
 
-    static func demo() -> SettingsStore {
+    static func demo(accessOn: Bool = true) -> SettingsStore {
         let store = SettingsStore()
         store.seatRows = DemoPanel.seatRows.map { DemoPanel.ListRow(name: $0.id, detail: $0.model, up: $0.up) }
         store.councilRows = DemoPanel.councils
@@ -91,7 +91,7 @@ struct RouteForm { var callers = "", target = "", hops = "" }
         store.seatsAtOnce = "3"
         store.apps = MoreAppsStore.demo(now: DemoStore.now)
         store.update = UpdateStore.demo(now: DemoStore.now)
-        store.agentAccessOn = true
+        store.agentAccessOn = accessOn
         store.socket = AccessFacts.Socket(path: NSHomeDirectory() + "/.agencil/agencil.sock", reachable: true, ownerOnly: true)
         let states: [(String, Bool, InstructionState, [String])] = [
             ("claude", true, .current, ["lumen-review"]), ("codex", true, .outdated, []), ("opencode", false, .absent, []),
