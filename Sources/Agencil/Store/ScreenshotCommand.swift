@@ -41,6 +41,11 @@ enum ScreenshotCommand {
                 for tab in ["threads", "sittings", "findings", "seats"] {
                     try HouseRender.write(PanelView(store: PanelStore.demo(), tab: tab), to: directory.appendingPathComponent("panel-\(tab)\(suffix).png"), look: look, scale: scale)
                 }
+                for (name, id) in [("thread-done", "t2"), ("thread-failed", "t3"), ("thread-running", "t1"),
+                                   ("sitting-done", "s2"), ("sitting-running", "s1"), ("finding", "f1")] {
+                    try HouseRender.write(PanelView(store: PanelStore.demo(opening: id)), to: directory.appendingPathComponent("detail-\(name)\(suffix).png"),
+                                          look: look, scale: scale)
+                }
                 for pane in [SettingsPane.general, .seats, .models, .access, .apps, .about] {
                     try HouseRender.write(SettingsView(store: SettingsStore.demo(), pane: pane).frame(width: Size.settingsMin.width, height: height(of: pane)),
                                           to: directory.appendingPathComponent("settings-\(pane.rawValue)\(suffix).png"), look: look, scale: scale,

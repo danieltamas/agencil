@@ -51,6 +51,8 @@ enum Size {
     static let iconButton: CGFloat = 28
     static let chip: CGFloat = 20
     static let tabIsland: CGFloat = 34
+    /// The name column of a detail screen's facts, wide enough for "Response time".
+    static let detailLabel: CGFloat = 96
     static let settingsRow: CGFloat = 34
     static let menuBarGlyph: CGFloat = 18
     static let panelWidth: CGFloat = 404

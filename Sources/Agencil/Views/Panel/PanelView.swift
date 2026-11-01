@@ -28,12 +28,19 @@ struct PanelView: View {
         VStack(spacing: 0) {
             header
             VStack(spacing: Space.l) {
-                bento
-                TabIsland(tabs: tabs, selection: $tab)
-                SearchField(text: $search, prompt: "Search")
-                filters
-                content
+                if let page = store.detail {
+                    PanelDetailView(page: page, back: store.closeDetail)
+                } else {
+                    bento
+                    TabIsland(tabs: tabs, selection: $tab)
+                    Text(subtitle).font(.house.meta).foregroundStyle(Theme.textTertiary).lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    SearchField(text: $search, prompt: "Search")
+                    filters
+                    content
+                }
             }
+            .paneSwap(store.detail?.id)
             .padding(.horizontal, Space.panelInset)
             .padding(.bottom, Space.l)
             .frame(maxHeight: .infinity, alignment: .top)
@@ -124,6 +131,17 @@ struct PanelView: View {
         }
     }
 
+    /// What the open tab is, in one line.
+    private var subtitle: String {
+        switch tab {
+        case "threads": "One question to one seat, and its answer."
+        case "sittings": "A council reads a brief in rounds and gives a verdict."
+        case "findings": "Claims from sittings, waiting for your call."
+        case "learn": "Changes to your councils that outcomes suggest."
+        default: "Who can answer, and how often they are right."
+        }
+    }
+
     private var waiting: String {
         switch tab {
         case "threads": "Reading threads..."
@@ -140,7 +158,7 @@ struct PanelView: View {
             case "threads":
                 let items = store.threads(filter: filter, search: search)
                 if items.isEmpty { EmptyState(symbol: "bubble.left.and.bubble.right", title: "No threads yet", detail: "Agents ask a seat through Agencil and the exchange lands here.") }
-                ForEach(items) { ThreadRow(thread: $0) }
+                ForEach(items) { item in ThreadRow(thread: item, open: { store.open(thread: item.id) }) }
             case "sittings":
                 let items = store.sittings(search: search)
                 if items.isEmpty { EmptyState(symbol: "circle.hexagongrid", title: "No sittings yet", detail: "A council sits when an agent or a trigger wakes it.") }
@@ -150,7 +168,7 @@ struct PanelView: View {
                 let items = store.findings(search: search)
                 if items.isEmpty { EmptyState(symbol: "checkmark.seal", title: "Nothing to decide", detail: "Claims from a sitting wait here for your call.") }
                 ForEach(items) { item in FindingRow(finding: item, confirm: store.decideAction(item.id, confirm: true), dismiss: store.decideAction(item.id, confirm: false),
-                                       adjudicate: store.adjudicateAction(item.id)) }
+                                       adjudicate: store.adjudicateAction(item.id), open: { store.open(finding: item.id) }) }
             case "learn":
                 if store.proposals.isEmpty && !store.canRollback {
                     EmptyState(symbol: "sparkles", title: "Nothing to learn yet", detail: "Proposals to drop, swap or add a seat appear here once outcomes pile up.")

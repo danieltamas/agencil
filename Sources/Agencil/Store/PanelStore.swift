@@ -33,6 +33,17 @@ import SwiftUI
     static func demo() -> PanelStore {
         let store = PanelStore(data: DemoPanel.data)
         store.starOffer = true
+        store.detailReader = { DemoPanel.detailJSON($0) ?? [:] }
+        return store
+    }
+
+    /// The demo panel with one detail screen open and already filled in, for the screenshots.
+    static func demo(opening id: String) -> PanelStore {
+        let store = demo()
+        if id.hasPrefix("f") { store.open(finding: id) }
+        else if id.hasPrefix("s") { store.open(sitting: id) }
+        else { store.open(thread: id) }
+        if let json = DemoPanel.detailJSON(id), let open = store.detail { store.detail = store.rebuilt(open, json: json) }
         return store
     }
 
@@ -51,6 +62,7 @@ import SwiftUI
         store.repoStar = RepoStar(directory: home.directory)
         store.notifier = PanelNotifier(settings: { (try? ConfigStore(directory: home.directory).read()).flatMap { try? NotifySettings(values: $0.values) } })
         store.control = StopControl(stop: { id in try await client.stop(id) })
+        store.detailReader = { id in try await client.call("detail", ["id": id]) }
         store.start()
         return store
     }
@@ -79,6 +91,7 @@ import SwiftUI
             syncStopping(next)
             await readProposals(client)
             await refreshStarOffer()
+            if detail?.live == true { await loadDetail() }
         } catch {
             problem = error.localizedDescription
         }
@@ -160,7 +173,67 @@ import SwiftUI
         if await repoStar.star() { starOffer = false } else { problem = "Could not star " + RepoStar.repo + ": is gh logged in?" }
     }
 
-    func open(sitting id: String) { seen.insert(id) }
+    // MARK: detail screens
+
+    /// The broker's `detail` reply for one thread or sitting id; the demo store answers from `DemoPanel`.
+    @ObservationIgnored var detailReader: ((String) async throws -> [String: Any])?
+    @ObservationIgnored private var detailLoad: Task<Void, Never>?
+    private(set) var detail: DetailPage?
+
+    func open(thread id: String) {
+        guard let row = data?.threads.first(where: { $0.id == id }) else { return }
+        present(.thread(row, detail: nil))
+    }
+
+    func open(sitting id: String) {
+        seen.insert(id)
+        guard let row = data?.sittings.first(where: { $0.id == id }) else { return }
+        present(.sitting(row, detail: nil))
+    }
+
+    func open(finding id: String) {
+        guard let row = data?.findings.first(where: { $0.id == id }) else { return }
+        present(.finding(DemoPanel.Finding(row)))
+    }
+
+    func closeDetail() {
+        detailLoad?.cancel()
+        detail = nil
+    }
+
+    private func present(_ page: DetailPage) {
+        detail = page
+        detailLoad?.cancel()
+        guard page.kind != .finding else { return }
+        detailLoad = Task { [weak self] in await self?.loadDetail() }
+    }
+
+    /// Rebuilds the open page from the latest row and the broker's detail; a failed read keeps what is shown and says why.
+    private func loadDetail() async {
+        guard let reader = detailReader, let open = detail, open.kind != .finding else { return }
+        do {
+            let json = try await reader(open.id)
+            guard !Task.isCancelled, detail?.id == open.id else { return }
+            detail = rebuilt(open, json: json)
+        } catch {
+            guard detail?.id == open.id else { return }
+            detail?.problem = error.localizedDescription
+            detail?.loading = false
+        }
+    }
+
+    private func rebuilt(_ open: DetailPage, json: [String: Any]) -> DetailPage {
+        switch open.kind {
+        case .thread:
+            guard let row = data?.threads.first(where: { $0.id == open.id }) else { return open }
+            return .thread(row, detail: ThreadDetail(json: json))
+        case .sitting:
+            guard let row = data?.sittings.first(where: { $0.id == open.id }) else { return open }
+            return .sitting(row, detail: SittingDetail(json: json))
+        case .finding:
+            return open
+        }
+    }
 
     /// A seat row opens that seat in Settings; the caller brings the window forward.
     func open(seat name: String) { SettingsRoute.shared.show(seat: name) }

@@ -131,5 +131,7 @@ enum LedgerSchema {
         // The plan a reservation was admitted under (1 free, 0 not, NULL unknown), so settlement never re-reads a config
         // that may have changed since.
         "ALTER TABLE reservations ADD COLUMN free INTEGER;",
+        // The asking agent's project (git top-level name and path), as the CLI or `agencil mcp` reported it; NULL when not recorded.
+        "CREATE TABLE run_origins (run_id TEXT PRIMARY KEY REFERENCES runs(id), project TEXT NOT NULL) WITHOUT ROWID;",
     ]
 }

@@ -18,15 +18,17 @@ extension DemoPanel.Sitting {
     init(_ row: PanelData.Sitting) {
         self.init(id: row.id, kind: row.council, hue: PanelFormat.hue(row.council), target: "\(row.council) sitting \(row.no)",
                   wokenBy: "", state: row.state == "running" ? "Sitting" : row.verdict ?? row.state, seats: 0,
-                  elapsed: PanelFormat.duration(from: row.started, to: row.ended), cost: PanelFormat.money(row.costUSD),
+                  elapsed: PanelFormat.duration(from: row.started, to: row.ended), cost: row.costUSD > 0 ? PanelFormat.money(row.costUSD) : DetailPage.unknownCost,
                   live: row.state == "running")
     }
 }
 
 extension DemoPanel.Finding {
     init(_ row: PanelData.Finding) {
-        self.init(id: row.id, severity: row.severity.uppercased(), place: "\(row.file):\(row.line)", claim: row.body,
-                  backers: row.backers, dissent: row.dissenters)
+        // The ledger keeps the body as JSON (evidence, fix, confidence); the card shows the parts, never the blob.
+        let body = ClaimBody(row.body)
+        self.init(id: row.id, severity: row.severity.uppercased(), place: "\(row.file):\(row.line)", claim: body.text,
+                  backers: row.backers, dissent: row.dissenters, fix: body.fix, confidence: body.confidence)
     }
 }
 

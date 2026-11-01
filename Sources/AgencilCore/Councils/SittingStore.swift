@@ -25,7 +25,8 @@ struct SittingStore {
     }
 
     /// Writes the brief, the snapshot (once per distinct packet) and the sitting's run and number in one step.
-    func open(council: String, snapshot: Snapshot, authorVendor: String, brief: String) throws -> (id: String, number: Int) {
+    func open(council: String, snapshot: Snapshot, authorVendor: String, brief: String,
+              project: String? = nil) throws -> (id: String, number: Int) {
         let id = Self.newID("sit_")
         let briefID = Self.newID("br_")
         let stamp = Self.now()
@@ -42,6 +43,7 @@ struct SittingStore {
                 INSERT INTO sittings (id, no, council, state, round, author_vendor, snapshot_id, created_at, repo)
                 VALUES (?, ?, ?, 'running', 'blind', ?, ?, ?, ?);
                 """, [id, String(number), council, authorVendor, snapshot.id, stamp, snapshot.repo])
+            if let project { try ledger.run("INSERT INTO run_origins (run_id, project) VALUES (?, ?);", [id, project]) }
             return (id, number)
         }
     }

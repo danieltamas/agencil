@@ -180,6 +180,7 @@ public final class Broker: @unchecked Sendable {
             case "wake": return wake(request, peer: peer, peerStart: peerStart)
             case "triggers": return try triggersOp()
             case "panel": return try panelOp()
+            case "detail": return try detailOp(request)
             case "tick":
                 guard environment["AGENCIL_TEST_SEAMS"] == "1" else { return Self.failure("unknown op tick", exit: 64) }
                 let now = (request["now"] as? String).flatMap { ISO8601DateFormatter().date(from: $0) } ?? Date()

@@ -60,3 +60,27 @@ enum SittingPrompt {
 
     static func retry(_ prompt: String, error: String) -> String { prompt + "\nRETRY: 1\nERROR: \(error)" }
 }
+
+/// The header of a round prompt read back: the ledger keeps only the prompt, so the panel recovers the round, the
+/// sitting and the change from it (the inverse of `SittingPrompt.header`).
+struct RoundPromptHeader: Equatable {
+    let round: String
+    let sitting: String
+    let changeKind: String
+    let diffRange: String?
+    let question: String
+
+    init?(prompt: String) {
+        guard prompt.hasPrefix("ROUND: ") else { return nil }
+        let lines = prompt.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        func field(_ name: String) -> String? { lines.first { $0.hasPrefix(name + ": ") }.map { String($0.dropFirst(name.count + 2)) } }
+        guard let round = field("ROUND"), let sitting = field("SITTING"), let marker = lines.firstIndex(of: "QUESTION:") else { return nil }
+        self.round = round
+        self.sitting = sitting
+        changeKind = field("CHANGE KIND") ?? ""
+        diffRange = field("DIFF RANGE")
+        // The question runs to the answer format or the evidence block that every round prompt appends after a blank line.
+        let rest = lines[(marker + 1)...]
+        question = rest.prefix { !$0.hasPrefix("Answer with one JSON") }.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}

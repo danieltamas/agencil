@@ -94,7 +94,11 @@ extension Broker {
               (SELECT state FROM exchanges WHERE thread_id = t.id ORDER BY seq DESC LIMIT 1),
               (SELECT reason FROM exchanges WHERE thread_id = t.id ORDER BY seq DESC LIMIT 1),
               (SELECT ended_at FROM runs WHERE id = t.id)
-            FROM threads t ORDER BY t.created_at DESC, t.id DESC LIMIT \(Self.listLimit);
+            FROM threads t
+            -- A sitting's per-round seat exchanges are threads too; they belong to the sitting's detail, not to the direct asks.
+            WHERE NOT EXISTS (SELECT 1 FROM exchanges r WHERE r.thread_id = t.id AND r.seq = 1
+              AND r.question LIKE 'ROUND: %' AND instr(r.question, char(10) || 'SITTING: sit_') > 0)
+            ORDER BY t.created_at DESC, t.id DESC LIMIT \(Self.listLimit);
             """, []) { row -> [String: Any] in
             let raw = Ledger.text(row, 5) ?? "failed"
             let state = ["asking", "answered"].contains(raw) ? raw : "failed"

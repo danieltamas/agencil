@@ -80,6 +80,9 @@ public struct MCPServer {
         request["caller"] = caller
         if let capability = ProcessInfo.processInfo.environment["AGENCIL_CAP"], !capability.isEmpty { request["cap"] = capability }
         if let thread = arguments["thread"] ?? arguments["sitting"] { request["id"] = thread }
+        if tool.brokerOp == "ask" || tool.brokerOp == "wake", let project = ProjectLabel.label(cwd: FileManager.default.currentDirectoryPath) {
+            request["project"] = project
+        }
         do {
             let reply = try BrokerClient(home: home).send(request)
             if reply["ok"] as? Bool == true {

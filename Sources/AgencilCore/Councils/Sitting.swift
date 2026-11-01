@@ -77,7 +77,8 @@ extension Broker {
             let brief = ["change_kind: \(kind)", "question: \(question)", request["diff"].flatMap { $0 as? String }.map { "diff: \($0)" },
                          "author_vendor: \(author)",
                          seatsLine, capLine].compactMap { $0 }.joined(separator: "\n") + "\n"
-            let opened = try sittingRows.open(council: council.name, snapshot: snapshot, authorVendor: author, brief: brief)
+            let opened = try sittingRows.open(council: council.name, snapshot: snapshot, authorVendor: author, brief: brief,
+                                              project: ProjectLabel.clean(request["project"]))
             let sitting = SittingRun(id: opened.id, number: opened.number, council: council, config: config, route: councilRoute,
                                      caller: caller, parent: parent, snapshot: snapshot, changeKind: kind,
                                      diffRange: request["diff"] as? String, question: question, authorVendor: author, slots: slots,

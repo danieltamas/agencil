@@ -160,6 +160,24 @@ Meaning hues (`Theme.color(for:)`, the only place hex appears outside `Palette`)
 | Count or state label | `Chip(style:)` | Colored text |
 | Live state | `PulseDot` (Core Animation) | SwiftUI repeat animations |
 
+### State colour
+
+Every card carries the glow bar on its left edge in its state colour, finished or not. One function chooses it,
+`PanelTone` (`Store/PanelTone.swift`); a row never picks a colour itself.
+
+| State | Signal |
+|-------|--------|
+| asking, running, sitting, pending | `running` (blue) |
+| answered, PASS, done, confirmed | `ok` (green) |
+| failed, BLOCK, dismissed | `crit` (red) |
+| stopped, INCOMPLETE, busy, needs you | `warn` (orange) |
+| anything else | `unknown` (grey) |
+| severity p0, p1 | `crit` |
+| severity p2 | `warn` |
+| severity p3 and lower | `unknown` |
+
+The Seats row keeps its own band: `ok` while the seat can sit, `crit` when it cannot.
+
 ## Panel
 
 `MenuBarExtra`, `.window` style, `Size.panelWidth`. From top to bottom:
@@ -189,6 +207,16 @@ Meaning hues (`Theme.color(for:)`, the only place hex appears outside `Palette`)
    - `AppControls` (Restart, Quit).
 
 Tabs:
+Under the tab island, one muted line says what the open tab is. Pressing a Thread, Sitting or Finding row pushes a
+detail screen into the panel itself (a back chip, no window): the header and footer stay. A figure the ledger does
+not hold reads `unknown`, never a guess.
+- A **Thread** detail shows who asked and from which project, the seat and its model and harness, response time,
+  tokens and cost, then the whole exchange: each question, each answer, the reason when it failed.
+- A **Sitting** detail shows the brief, the verdict and its reasons, each seat's vote, every round with each seat's
+  answer (and its time, cost and model), the claims, and the snapshot id. A seat's answer that is JSON is shown as
+  labelled lines; raw JSON never reaches the UI.
+- A sitting's per-round seat exchanges are stored as threads but belong to their sitting: the Threads list shows only
+  direct asks.
 - **Threads**: one-seat asks between agents. Each row shows:
   - The caller glyph, an arrow, the target seat.
   - The first line of the question and the state (`asking`, `answered 41s`, `failed: reason`).

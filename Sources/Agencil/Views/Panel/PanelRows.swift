@@ -3,12 +3,13 @@ import SwiftUI
 /// The rows of each tab. Each row is a `HoverCard`; text follows the 404 pt rules in docs/DESIGN.md.
 struct ThreadRow: View {
     let thread: DemoPanel.Thread
+    var open: () -> Void = {}
 
     var body: some View {
-        HoverCard(accent: thread.failed ? Theme.crit : thread.live ? Theme.running : nil, action: {}) {
+        let tone = Theme.color(for: PanelTone.signal(state: thread.status))
+        HoverCard(accent: tone, action: open) {
             HStack(spacing: Space.l) {
-                GlyphDisc(symbol: thread.failed ? "exclamationmark" : thread.live ? "ellipsis" : "checkmark",
-                          color: thread.failed ? Theme.crit : thread.live ? Theme.running : Theme.ok)
+                GlyphDisc(symbol: thread.failed ? "exclamationmark" : thread.live ? "ellipsis" : "checkmark", color: tone)
                 VStack(alignment: .leading, spacing: Space.xxs) {
                     HStack(spacing: Space.s) {
                         Text(thread.caller).font(.house.meta)
@@ -31,10 +32,10 @@ struct SittingRow: View {
     var stop: (() async -> Void)?
     var open: () -> Void = {}
 
-    private var tone: Signal { sitting.state == "BLOCK" ? .crit : sitting.state == "PASS" ? .ok : .running }
+    private var tone: Signal { PanelTone.signal(state: sitting.state) }
 
     var body: some View {
-        HoverCard(accent: Theme.councilHue(sitting.hue), action: open) {
+        HoverCard(accent: Theme.color(for: tone), action: open) {
             VStack(alignment: .leading, spacing: Space.s) {
                 HStack(spacing: Space.s) {
                     Chip(text: sitting.kind, color: Theme.councilHue(sitting.hue))
@@ -65,21 +66,27 @@ struct FindingRow: View {
     var confirm: (() async -> Void)?
     var dismiss: (() async -> Void)?
     var adjudicate: (() async -> Void)?
+    var open: (() -> Void)?
 
-    private var tone: Signal { finding.severity == "P1" ? .crit : finding.severity == "P2" ? .warn : .unknown }
+    private var tone: Signal { PanelTone.signal(severity: finding.severity) }
 
     var body: some View {
-        HoverCard(accent: Theme.color(for: tone), action: nil) {
+        HoverCard(accent: Theme.color(for: tone), action: open) {
             VStack(alignment: .leading, spacing: Space.s) {
                 HStack(spacing: Space.s) {
                     Chip(text: finding.severity, color: Theme.color(for: tone))
                     Text(finding.place).font(.house.mono).foregroundStyle(Theme.textSecondary).lineLimit(1).truncationMode(.middle)
                     Spacer(minLength: 0)
+                    if let confidence = finding.confidence { Text(confidence).font(.house.meta).foregroundStyle(Theme.textTertiary) }
                     if finding.dissent > 0 { Chip(text: "minority", color: Theme.warn, style: .outline) }
                 }
                 Text(finding.claim).font(.house.body).foregroundStyle(Theme.textPrimary).fixedSize(horizontal: false, vertical: true)
+                if let fix = finding.fix {
+                    Text("Fix: " + fix).font(.house.meta).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+                }
                 HStack(spacing: Space.s) {
-                    Text("\(finding.backers) back, \(finding.dissent) dissent").font(.house.meta).foregroundStyle(Theme.textTertiary)
+                    Text(finding.voices ?? "\(finding.backers) back, \(finding.dissent) dissent").font(.house.meta).foregroundStyle(Theme.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
                     if let confirm, let dismiss {
                         if let adjudicate {

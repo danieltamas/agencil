@@ -85,7 +85,8 @@ extension Broker {
                     throw Refusal(exit: 3, message: "refused: ancestry unknown")
                 }
                 return try run(resolved, caller: caller, chain: chain, parent: parent, requested: target, question: question, files: files,
-                               repo: repo, thread: existing, limits: config.limits, wait: waitSeconds(request))
+                               repo: repo, thread: existing, limits: config.limits, wait: waitSeconds(request),
+                               project: ProjectLabel.clean(request["project"]))
             } catch {
                 if let held = resolved.admitted { abandon(held) }
                 throw error
@@ -132,12 +133,12 @@ extension Broker {
 
     func run(_ resolved: Resolved, caller: String, chain: [String], parent: CapabilityRun?, requested: String, question: String,
                      files: [(path: String, text: String)], repo: String?, thread existing: ThreadRecord?, limits: Limits,
-                     wait: Int, placeWait: Int? = nil, snapshot: Snapshot? = nil, verbatim: Bool = false,
+                     wait: Int, placeWait: Int? = nil, snapshot: Snapshot? = nil, verbatim: Bool = false, project: String? = nil,
                      isOver:  () -> Bool = { false }) throws -> [String: Any] {
         guard let admitted = resolved.admitted else { throw Failure(message: "the ask was not admitted") }
         try awaitSeat(admitted, limits: limits, wait: placeWait ?? wait, cancelled: isOver)
         let thread = try existing ?? threads.createThread(requested: requested, seat: resolved.seat.name, caller: caller,
-                                                         substituted: resolved.substituted)
+                                                         substituted: resolved.substituted, project: project)
         guard let (exchange, transcript) = try threads.beginExchange(thread: thread.id, question: question, chain: chain) else {
             throw Failure(message: "thread \(thread.id) is still waiting for an answer")
         }

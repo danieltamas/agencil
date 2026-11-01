@@ -25,7 +25,7 @@ public struct CommandLineTool: Sendable {
         "status": Spec(positionals: 1...1), "stop": Spec(positionals: 1...1),
         "budgets": Spec(positionals: 0...0),
         "seats": Spec(positionals: 0...2, valued: ["--preset"]), "councils": Spec(positionals: 0...0), "triggers": Spec(positionals: 0...0),
-        "panel": Spec(positionals: 0...0), "routes": Spec(positionals: 0...0),
+        "panel": Spec(positionals: 0...0), "detail": Spec(positionals: 1...1), "routes": Spec(positionals: 0...0),
         "harnesses": Spec(positionals: 0...0, switches: ["--json", "--probe"]), "models": Spec(positionals: 0...0),
         "preflight": Spec(positionals: 0...0, valued: ["--seats"], switches: ["--json", "--probe"]),
         "data": Spec(positionals: 0...0), "prune": Spec(positionals: 0...0),
@@ -94,6 +94,7 @@ public struct CommandLineTool: Sendable {
         var request: [String: Any] = ["op": verb, "caller": "owner"]
         // A seat's capability, when this process was started by one; the broker judges it against the process tree.
         if let capability = environment["AGENCIL_CAP"], !capability.isEmpty { request["cap"] = capability }
+        if verb == "ask" || verb == "wake", let project = ProjectLabel.label(cwd: FileManager.default.currentDirectoryPath) { request["project"] = project }
         if let wait = parsed.value("--wait") {
             guard let seconds = Int(wait), (0...3600).contains(seconds) else { throw Usage(message: "--wait takes whole seconds") }
             request["wait_seconds"] = seconds
@@ -123,7 +124,7 @@ public struct CommandLineTool: Sendable {
                 guard let seconds = Int(cap) else { throw Usage(message: "--cap takes a whole number of seconds") }
                 request["cap_seconds"] = seconds
             }
-        case "result", "status", "stop", "adjudicate":
+        case "result", "status", "stop", "adjudicate", "detail":
             request["id"] = parsed.positionals[0]
         case "dispose":
             guard ["confirm", "dismiss", "will-fix"].contains(parsed.positionals[1]) else {

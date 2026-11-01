@@ -96,12 +96,17 @@ struct LinkButton: View {
 struct ChipButton: View {
     let title: String
     var destructive = false
+    var symbol: String?
     let action: () -> Void
 
     var body: some View {
         let tint = destructive ? Theme.crit : Theme.textPrimary
         Button(action: action) {
-            Text(title).font(.house.control).foregroundStyle(tint).lineLimit(1)
+            HStack(spacing: Space.xs) {
+                if let symbol { Image(systemName: symbol).font(.house.badge) }
+                Text(title).font(.house.control).lineLimit(1)
+            }
+                .foregroundStyle(tint)
                 .padding(.horizontal, 11)
                 .frame(height: Size.control)
                 .background(tint.opacity(destructive ? 0.12 : Theme.opacity.wash), in: Capsule())

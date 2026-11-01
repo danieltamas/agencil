@@ -2,12 +2,22 @@ import AgencilCore
 import Foundation
 /// Made-up panel content for the preview and the screenshots; the live store replaces it in U8.
 enum DemoPanel {
-    struct Thread: Identifiable { let id: String; let caller: String; let seat: String; let question: String; let state: String; let live: Bool; let failed: Bool }
+    struct Thread: Identifiable {
+        let id: String; let caller: String; let seat: String; let question: String; let state: String; let live: Bool; let failed: Bool
+        /// The state word `PanelTone` colours: a stop is not a fault, so it reads orange.
+        var status: String { live ? "asking" : failed ? (state.contains("stopped") ? "stopped" : "failed") : "answered" }
+    }
     struct Sitting: Identifiable {
         let id: String; let kind: String; let hue: Int; let target: String; let wokenBy: String
         let state: String; let seats: Int; let elapsed: String; let cost: String; let live: Bool
     }
-    struct Finding: Identifiable { let id: String; let severity: String; let place: String; let claim: String; let backers: Int; let dissent: Int }
+    struct Finding: Identifiable, Equatable {
+        let id: String; let severity: String; let place: String; let claim: String; let backers: Int; let dissent: Int
+        /// The seat's proposed fix and its own confidence (`95%`), parsed from the claim body; nil when it gave none.
+        var fix: String? = nil; var confidence: String? = nil
+        /// Who backed and who disputed it, by seat name, when the sitting detail knows.
+        var voices: String? = nil
+    }
     struct SeatRow: Identifiable {
         let id: String; let model: String; let up: Bool; let confirmed: String; let coverage: String
         let cost: String; let median: String; let overlap: String; let enough: Bool
@@ -28,8 +38,8 @@ enum DemoPanel {
         Sitting(id: "s3", kind: "Plan", hue: 1, target: "Move sessions to Redis", wokenBy: "jonas", state: "PASS", seats: 3, elapsed: "3m 44s", cost: "$0.61", live: false),
     ]
     static let findings = [
-        Finding(id: "f1", severity: "P1", place: "src/charge.ts:88", claim: "The retry re-sends the idempotency key with a new body, so a second charge can pass.", backers: 3, dissent: 0),
-        Finding(id: "f2", severity: "P2", place: "api/orders.rs:140", claim: "Pagination cursor is not bound to the caller, so a cursor from another tenant is accepted.", backers: 2, dissent: 1),
+        Finding(id: "f1", severity: "P1", place: "src/charge.ts:88", claim: "The retry re-sends the idempotency key with a new body, so a second charge can pass.", backers: 3, dissent: 0, fix: "Derive the idempotency key from the order id and keep the first body.", confidence: "95%"),
+        Finding(id: "f2", severity: "P2", place: "api/orders.rs:140", claim: "Pagination cursor is not bound to the caller, so a cursor from another tenant is accepted.", backers: 2, dissent: 1, fix: "Sign the cursor with the tenant id and reject a mismatch.", confidence: "80%"),
         Finding(id: "f3", severity: "P3", place: "web/Cart.tsx:31", claim: "The total is formatted before the currency is known.", backers: 2, dissent: 0),
     ]
     static let seatRows = [
@@ -86,7 +96,7 @@ extension DemoPanel {
                 ["id": "s2", "no": 213, "council": "security", "state": "BLOCK", "round": "verdict", "started": stamp(-3600), "ended": stamp(-3238),
                  "cost_usd": 1.1, "verdict": "BLOCK"],
             ],
-            "findings": findings.map { ["id": $0.id, "severity": $0.severity.lowercased(), "file": String($0.place.split(separator: ":")[0]), "line": Int($0.place.split(separator: ":")[1]) ?? 1, "body": $0.claim,
+            "findings": findings.map { ["id": $0.id, "severity": $0.severity.lowercased(), "file": String($0.place.split(separator: ":")[0]), "line": Int($0.place.split(separator: ":")[1]) ?? 1, "body": ledgerBody($0),
                                          "backers": $0.backers, "dissenters": $0.dissent, "minority": $0.dissent > 0, "disposition": "open"] },
             "proposals_pending": 1, "week": ["spend_usd": 6.4, "budget_usd": 20], "live": live ? 2 : 0,
         ]
