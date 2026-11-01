@@ -20,12 +20,25 @@ import Testing
 
     @Test func removeSeatIsRefusedWhileAnythingNamesIt() throws {
         let rig = try rig()
-        for name in ["a", "b", "c", "d"] {
+        // Council membership alone no longer blocks a delete (see SettingsSeatRemovalTests); these still do.
+        let reasons = ["a": "council panel would be left with no seat",
+                       "b": "seat b is used by route owner to panel (fallback)",
+                       "c": "seat c is used by council panel (synthesizer)",
+                       "d": "seat d is used by alias nick"]
+        for (name, reason) in reasons.sorted(by: { $0.key < $1.key }) {
             let before = try rig.bytes()
             do { try rig.editor.remove(seat: name); Issue.record("\(name) was removed") }
-            catch let error as SheetProblems { #expect(error.fields["form"]?.contains("seat \(name) is used by") == true) }
+            catch let error as SheetProblems { #expect(error.fields["form"]?.contains(reason) == true) }
             #expect(try rig.bytes() == before)
         }
+    }
+
+    @Test func removeSeatThatOnlyHoldsASpareSlotIsAllowed() throws {
+        let rig = try rig()
+        _ = try rig.store.update { $0["routes"] = "[]" }
+        try rig.editor.remove(seat: "b")
+        let council = try #require(SeatConfig(values: try rig.store.read().values).council(named: "panel"))
+        #expect(council.seats == ["a"] && council.spares.isEmpty)
     }
 
     @Test func removeCouncilIsRefusedByTriggerAndRoute() throws {
