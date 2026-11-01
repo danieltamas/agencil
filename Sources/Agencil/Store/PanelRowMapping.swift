@@ -34,7 +34,7 @@ extension DemoPanel.SeatRow {
     init(_ row: PanelData.SeatItem) {
         // A fresh standing that names a failure settles it; `busy` says nothing about the seat itself.
         let failed = row.reason.map { $0 != "ok" && $0 != "busy" } ?? false
-        let down = !row.up || failed
+        let down = !row.up
         self.init(id: row.name, model: row.model, up: !down, confirmed: "n=0, too few", coverage: "n=0, too few",
                   cost: "-", median: "-", overlap: "no overlap data yet", enough: false, vendor: row.vendor,
                   harness: row.harness, plan: row.plan, reason: down ? (failed ? row.standing : "harness not installed") : "")

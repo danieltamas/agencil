@@ -19,6 +19,8 @@ extension Broker {
                                            "thinking": thinking.contains(seat.name), "plan": seat.plan.rawValue, "standing": "not probed",
                                            "harness": seat.harness, "vendor": seat.vendor]
                 if let standing = try preflights.fresh(seat, insideLock: true) {
+                    // A fresh failed preflight takes the seat down; `busy` says nothing about the seat itself.
+                    if standing.reason != .ok, standing.reason != .busy { item["up"] = false }
                     item["standing"] = standing.display
                     item["reason"] = standing.reason.rawValue
                     item["probed_ago"] = Date().timeIntervalSince(standing.probedAt)

@@ -29,10 +29,11 @@ struct SeatForm {
 struct CouncilForm { var name = "", seats: [String] = [], rule = "majority", quorum = "", spare: [String] = [], synthesizer: [String] = [] }
 struct RouteForm { var callers = "", target = "", hops = "" }
 
-/// What an Edit sheet changes: a seat or council by its name, a route by its place in the list and what it was
-/// when the sheet opened (a route has no name).
+/// What an Edit sheet changes and what it was when the sheet opened, so a save refuses a file that changed since.
+/// A seat or council is found by `was.name`; a route has no name, so it also carries its place in the list.
 enum EditTarget: Equatable {
-    case named(String)
+    case seat(was: SeatDraft)
+    case council(was: CouncilDraft)
     case route(index: Int, was: RouteDraft)
 }
 
@@ -45,6 +46,8 @@ enum EditTarget: Equatable {
     private(set) var seatInfos: [SeatInfo] = []
     private(set) var councilRows: [DemoPanel.ListRow] = []
     private(set) var routeRows: [DemoPanel.ListRow] = []
+    /// The routes as the list shows them, in order: an Edit press must find the same route in the file.
+    @ObservationIgnored private(set) var shownRoutes: [RouteDraft] = []
     private(set) var seatNames: [String] = []
     private(set) var targets: [String] = []
     private(set) var access: [String: AccessState] = [:]
@@ -146,6 +149,7 @@ enum EditTarget: Equatable {
             configProblem = nil
             seatInfos = config.seats.map { SeatInfo(id: $0.name, vendor: $0.vendor, harness: $0.harness, model: $0.model, plan: $0.plan.rawValue) }
             councilRows = config.councils.map { DemoPanel.ListRow(name: $0.name, detail: "\($0.seats.count) seats, \($0.rule.rawValue)", up: true) }
+            shownRoutes = (try? ConfigEditor.drafts(in: values).routes) ?? []
             routeRows = config.routes.map { DemoPanel.ListRow(name: $0.callers.joined(separator: ", ") + " to " + $0.target,
                                                               detail: "hop limit \($0.hopLimit)", up: true) }
             seatNames = config.seats.map(\.name)
@@ -164,6 +168,12 @@ enum EditTarget: Equatable {
         }
         refreshWiring()
         probeSocket()
+    }
+
+    /// The pressed row is no longer what the file holds: show the list as it is now and say why nothing opened.
+    func changedSinceShown() {
+        reload()
+        configProblem = "The config changed since this list was shown; it is refreshed. Open the row again."
     }
 
     /// A connect and an immediate close: cheap, and the broker treats it as a client that said nothing.
@@ -225,13 +235,13 @@ enum EditTarget: Equatable {
                 let draft = SeatDraft(name: seatForm.name, harness: seatForm.harness, model: seatForm.model,
                                          endpoint: seatForm.endpoint, pin: seatForm.pin, capSeconds: cap,
                                          vendor: seatForm.vendor, plan: seatForm.plan, hosted: seatForm.hosted, role: seatForm.role)
-                if case .named(let old) = editing { try editor.update(seat: old, with: draft) } else { try editor.add(draft) }
+                if case .seat(let was) = editing { try editor.update(seat: was.name, was: was, with: draft) } else { try editor.add(draft) }
             case .council:
                 let quorum = whole(councilForm.quorum, "quorum")
                 guard found.isEmpty else { throw SheetProblems(fields: found) }
                 let draft = CouncilDraft(name: councilForm.name, seats: councilForm.seats, rule: councilForm.rule, quorum: quorum,
                                          spare: councilForm.spare, synthesizer: councilForm.synthesizer)
-                if case .named(let old) = editing { try editor.update(council: old, with: draft) } else { try editor.add(draft) }
+                if case .council(let was) = editing { try editor.update(council: was.name, was: was, with: draft) } else { try editor.add(draft) }
             case .route:
                 let hops = whole(routeForm.hops, "hopLimit")
                 guard found.isEmpty else { throw SheetProblems(fields: found) }

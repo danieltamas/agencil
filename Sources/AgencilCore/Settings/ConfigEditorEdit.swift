@@ -5,11 +5,13 @@ import Foundation
 extension ConfigEditor {
     // MARK: update and remove
 
-    /// Replaces seat `old` with `draft`. A rename that a council, route or alias still names is refused.
+    /// Replaces seat `old` with `draft`. A rename that a council, route, budget or alias still names is refused. `was`, when
+    /// given, is what the sheet opened with; a seat or council changed since is refused (the same holds for councils).
     @discardableResult
-    public func update(seat old: String, with draft: SeatDraft) throws -> ConfigSnapshot {
+    public func update(seat old: String, was: SeatDraft? = nil, with draft: SeatDraft) throws -> ConfigSnapshot {
         try rewrite("seats") { list, config in
             guard let at = list.firstIndex(where: { $0["name"] as? String == old }) else { return .gone("seat \(old)") }
+            if let was, Self.seatDraft(list[at]) != was { return .gone("seat \(old)") }
             var problems = Self.problems(draft, config, replacing: old)
             if draft.name != old, let uses = Self.uses(ofSeat: old, config) { problems["name"] = "\(uses); remove those uses before renaming" }
             if problems.isEmpty { list[at] = Self.object(draft, over: list[at]) }
@@ -28,9 +30,10 @@ extension ConfigEditor {
     }
 
     @discardableResult
-    public func update(council old: String, with draft: CouncilDraft) throws -> ConfigSnapshot {
+    public func update(council old: String, was: CouncilDraft? = nil, with draft: CouncilDraft) throws -> ConfigSnapshot {
         try rewrite("councils") { list, config in
             guard let at = list.firstIndex(where: { $0["name"] as? String == old }) else { return .gone("council \(old)") }
+            if let was, Self.councilDraft(list[at]) != was { return .gone("council \(old)") }
             var problems = Self.problems(draft, config, replacing: old)
             if draft.name != old, let uses = Self.uses(ofCouncil: old, config) { problems["name"] = "\(uses); remove those uses before renaming" }
             if problems.isEmpty { list[at] = Self.object(draft, over: list[at]) }
@@ -73,7 +76,11 @@ extension ConfigEditor {
 
     /// The seats, councils and routes as the file holds them now, for the sheets to open pre-filled.
     public func current() throws -> (seats: [SeatDraft], councils: [CouncilDraft], routes: [RouteDraft]) {
-        let values = try read().values
+        try Self.drafts(in: try read().values)
+    }
+
+    /// The same from values already read, so a list shown and the drafts bound to it come from one read.
+    public static func drafts(in values: [String: String]) throws -> (seats: [SeatDraft], councils: [CouncilDraft], routes: [RouteDraft]) {
         do {
             let seats = try SeatConfig.array(values["seats"], "seats").map(Self.seatDraft)
             let councils = try SeatConfig.array(values["councils"], "councils").map(Self.councilDraft)
@@ -102,7 +109,9 @@ extension ConfigEditor {
     private static func route(in list: [[String: Any]], at index: Int) -> RouteDraft? {
         guard list.indices.contains(index), let callers = list[index]["callers"] as? [String],
               let target = list[index]["target"] as? String else { return nil }
-        return RouteDraft(callers: callers, target: target, hopLimit: SeatConfig.whole(list[index]["hop_limit"]))
+        return RouteDraft(callers: callers, target: target, hopLimit: SeatConfig.whole(list[index]["hop_limit"]),
+                         residency: list[index]["residency"] as? String, requires: list[index]["requires"] as? [String] ?? [],
+                         fallbacks: list[index]["fallbacks"] as? [String] ?? [])
     }
 
     // MARK: what still uses a name
@@ -117,13 +126,21 @@ extension ConfigEditor {
         }
         for route in config.routes where route.target == name { users.append("route \(route.callers.joined(separator: ", ")) to \(name) (target)") }
         for route in config.routes where route.fallbacks.contains(name) { users.append("route \(route.callers.joined(separator: ", ")) to \(route.target) (fallback)") }
+        for route in config.routes where route.callers.contains(name) { users.append("route \(route.callers.joined(separator: ", ")) to \(route.target) (caller)") }
+        users += budgetUses(of: name, config)
         for (alias, seat) in config.aliases.sorted(by: { $0.key < $1.key }) where seat == name { users.append("alias \(alias)") }
         return users.isEmpty ? nil : "seat \(name) is used by \(users.joined(separator: ", "))"
+    }
+
+    /// A route-scoped budget is keyed by the seat or council a route reaches.
+    private static func budgetUses(of name: String, _ config: SeatConfig) -> [String] {
+        config.budgets.filter { $0.scope == .route && $0.key == name }.map { "budget \($0.name)" }
     }
 
     private static func uses(ofCouncil name: String, _ config: SeatConfig) -> String? {
         var users = config.triggers.filter { $0.council == name }.map { "trigger \($0.name)" }
         users += config.routes.filter { $0.target == name }.map { "route \($0.callers.joined(separator: ", ")) to \(name) (target)" }
+        users += budgetUses(of: name, config)
         return users.isEmpty ? nil : "council \(name) is used by \(users.joined(separator: ", "))"
     }
 

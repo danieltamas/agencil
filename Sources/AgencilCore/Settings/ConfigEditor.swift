@@ -9,7 +9,7 @@ public struct SheetProblems: Error, Equatable, Sendable {
     static func form(_ message: String) -> SheetProblems { SheetProblems(fields: ["form": message]) }
 }
 
-public struct SeatDraft: Sendable {
+public struct SeatDraft: Equatable, Sendable {
     public var name: String
     public var harness: String
     public var model: String
@@ -38,7 +38,7 @@ public struct SeatDraft: Sendable {
     }
 }
 
-public struct CouncilDraft: Sendable {
+public struct CouncilDraft: Equatable, Sendable {
     public var name: String
     public var seats: [String]
     public var rule: String
@@ -62,11 +62,19 @@ public struct RouteDraft: Equatable, Sendable {
     public var callers: [String]
     public var target: String
     public var hopLimit: Int?
+    /// The keys the sheet has no field for. They are read so that `was` is the complete route, and an update keeps them.
+    public var residency: String?
+    public var requires: [String]
+    public var fallbacks: [String]
 
-    public init(callers: [String], target: String, hopLimit: Int? = nil) {
+    public init(callers: [String], target: String, hopLimit: Int? = nil, residency: String? = nil, requires: [String] = [],
+                fallbacks: [String] = []) {
         self.callers = callers
         self.target = target
         self.hopLimit = hopLimit
+        self.residency = residency
+        self.requires = requires
+        self.fallbacks = fallbacks
     }
 }
 
