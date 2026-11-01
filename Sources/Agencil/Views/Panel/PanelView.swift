@@ -167,7 +167,9 @@ struct PanelView: View {
             default:
                 let items = store.seats(search: search)
                 if items.isEmpty { EmptyState(symbol: "person.2.wave.2", title: "No seats configured", detail: "Add a seat in Settings to start.") }
-                ForEach(items) { SeatScoreRow(seat: $0) }
+                ForEach(items) { item in
+                    SeatScoreRow(seat: item, open: { store.open(seat: item.id); AppRelaunch.activate(); openSettings() })
+                }
             }
         }
     }

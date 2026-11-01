@@ -64,6 +64,8 @@ enum Size {
     static let bentoSide: CGFloat = 140
     static let bentoRing: CGFloat = 96
     static let sidebarGlyph: CGFloat = 24
+    /// A vendor's mark beside a seat name.
+    static let vendorMark: CGFloat = 16
     /// The icon on a More apps card, and the one beside the About version line.
     static let paragraph: CGFloat = 360
     /// The wrapping text of a row that shares its line with a state chip and a button.

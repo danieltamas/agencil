@@ -204,7 +204,9 @@ Tabs:
   - Presses: Confirm, Dismiss, Will fix.
   - Outcomes from git attach as chips: `fixed in a1b2c3`, `reverted`, `unresolved 30d`.
 - **Seats**: the scoreboard, with change-kind filter chips (All, Auth, Schema, UI, Refactor, Infra). Each row shows:
-  - Health, model and version.
+  - The vendor mark (`VendorMark`, a template tinted with a theme token), the seat name, and health as the accent band alone (no dot).
+  - The full model id on its own line, wrapping, never cut; under it the harness, the plan and `alias` when the id is a short name. When the seat is down, its preflight reason in plain words (`usage limit until Nov 3`).
+  - A click opens Settings > Seats with that seat marked.
   - Confirmed share and coverage, each with an interval; golden recall when the seat has golden-set runs (definitions in `docs/PLAN.md` U11; nothing outside the golden set is called recall).
   - Cost per confirmed finding, median time, the strongest overlap (`92% like kimi-k2`), and probation status.
   - A cell under the minimum count is grey and reads `n=7, too few`.

@@ -39,6 +39,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
 struct SettingsView: View {
     let store: SettingsStore
     @State private var pane: SettingsPane
+    private let route = SettingsRoute.shared
 
     init(store: SettingsStore, pane: SettingsPane = .general) {
         self.store = store
@@ -61,6 +62,9 @@ struct SettingsView: View {
         .frame(minWidth: Size.settingsMin.width, minHeight: Size.settingsMin.height)
         .background(Backdrop())
         .houseScheme()
+        // A seat row on the panel asks for its detail: the Seats pane, with that seat marked.
+        .onAppear { if route.claim() { pane = .seats } }
+        .onChange(of: route.pending) { _, waiting in if waiting, route.claim() { pane = .seats } }
     }
 
     private var sidebar: some View {

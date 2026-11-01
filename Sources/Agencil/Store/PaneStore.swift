@@ -10,7 +10,15 @@ import Observation
     struct BudgetRow: Identifiable { let id: String; let detail: String }
     struct Target: Identifiable { let id: String; let folder: String; let enabled: Bool }
 
+    /// The last preflight of one seat, in the panel's words: what the Seats pane shows and Re-check replaces.
+    struct SeatStanding: Equatable {
+        let text: String; let ok: Bool; let detail: String; let age: String?
+        /// `usage limit until Nov 3, checked 12s ago`.
+        var line: String { text + (age.map { ", checked \($0)" } ?? "") }
+    }
+
     private(set) var harnesses: [Harness] = []
+    private(set) var standings: [String: SeatStanding] = [:]
     private(set) var models: [Model] = []
     private(set) var budgets: [BudgetRow] = []
     private(set) var retentionDays = ""
@@ -36,6 +44,18 @@ import Observation
         self.client = client
         editor = directory.map { ConfigEditor(directory: $0) }
         readSettings()
+    }
+
+    /// Made-up standings and harness versions for the preview and the screenshots.
+    static func demo() -> PaneStore {
+        let store = PaneStore()
+        store.harnesses = DemoPanel.harnesses.map { Harness(id: $0.name, found: $0.up, version: $0.detail, signedIn: "yes") }
+        store.standings = [
+            "codex-gpt": SeatStanding(text: "ok", ok: true, detail: "", age: "40s ago"),
+            "claude-opus": SeatStanding(text: "ok", ok: true, detail: "", age: "40s ago"),
+            "box-qwen3": SeatStanding(text: "usage limit until Nov 3, 9:00", ok: false, detail: "try again at Nov 3, 9:00", age: "12s ago"),
+        ]
+        return store
     }
 
     /// The scalar fields come from the file, not the broker, so they show even while the broker is down.
@@ -70,8 +90,45 @@ import Observation
             targets = (data["memory_targets"] as? [[String: Any]] ?? []).map {
                 Target(id: $0["repo"] as? String ?? "?", folder: $0["folder"] as? String ?? "", enabled: $0["enabled"] as? Bool == true)
             }
+            // Last, so a broker that predates the op leaves every other pane whole.
+            standings = try await Self.readStandings(client, seats: nil, probe: false).reduce(into: standings) { $0[$1.key] = $1.value }
             problem = nil
         } catch { problem = error.localizedDescription }
+    }
+
+    /// `claude 2.3.1 - subscription - alias`: the harness with its version when it is found, the plan, the alias note.
+    func seatMeta(_ harness: String, plan: String, model: String) -> String {
+        let installed = harnesses.first { $0.id == harness && $0.found && $0.version != "-" }
+        return PanelFormat.seatMeta(harness: installed.map { "\(harness) \($0.version)" } ?? harness, plan: plan, model: model)
+    }
+
+    /// Probes one seat now (an owner call) and replaces its standing with the answer.
+    func recheck(_ seat: String) async {
+        guard let client else { return }
+        do {
+            standings = try await Self.readStandings(client, seats: [seat], probe: true).reduce(into: standings) { $0[$1.key] = $1.value }
+            problem = nil
+        } catch { problem = error.localizedDescription }
+    }
+
+    private static func readStandings(_ client: PanelClient, seats: [String]?, probe: Bool) async throws -> [String: SeatStanding] {
+        var request: [String: Any] = probe ? ["probe": true] : [:]
+        if let seats { request["seats"] = seats }
+        let rows = try await client.call("preflight", request)["seats"] as? [[String: Any]] ?? []
+        return Dictionary(rows.compactMap { row -> (String, SeatStanding)? in
+            guard let name = row["name"] as? String else { return nil }
+            let reason = row["reason"] as? String ?? "not probed"
+            let age = (row["probed_ago"] as? NSNumber).map { PanelStore.age($0.doubleValue) + " ago" }
+            return (name, SeatStanding(text: standingText(reason: reason, until: row["until"] as? String), ok: reason == "ok",
+                                       detail: row["detail"] as? String ?? "", age: age))
+        }, uniquingKeysWith: { _, last in last })
+    }
+
+    /// The reason in plain words, with the reset time a usage limit came with.
+    static func standingText(reason: String, until: String?) -> String {
+        guard let known = PreflightReason(rawValue: reason) else { return "not checked" }
+        if known == .usageLimit, let until { return "usage limit until \(until)" }
+        return known.standing
     }
 
     func prune() async {
@@ -135,6 +192,7 @@ extension PaneStore {
     typealias Job = () async -> Void
 
     func begin() { Task { await refresh() } }
+    func recheckAction(seat: String) -> Job { { [self] in await recheck(seat) } }
     func recheckAction() -> Job { { [self] in await refresh(probe: true) } }
     func pruneAction() -> Job { { [self] in await prune() } }
     func previewAction() -> Job { { [self] in await preview() } }

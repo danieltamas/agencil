@@ -162,6 +162,9 @@ import SwiftUI
 
     func open(sitting id: String) { seen.insert(id) }
 
+    /// A seat row opens that seat in Settings; the caller brings the window forward.
+    func open(seat name: String) { SettingsRoute.shared.show(seat: name) }
+
     private func syncStopping(_ data: PanelData) {
         guard let control else { return }
         stopping = Set(stopping.filter { control.state(for: $0) == .stopping })

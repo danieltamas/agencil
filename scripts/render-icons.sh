@@ -28,6 +28,11 @@ mkdir -p "$out/MenuBarFrames"
 for n in $(seq 1 14); do
   rsvg-convert -f pdf "Brand/menubar-frames/$n.svg" -o "$out/MenuBarFrames/$n.pdf"
 done
+# The vendors' marks (simple-icons), drawn as templates so the app tints them. A new vendor is
+# Brand/vendors/<vendor>.svg plus one line here and one entry in Kit/VendorMark.swift.
+mkdir -p "$out/Vendors"
+rsvg-convert -f pdf Brand/vendors/claude.svg -o "$out/Vendors/claude.pdf"
+rsvg-convert -f pdf Brand/vendors/openai.svg -o "$out/Vendors/openai.pdf"
 # The backdrop mesh, at 2x the panel size.
 rsvg-convert -w 1440 Brand/mesh.svg -o "$out/mesh.png"
 ls "$out"

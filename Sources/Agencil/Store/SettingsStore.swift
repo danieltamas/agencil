@@ -39,7 +39,10 @@ enum EditTarget: Equatable {
 /// The Settings window's state: what the config holds now, the sheet forms, and the saves. Every save goes through
 /// `ConfigEditor`, which re-reads the file first; nothing here keeps a second copy of a setting.
 @MainActor @Observable final class SettingsStore {
-    private(set) var seatRows: [DemoPanel.ListRow] = []
+    /// One configured seat, as the Seats pane lists it.
+    struct SeatInfo: Identifiable { let id: String; let vendor: String; let harness: String; let model: String; let plan: String }
+
+    private(set) var seatInfos: [SeatInfo] = []
     private(set) var councilRows: [DemoPanel.ListRow] = []
     private(set) var routeRows: [DemoPanel.ListRow] = []
     private(set) var seatNames: [String] = []
@@ -94,7 +97,8 @@ enum EditTarget: Equatable {
 
     static func demo(accessOn: Bool = true) -> SettingsStore {
         let store = SettingsStore()
-        store.seatRows = DemoPanel.seatRows.map { DemoPanel.ListRow(name: $0.id, detail: $0.model, up: $0.up) }
+        store.seatInfos = DemoPanel.seatRows.map { SeatInfo(id: $0.id, vendor: $0.vendor, harness: $0.harness, model: $0.model, plan: $0.plan) }
+        store.panes = PaneStore.demo()
         store.councilRows = DemoPanel.councils
         store.routeRows = DemoPanel.routes
         store.seatNames = DemoPanel.seatRows.map(\.id)
@@ -136,7 +140,7 @@ enum EditTarget: Equatable {
             let values = try ConfigStore(directory: directory).read().values
             let config = try SeatConfig(values: values)
             configProblem = nil
-            seatRows = config.seats.map { DemoPanel.ListRow(name: $0.name, detail: "\($0.harness), \($0.model)", up: true) }
+            seatInfos = config.seats.map { SeatInfo(id: $0.name, vendor: $0.vendor, harness: $0.harness, model: $0.model, plan: $0.plan.rawValue) }
             councilRows = config.councils.map { DemoPanel.ListRow(name: $0.name, detail: "\($0.seats.count) seats, \($0.rule.rawValue)", up: true) }
             routeRows = config.routes.map { DemoPanel.ListRow(name: $0.callers.joined(separator: ", ") + " to " + $0.target,
                                                               detail: "hop limit \($0.hopLimit)", up: true) }
