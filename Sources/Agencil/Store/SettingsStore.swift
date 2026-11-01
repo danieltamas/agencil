@@ -120,12 +120,19 @@ enum EditTarget: Equatable {
         let states: [(String, Bool, InstructionState, [String])] = [
             ("claude", true, .current, ["lumen-review"]), ("codex", true, .outdated, []), ("opencode", false, .absent, []),
         ]
+        let home = NSHomeDirectory()
+        let paths = ["claude": "/.claude.json", "codex": "/.codex/config.toml", "opencode": "/.config/opencode/opencode.json"]
+        let command = home + "/.local/bin/agencil"
+        let entries = [
+            "claude": "{\"type\":\"stdio\",\"command\":\"\(command)\",\"args\":[\"mcp\",\"--caller\",\"claude\"]}",
+            "codex": "[mcp_servers.agencil]\ncommand = \"\(command)\"\nargs = [\"mcp\", \"--caller\", \"codex\"]",
+        ]
         for (harness, installed, instruction, routes) in states {
-            let state = AccessState(harness: harness, installed: installed, path: "~/.\(harness)/config",
-                                    entry: installed ? "[mcp_servers.agencil]" : nil, problem: nil)
+            let state = AccessState(harness: harness, installed: installed, path: home + (paths[harness] ?? ""),
+                                    entry: installed ? entries[harness] : nil, problem: nil)
             store.access[harness] = state
             store.wiring[harness] = Wiring(harness: harness, mcp: state, instruction: instruction, caller: harness, routes: routes,
-                                           drift: instruction == .outdated ? ["instructions outdated"] : [])
+                                           drift: instruction == .outdated ? [Wiring.instructionsOutdated] : [])
         }
         return store
     }
@@ -192,7 +199,7 @@ enum EditTarget: Equatable {
 
     /// One line for the pane: how many drift lines the harness cards carry ("access is off" is information, not drift).
     var wiringSummary: String {
-        let drifted = wiring.values.reduce(0) { $0 + $1.drift.filter { $0 != "access is off" }.count }
+        let drifted = wiring.values.reduce(0) { $0 + $1.drift.filter { $0 != Wiring.accessOff }.count }
         return drifted == 0 ? "All wired" : "\(drifted) thing\(drifted == 1 ? "" : "s") drifted"
     }
 

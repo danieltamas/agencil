@@ -50,6 +50,7 @@ struct McpInstaller {
     // MARK: file-based harnesses (codex TOML, opencode JSON)
 
     func location(_ harness: String) -> URL {
+        if harness == "claude" { return claudeConfig }
         if let base = environment["AGENCIL_MCP_CONFIG_DIR"], !base.isEmpty {
             return URL(fileURLWithPath: base).appendingPathComponent(harness == "codex" ? "codex/config.toml" : "opencode/opencode.json")
         }
