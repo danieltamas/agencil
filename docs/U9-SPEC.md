@@ -49,6 +49,21 @@ Drafts (public, `Sendable`, plain values; the sheet fills them):
   throws `AccessError(message:)` (public) and the file's bytes are unchanged.
 - Supported harnesses are those of `install-mcp` (`claude`, `codex`, `opencode`); another name throws `AccessError`.
 
+## Editing
+
+Each Settings row opens its sheet filled from `ConfigEditor.current()`; the same read, whole-config validation and
+single write as `add` apply.
+
+- `update(seat:with:)`, `update(council:with:)`, `update(routeAt:was:with:)`, `remove(seat:)`, `remove(council:)`,
+  `remove(routeAt:was:)`. A route has no name: it is the `index`th entry and `was` must still be what sits there,
+  else the call is refused (`form`) and nothing is written. Keys the sheet has no field for (price, hardening,
+  `cap.tokens`, rounds, fallbacks ...) are kept.
+- Remove is refused (`form`) while a council (seat, spare, synthesizer), route (target, fallback) or alias names a
+  seat, or a trigger or route names a council; the message says what uses it. A rename that would orphan any of
+  those is refused under `name` with the same message. Nothing is rewritten implicitly.
+- `CouncilDraft` also carries `spare` and `synthesizer` (seat names, never also in `seats`; a synthesizer is never
+  also a spare), reported under their own keys. `SeatDraft` also carries `role`.
+
 ## Acceptance (observable)
 
 - `ConfigEditor`: a valid seat, council and route sheet each produce config that `SeatConfig(values:)` accepts and a

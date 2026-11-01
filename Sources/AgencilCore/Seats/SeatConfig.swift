@@ -56,7 +56,7 @@ public struct ConfigProblem: Error, Equatable, Sendable {
 /// `seats`, `routes` and `aliases` from config.json, each one JSON text, validated as a whole.
 public struct SeatConfig: Sendable {
     public static let harnesses: Set<String> = ["claude", "codex", "opencode", "hermes", "gemini", "aider", "goose", "ollama"]
-    private static let roles: Set<String> = ["finder", "skeptic", "synthesizer", "answerer"]
+    static let roles: Set<String> = ["finder", "skeptic", "synthesizer", "answerer"]
 
     public let seats: [Seat]
     public let routes: [Route]

@@ -41,9 +41,9 @@ struct SettingsPaneView: View {
         }
         .onAppear { store.panes.begin() }
         .onChange(of: pane) { _, _ in store.panes.begin() }
-        .houseSheet(item: $store.presenting, title: { kind in kind.title }, detail: { kind in kind.detail }, footer: { kind in
+        .houseSheet(item: $store.presenting, title: { kind in store.sheetTitle(kind) }, detail: { kind in kind.detail }, footer: { kind in
             ModalFooter(secondary: .init(title: "Cancel") { store.presenting = nil },
-                        primary: .init(title: "Create") { if store.save(kind) { store.presenting = nil } })
+                        primary: .init(title: store.sheetPrimaryTitle()) { if store.save(kind) { store.presenting = nil } })
         }) { kind in NewObjectForm(store: store, kind: kind, problems: store.problems) }
     }
 
@@ -113,10 +113,16 @@ struct SettingsPaneView: View {
                 if rows.isEmpty {
                     SettingsRow(title: "Nothing yet", detail: "Create the first one with the button above.") { EmptyView() }
                 }
-                ForEach(rows) { row in
-                    if row.id != rows.first?.id { RowDivider() }
-                    SettingsRow(title: row.name, detail: row.detail) {
-                        Chip(text: row.up ? "up" : "down", color: Theme.color(for: row.up ? .ok : .crit))
+                // Offsets, not names: two routes can read the same.
+                ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                    if index > 0 { RowDivider() }
+                    PressRow(label: "Edit \(row.name)") { store.startEdit(kind, index: index) } content: {
+                        SettingsRow(title: row.name, detail: row.detail) {
+                            HStack(spacing: Space.m) {
+                                Chip(text: row.up ? "up" : "down", color: Theme.color(for: row.up ? .ok : .crit))
+                                Image(systemName: "chevron.right").font(.house.meta).foregroundStyle(Theme.textTertiary)
+                            }
+                        }
                     }
                 }
             }

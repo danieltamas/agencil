@@ -20,9 +20,11 @@ public struct SeatDraft: Sendable {
     public var vendor: String?
     public var plan: String?
     public var hosted: Bool?
+    /// finder, skeptic, synthesizer or answerer; absent, the seat answers.
+    public var role: String?
 
     public init(name: String, harness: String, model: String, endpoint: String? = nil, pin: String? = nil, capSeconds: Int? = nil,
-                vendor: String? = nil, plan: String? = nil, hosted: Bool? = nil) {
+                vendor: String? = nil, plan: String? = nil, hosted: Bool? = nil, role: String? = nil) {
         self.name = name
         self.harness = harness
         self.model = model
@@ -32,6 +34,7 @@ public struct SeatDraft: Sendable {
         self.vendor = vendor
         self.plan = plan
         self.hosted = hosted
+        self.role = role
     }
 }
 
@@ -40,16 +43,22 @@ public struct CouncilDraft: Sendable {
     public var seats: [String]
     public var rule: String
     public var quorum: Int?
+    /// Seats called in when a sitting loses one; never also in `seats`.
+    public var spare: [String]
+    /// Seats that write the closing summary; never also in `seats` or `spare`.
+    public var synthesizer: [String]
 
-    public init(name: String, seats: [String], rule: String, quorum: Int? = nil) {
+    public init(name: String, seats: [String], rule: String, quorum: Int? = nil, spare: [String] = [], synthesizer: [String] = []) {
         self.name = name
         self.seats = seats
         self.rule = rule
         self.quorum = quorum
+        self.spare = spare
+        self.synthesizer = synthesizer
     }
 }
 
-public struct RouteDraft: Sendable {
+public struct RouteDraft: Equatable, Sendable {
     public var callers: [String]
     public var target: String
     public var hopLimit: Int?
@@ -65,8 +74,8 @@ public struct RouteDraft: Sendable {
 /// config, validates the whole result and writes once, so a refused call leaves the file as it was.
 public struct ConfigEditor: Sendable {
     private static let looks: Set<String> = ["agencil", "solidGlass", "solidGlassLight"]
-    private static let name = #"\A[a-z0-9][a-z0-9-]{0,39}\z"#
-    private static let rules: Set<String> = ["any_blocker", "unanimous", "majority"]
+    static let name = #"\A[a-z0-9][a-z0-9-]{0,39}\z"#
+    static let rules: Set<String> = ["any_blocker", "unanimous", "majority"]
 
     private let store: ConfigStore
     private let beforeUpdate: (@Sendable () throws -> Void)?
@@ -81,57 +90,28 @@ public struct ConfigEditor: Sendable {
 
     @discardableResult
     public func add(_ draft: SeatDraft) throws -> ConfigSnapshot {
-        try edit("seats") { values, config in
-            var problems: [String: String] = [:]
-            if draft.name.range(of: Self.name, options: .regularExpression) == nil {
-                problems["name"] = "1 to 40 characters of a-z, 0-9 and dashes"
-            } else if Self.taken(draft.name, config) { problems["name"] = "that name is already used" }
-            if !SeatConfig.harnesses.contains(draft.harness) { problems["harness"] = "pick one of the known harnesses" }
-            if draft.model.isEmpty { problems["model"] = "a seat needs a model" }
-            if let cap = draft.capSeconds, !(1...3600).contains(cap) { problems["capSeconds"] = "1 to 3600 seconds" }
-            var object: [String: Any] = ["name": draft.name, "harness": draft.harness, "model": draft.model]
-            if let endpoint = draft.endpoint, !endpoint.isEmpty { object["endpoint"] = endpoint }
-            if let pin = draft.pin, !pin.isEmpty { object["pin"] = pin }
-            if let cap = draft.capSeconds { object["cap"] = ["seconds": cap] }
-            if let vendor = draft.vendor, !vendor.isEmpty { object["vendor"] = vendor }
-            if let plan = draft.plan, !plan.isEmpty { object["plan"] = plan }
-            if let hosted = draft.hosted { object["hosted"] = hosted }
-            return (problems, object)
+        try rewrite("seats") { list, config in
+            let problems = Self.problems(draft, config, replacing: nil)
+            if problems.isEmpty { list.append(Self.object(draft, over: [:])) }
+            return problems
         }
     }
 
     @discardableResult
     public func add(_ draft: CouncilDraft) throws -> ConfigSnapshot {
-        try edit("councils") { values, config in
-            var problems: [String: String] = [:]
-            if draft.name.range(of: Self.name, options: .regularExpression) == nil {
-                problems["name"] = "1 to 40 characters of a-z, 0-9 and dashes"
-            } else if Self.taken(draft.name, config) { problems["name"] = "that name is already used" }
-            if draft.seats.isEmpty { problems["seats"] = "a council needs seats" }
-            else if let unknown = draft.seats.first(where: { config.seat(named: $0) == nil }) { problems["seats"] = "\(unknown) is not a seat" }
-            if !Self.rules.contains(draft.rule) { problems["rule"] = "any_blocker, unanimous or majority" }
-            if let quorum = draft.quorum, !(1...max(draft.seats.count, 1)).contains(quorum) || draft.seats.isEmpty {
-                problems["quorum"] = "1 to the number of seats"
-            }
-            var object: [String: Any] = ["name": draft.name, "seats": draft.seats, "rule": draft.rule]
-            if let quorum = draft.quorum { object["quorum"] = quorum }
-            return (problems, object)
+        try rewrite("councils") { list, config in
+            let problems = Self.problems(draft, config, replacing: nil)
+            if problems.isEmpty { list.append(Self.object(draft, over: [:])) }
+            return problems
         }
     }
 
     @discardableResult
     public func add(_ draft: RouteDraft) throws -> ConfigSnapshot {
-        try edit("routes") { values, config in
-            var problems: [String: String] = [:]
-            if draft.callers.isEmpty || draft.callers.contains(where: \.isEmpty) { problems["callers"] = "a route needs callers" }
-            if draft.target.isEmpty { problems["target"] = "a route needs a target" }
-            else if config.seat(named: config.resolveName(draft.target)) == nil, !config.councils.contains(where: { $0.name == draft.target }) {
-                problems["target"] = "the target is not a seat, an alias or a council"
-            }
-            if let hops = draft.hopLimit, !(1...4).contains(hops) { problems["hopLimit"] = "1 to 4" }
-            var object: [String: Any] = ["callers": draft.callers, "target": draft.target]
-            if let hops = draft.hopLimit { object["hop_limit"] = hops }
-            return (problems, object)
+        try rewrite("routes") { list, config in
+            let problems = Self.problems(draft, config)
+            if problems.isEmpty { list.append(Self.object(draft, over: [:])) }
+            return problems
         }
     }
 
@@ -194,18 +174,17 @@ public struct ConfigEditor: Sendable {
         config.seat(named: name) != nil || config.aliases[name] != nil || config.councils.contains { $0.name == name }
     }
 
-    /// Reads, checks the draft's fields, appends its object to `key`'s array and validates the whole config.
-    private func edit(_ key: String,
-                      _ build: ([String: String], SeatConfig) -> (problems: [String: String], object: [String: Any])) throws -> ConfigSnapshot {
+    /// Reads, lets `change` check the draft and edit `key`'s array (it returns the problems it found, none when it
+    /// changed the list), validates the whole config and writes once.
+    func rewrite(_ key: String, _ change: (inout [[String: Any]], SeatConfig) -> [String: String]) throws -> ConfigSnapshot {
         let snapshot = try read()
         let config: SeatConfig
         do { config = try SeatConfig(values: snapshot.values) } catch let problem as ConfigProblem {
             throw SheetProblems.form(problem.message)
         }
-        let (problems, object) = build(snapshot.values, config)
-        guard problems.isEmpty else { throw SheetProblems(fields: problems) }
         var list = try SeatConfig.array(snapshot.values[key], key)
-        list.append(object)
+        let problems = change(&list, config)
+        guard problems.isEmpty else { throw SheetProblems(fields: problems) }
         let data = try JSONSerialization.data(withJSONObject: list, options: [.sortedKeys])
         let text = String(decoding: data, as: UTF8.self)
         var next = snapshot.values
