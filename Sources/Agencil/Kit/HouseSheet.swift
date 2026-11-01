@@ -103,3 +103,10 @@ private struct ModalFrameHost<Content: View>: View {
         ModalFrame(title: title, detail: detail, footer: footer) { content }
     }
 }
+
+/// A sheet as it looks while open, for the screenshots: the same frame `houseSheet` builds, with inert buttons.
+@MainActor func houseSheetShot<Content: View>(title: String, detail: String? = nil, primary: String,
+                                   @ViewBuilder content: () -> Content) -> some View {
+    ModalFrame(title: title, detail: detail, footer: ModalFooter(secondary: .init(title: "Cancel") {}, primary: .init(title: primary) {}),
+               content: { content() })
+}

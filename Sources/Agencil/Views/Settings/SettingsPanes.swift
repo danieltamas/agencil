@@ -30,7 +30,7 @@ struct SettingsPaneView: View {
             case .routes: list(.route, rows: store.routeRows)
             case .access: AccessPane(store: store)
             case .harnesses: harnessesPane
-            case .models: modelsPane
+            case .models: ModelsPane(store: store)
             case .budgets: budgetsPane
             case .scoring: scoringPane
             case .leaderboard: leaderboardPane
@@ -54,7 +54,7 @@ struct SettingsPaneView: View {
         case .councils: "Which seats sit together, how they vote, and what wakes them."
         case .routes: "Who may ask whom, and how far a question may travel."
         case .harnesses: "The coding agents found on this Mac."
-        case .models: "Hosted providers and Ollama endpoints."
+        case .models: "Every model your harnesses and the public price list know, and any you add yourself."
         case .budgets: "Weekly caps per vendor and council type."
         case .scoring: "How outcomes are counted and when a seat has enough data."
         case .leaderboard: "Publishing the seat leaderboard is off until you turn it on."

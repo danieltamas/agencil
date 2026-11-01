@@ -70,6 +70,8 @@ enum Size {
     static let paragraph: CGFloat = 360
     /// The wrapping text of a row that shares its line with a state chip and a button.
     static let rowText: CGFloat = 240
+    /// The scrolling model table in Settings: tall enough to read a screenful, short enough to leave the card above it in view.
+    static let priceTable: CGFloat = 380
     static let appIcon: CGFloat = 52
     static let aboutIcon: CGFloat = 64
 }

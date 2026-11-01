@@ -57,7 +57,9 @@ struct NewObjectForm: View {
                 }
             }
             problem("harness")
-            FieldBlock(title: "Model") { GlassField(placeholder: "gpt-5.5", text: $store.seatForm.model, monospaced: true) }
+            FieldBlock(title: "Model", detail: "Pick one this harness knows, or type any id.") {
+                SuggestField(placeholder: "gpt-5.5", text: $store.seatForm.model, options: store.catalog.ids(for: store.seatForm.harness))
+            }
             problem("model")
             FieldBlock(title: "Endpoint", detail: "Only for Ollama or another remote model.") {
                 GlassField(placeholder: "http://127.0.0.1:11434", text: $store.seatForm.endpoint, monospaced: true)

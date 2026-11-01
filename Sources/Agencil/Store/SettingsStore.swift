@@ -55,6 +55,8 @@ enum EditTarget: Equatable {
     var panes = PaneStore()
     /// The More apps list and the release check About shows.
     private(set) var apps = MoreAppsStore()
+    /// The Models pane: the catalog, its filters and its Add model sheet.
+    private(set) var catalog = ModelCatalogStore()
     private(set) var update = UpdateStore(home: nil)
     private(set) var configProblem: String?
     private(set) var notify: Set<String> = NotifySettings.kinds
@@ -91,6 +93,7 @@ enum EditTarget: Equatable {
         agentAccess = AgentAccess(home: directory, environment: environment)
         self.environment = environment
         apps = MoreAppsStore(directory: directory)
+        catalog = ModelCatalogStore(directory: directory, environment: environment)
         update = UpdateStore.shared
         reload()
     }
@@ -105,6 +108,7 @@ enum EditTarget: Equatable {
         store.targets = store.seatNames + DemoPanel.councils.map(\.name)
         store.seatsAtOnce = "3"
         store.apps = MoreAppsStore.demo(now: DemoStore.now)
+        store.catalog = ModelCatalogStore.demo()
         store.update = UpdateStore.demo(now: DemoStore.now)
         store.agentAccessOn = accessOn
         store.socket = AccessFacts.Socket(path: NSHomeDirectory() + "/.agencil/agencil.sock", reachable: true, ownerOnly: true)
@@ -148,6 +152,7 @@ enum EditTarget: Equatable {
             targets = seatNames + config.aliases.keys.sorted() + config.councils.map(\.name)
             notify = (try? NotifySettings(values: values))?.notify ?? NotifySettings.kinds
             seatsAtOnce = String(config.limits.seatsAtOnce)
+            catalog.reload()
             agentAccessOn = values["agent_access"] == "on"
         } catch let problem as ConfigProblem {
             configProblem = problem.message

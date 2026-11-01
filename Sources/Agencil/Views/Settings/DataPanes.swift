@@ -35,17 +35,6 @@ extension SettingsPaneView {
         }
     }
 
-    var modelsPane: some View {
-        let panes = store.panes
-        return SettingsCard(title: "In use", detail: "Models the configured seats run.") {
-            if panes.models.isEmpty { SettingsRow(title: "No seats yet", detail: "Add a seat first.") { EmptyView() } }
-            ForEach(panes.models) { model in
-                if model.id != panes.models.first?.id { RowDivider() }
-                SettingsRow(title: model.id, detail: model.seats.joined(separator: ", ")) { EmptyView() }
-            }
-        }
-    }
-
     var budgetsPane: some View {
         let panes = store.panes
         return VStack(spacing: Space.xxl) {

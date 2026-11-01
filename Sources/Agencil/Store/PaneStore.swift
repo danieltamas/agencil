@@ -49,6 +49,7 @@ import Observation
     /// Made-up standings and harness versions for the preview and the screenshots.
     static func demo() -> PaneStore {
         let store = PaneStore()
+        store.models = DemoPanel.seatRows.map { Model(id: $0.model, seats: [$0.id]) }
         store.harnesses = DemoPanel.harnesses.map { Harness(id: $0.name, found: $0.up, version: $0.detail, signedIn: "yes") }
         store.standings = [
             "codex-gpt": SeatStanding(text: "ok", ok: true, detail: "", age: "40s ago"),

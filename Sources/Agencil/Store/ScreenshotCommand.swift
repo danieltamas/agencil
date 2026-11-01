@@ -1,5 +1,6 @@
 import AgencilCore
 import AppKit
+import SwiftUI
 import Foundation
 
 /// `Agencil --render-screenshots <dir> [--all-looks] [--look <name>] [--scale N]`: every shot the app can draw,
@@ -40,11 +41,12 @@ enum ScreenshotCommand {
                 for tab in ["threads", "sittings", "findings", "seats"] {
                     try HouseRender.write(PanelView(store: PanelStore.demo(), tab: tab), to: directory.appendingPathComponent("panel-\(tab)\(suffix).png"), look: look, scale: scale)
                 }
-                for pane in [SettingsPane.general, .seats, .access, .apps, .about] {
+                for pane in [SettingsPane.general, .seats, .models, .access, .apps, .about] {
                     try HouseRender.write(SettingsView(store: SettingsStore.demo(), pane: pane).frame(width: Size.settingsMin.width, height: height(of: pane)),
                                           to: directory.appendingPathComponent("settings-\(pane.rawValue)\(suffix).png"), look: look, scale: scale,
                                           now: DemoStore.now)
                 }
+                try HouseRender.write(addModelSheet(), to: directory.appendingPathComponent("models-add\(suffix).png"), look: look, scale: scale, now: DemoStore.now)
                 if looks.count > 1 { try copy(directory, "settings-access-\(look.rawValue).png", "access-full-\(look.rawValue).png") }
             }
             let off = SettingsView(store: SettingsStore.demo(accessOn: false), pane: .access)
@@ -59,7 +61,7 @@ enum ScreenshotCommand {
 
     /// The apps list and About are longer than the window: their shots show every card, not the scrolled-off top.
     private static func height(of pane: SettingsPane) -> CGFloat {
-        pane == .apps ? Size.settingsMin.height * 2.4 : pane == .access ? Size.settingsMin.height * 3 : pane == .about ? Size.settingsMin.height * 1.5 : Size.settingsMin.height
+        pane == .apps ? Size.settingsMin.height * 2.4 : pane == .models ? Size.settingsMin.height * 2 : pane == .access ? Size.settingsMin.height * 3 : pane == .about ? Size.settingsMin.height * 1.5 : Size.settingsMin.height
     }
 
     /// The full-height access pane under the name the review asks for.
@@ -71,5 +73,18 @@ enum ScreenshotCommand {
 
     private static func value(after option: String, in arguments: [String]) -> String? {
         arguments.firstIndex(of: option).flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil }
+    }
+}
+
+extension ScreenshotCommand {
+    /// The Add model sheet with a model typed in, at the sheet's own width.
+    static func addModelSheet() -> some View {
+        let catalog = SettingsStore.demo().catalog
+        catalog.startAdd()
+        catalog.form = .init(id: "harbor-review-2", harness: "opencode", note: "tuned for the checkout repo")
+        return houseSheetShot(title: catalog.formTitle, detail: "Saved to config.json; seats can name it at once.", primary: "Save") {
+            ModelForm(catalog: catalog)
+        }
+        .frame(width: Size.modalWidth)
     }
 }
