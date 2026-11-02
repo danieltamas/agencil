@@ -28,8 +28,16 @@ final class DiscoveryCache: @unchecked Sendable {
         return lock.withLock { catalog.entries.compactMap { probes[$0.kind] } }
     }
 
+    /// Superset's agent wrappers (`~/.superset/bin`, `~/.superset-<name>/bin`) re-run the real binary found on PATH.
+    private static func isShimDirectory(_ path: String) -> Bool {
+        let components = path.split(separator: "/")
+        return components.count >= 2 && components.last == "bin" && components[components.count - 2].hasPrefix(".superset")
+    }
+
     private func refresh(_ catalog: HarnessCatalog, environment: [String: String], home: URL) {
-        var directories = (environment["PATH"] ?? "/usr/bin:/bin").split(separator: ":").map { URL(fileURLWithPath: String($0)) }
+        // A seat runs the real harness: a launcher shim that looks the binary up on PATH cannot find it from the sandbox.
+        var directories = (environment["PATH"] ?? "/usr/bin:/bin").split(separator: ":")
+            .filter { !Self.isShimDirectory(String($0)) }.map { URL(fileURLWithPath: String($0)) }
         let user = FileManager.default.homeDirectoryForCurrentUser
         var known = [user.appendingPathComponent(".local/bin"), user.appendingPathComponent(".opencode/bin"), URL(fileURLWithPath: "/opt/homebrew/bin"), URL(fileURLWithPath: "/usr/local/bin")]
         // With test seams on, a stub directory goes first and only PATH entries inside the Agencil home count,

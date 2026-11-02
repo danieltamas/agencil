@@ -5,7 +5,8 @@ import Foundation
 /// The profile is written by the broker from paths the broker chose; nothing in it comes from the repo.
 enum Confinement {
     static let systemExecutable = "/usr/bin/sandbox-exec"
-    private static let systemReadable = ["/usr", "/bin", "/sbin", "/System", "/Library", "/private/etc", "/private/var/db", "/dev",
+    /// "/etc" is a link to "/private/etc": the link itself is read before it is followed, so both spellings are listed.
+    private static let systemReadable = ["/usr", "/bin", "/sbin", "/System", "/Library", "/etc", "/private/etc", "/private/var/db", "/dev",
                                          "/private/var/select", "/Applications/Xcode.app", "/opt/homebrew", "/usr/local"]
     private static let harnessConfig: [String: [String]] = [
         "codex": [".codex"], "claude": [".claude", ".claude.json"], "opencode": [".config/opencode", ".local/share/opencode"],
