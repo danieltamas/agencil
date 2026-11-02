@@ -98,8 +98,7 @@ scripts/sync-public-models.sh --check || fail "the embedded public model list is
 if ((!lint_only)); then
   cd "$repo"
   swift build --build-tests --scratch-path "$scratch" || fail "build failed"
-  # Serial: the suites start real processes and sockets and probe against short deadlines, which parallel load flakes.
-  swift test --skip-build --no-parallel --scratch-path "$scratch" || fail "tests failed"
+  scripts/test.sh --skip-build --scratch "$scratch" || fail "tests failed"
   python3 -I -B -m unittest discover -s Tests/Leaderboard || fail "leaderboard script tests failed"
   bash Tests/Acceptance/U15/test_wrapper.sh || fail "council wrapper test failed"
 fi
