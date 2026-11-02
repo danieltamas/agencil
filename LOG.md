@@ -1,3 +1,5 @@
+## Unreleased
+
 ## 0.1.1 (2026-11-02)
 
 - About shows a release install as a release: the 0.1.0 build was stamped as built from source, so About read "v0.1.0, built from source"; release builds now carry no source stamp
