@@ -41,7 +41,13 @@ extension Broker {
         row["tokens"] = report.tokens
     }
 
-    private func addSeat(_ row: inout [String: Any], name: String, config: SeatConfig?) {
+    /// The harness and model the first exchange ran on; threads from before it was kept show the seat's current ones.
+    private func addSeat(_ row: inout [String: Any], thread: String, name: String, config: SeatConfig?) {
+        if let ran = try? threads.identity(thread: thread, seq: 1) {
+            row["model"] = ran.model
+            row["harness"] = ran.harness
+            return
+        }
         guard let seat = config?.seat(named: name) else { return }
         row["model"] = seat.model
         row["harness"] = seat.harness
@@ -57,7 +63,7 @@ extension Broker {
             return row
         }
         var data: [String: Any] = ["thread": id, "caller": thread.caller, "seat": thread.seat, "exchanges": exchanges]
-        addSeat(&data, name: thread.seat, config: config)
+        addSeat(&data, thread: id, name: thread.seat, config: config)
         if let project = try ledger.query("SELECT project FROM run_origins WHERE run_id = ?;", [id], row: { Ledger.text($0, 0) }).first ?? nil {
             data["project"] = project
         }
@@ -92,7 +98,7 @@ extension Broker {
             if let answer = Ledger.text(row, 5) { seat["answer"] = Self.capped(answer) }
             if let reason = Ledger.text(row, 7) { seat["reason"] = reason }
             addReport(&seat, thread: thread, seq: 1)
-            addSeat(&seat, name: name, config: config)
+            addSeat(&seat, thread: thread, name: name, config: config)
             return (RoundPromptHeader(prompt: Ledger.text(row, 4) ?? ""), Ledger.text(row, 8), seat)
         }
         if let first = seats.first?.header {

@@ -143,6 +143,7 @@ extension Broker {
         guard let (exchange, transcript) = try threads.beginExchange(thread: thread.id, question: question, chain: chain) else {
             throw Failure(message: "thread \(thread.id) is still waiting for an answer")
         }
+        try threads.recordIdentity(thread: thread.id, seq: exchange.seq, harness: resolved.seat.harness, model: resolved.seat.model)
         let key = "\(thread.id)-\(exchange.seq)"
         capacity.bind(admitted.id, exchange: key)
         do {

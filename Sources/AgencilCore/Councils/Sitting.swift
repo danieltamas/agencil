@@ -62,16 +62,16 @@ extension Broker {
             var spares = council.spares.compactMap { config.seat(named: $0) }.map(shortened).filter { author == "unknown" || $0.vendor != author }
             // A malformed request is refused before any seat is probed; then the panel is checked before anything is
             // written, so a council that cannot sit leaves no run behind.
+            let councilRoute = Route(callers: route.callers, target: route.target, hopLimit: route.hopLimit, fallbacks: [],
+                                     localOnly: route.localOnly || council.localOnly, requires: route.requires)
             let commit = try pinnedCommit(request["commit"], repo: repo)
             let fallbackUsed: Bool
             do {
                 fallbackUsed = try preflightGate(slots: slots, spares: &spares, council: council, config: config, author: author,
-                                                 caller: caller, parent: parent, question: question)
+                                                 caller: caller, parent: parent, question: question, route: councilRoute)
             }
             catch let refusal as Refusal { return settle(refusal, "failed") }
             let snapshot = try Snapshot.take(repo: repo, uncommitted: request["uncommitted"] as? Bool ?? false, question: question, commit: commit)
-            let councilRoute = Route(callers: route.callers, target: route.target, hopLimit: route.hopLimit, fallbacks: [],
-                                     localOnly: route.localOnly || council.localOnly, requires: route.requires)
             let seatsLine = (request["seats"] as? [String]).map { "seats: \($0.joined(separator: ","))" }
             let capLine = cap.map { "cap: \($0)" }
             let brief = ["change_kind: \(kind)", "question: \(question)", request["diff"].flatMap { $0 as? String }.map { "diff: \($0)" },

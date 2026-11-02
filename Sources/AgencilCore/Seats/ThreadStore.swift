@@ -91,6 +91,21 @@ public struct ThreadStore: Sendable {
         }
     }
 
+    /// Notes the harness and model an exchange runs on; later seat edits leave it as it was.
+    public func recordIdentity(thread: String, seq: Int, harness: String, model: String) throws {
+        try ledger.locked {
+            try ledger.run("UPDATE exchanges SET harness = ?, model = ? WHERE thread_id = ? AND seq = ?;", [harness, model, thread, String(seq)])
+        }
+    }
+
+    /// The identity noted for an exchange, nil on rows from before it was kept.
+    public func identity(thread: String, seq: Int) throws -> (harness: String, model: String)? {
+        try ledger.locked {
+            try ledger.query("SELECT harness, model FROM exchanges WHERE thread_id = ? AND seq = ? AND harness IS NOT NULL AND model IS NOT NULL;",
+                             [thread, String(seq)]) { (harness: Ledger.text($0, 0) ?? "", model: Ledger.text($0, 1) ?? "") }.first
+        }
+    }
+
     /// The answered exchanges of a thread, oldest first: what a follow-up's prompt repeats.
     public func transcript(thread: String) throws -> [(asked: String, answered: String)] {
         try ledger.locked {

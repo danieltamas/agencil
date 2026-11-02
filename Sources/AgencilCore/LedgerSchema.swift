@@ -146,5 +146,10 @@ enum LedgerSchema {
         ALTER TABLE exchanges ADD COLUMN cost_usd REAL;
         ALTER TABLE exchanges ADD COLUMN cost_basis TEXT;
         """,
+        // The harness and model an exchange ran on, so history keeps what answered after a seat is edited; NULL on older rows.
+        """
+        ALTER TABLE exchanges ADD COLUMN harness TEXT;
+        ALTER TABLE exchanges ADD COLUMN model TEXT;
+        """,
     ]
 }

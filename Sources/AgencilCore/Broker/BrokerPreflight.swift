@@ -30,11 +30,23 @@ extension Broker {
         }
         let probing = request["probe"] as? Bool == true
         if probing { try requireOwner(request, peer: peer, peerStart: peerStart) }
-        let probed = probing ? Self.byName(standings(of: seats, limits: config.limits, parent: nil, force: true)) : [:]
+        // A probe may call a paid model, so a hard budget that has run out refuses it as a wake would: the seat is not probed.
+        var overBudget: [String: String] = [:]
+        if probing {
+            for seat in seats {
+                let matching = BudgetStore.matching(config.budgets, route: "preflight", root: "owner", vendor: seat.harness)
+                if let refusal = try budgets.admit(id: "", quote: Self.quote(seat, prompt: ""), budgets: matching, routeKey: "preflight",
+                                                   rootKey: "owner", vendor: seat.harness, commit: false, free: seat.plan == .free) {
+                    overBudget[seat.name] = refusal.message
+                }
+            }
+        }
+        let probed = probing ? Self.byName(standings(of: seats.filter { overBudget[$0.name] == nil }, limits: config.limits, parent: nil, force: true)) : [:]
         let rows = try seats.map { seat -> [String: Any] in
             let standing = probing ? probed[seat.name] : try preflights.fresh(seat)
             var row: [String: Any] = ["name": seat.name, "harness": seat.harness, "model": seat.model, "plan": seat.plan.rawValue,
-                                      "reason": standing?.reason.rawValue ?? "not probed", "detail": standing?.detail ?? ""]
+                                      "reason": standing?.reason.rawValue ?? (overBudget[seat.name] != nil ? "over budget" : "not probed"),
+                                      "detail": standing?.detail ?? overBudget[seat.name] ?? ""]
             if let standing {
                 row["probed_ago"] = Date().timeIntervalSince(standing.probedAt)
                 if let until = standing.until { row["until"] = until }
@@ -53,16 +65,19 @@ extension Broker {
     /// spare whose vendor is not seated already; anything left failing refuses the wake with every failed seat named.
     /// Returns whether a spare sat down.
     func preflightGate(slots: [Slot], spares: inout [Seat], council: Council, config: SeatConfig, author: String,
-                       caller: String, parent: CapabilityRun?, question: String) throws -> Bool {
+                       caller: String, parent: CapabilityRun?, question: String, route: Route) throws -> Bool {
         let seated = slots.filter { $0.phase == .pending }
         let synthesizers = council.synthesizers.compactMap { config.seat(named: $0) }.filter { author == "unknown" || $0.vendor != author }
         if !council.synthesizers.isEmpty, synthesizers.isEmpty {
             throw Refusal(exit: 4, message: "failed: preflight: every synthesizer is of the author's vendor")
         }
-        // The budget is checked the way admission will check it, without a reservation: the question stands in for
+        // Placement and the budget are checked the way admission will check them, without a reservation: the question stands in for
         // the blind prompt, so an unbounded seat under a hard budget is refused here, before any probe process.
         let rootKey = try parent.flatMap { try budgets.reservation(thread: $0.thread, seq: $0.seq)?.rootKey } ?? caller
         func budgetRefusal(_ seat: Seat) throws -> String? {
+            // Residency and the route's required policies come first: a seat the route would refuse is never probed. The
+            // repo-implied read-only policy is the round's to enforce, as before.
+            if let placement = Placement.refusal(seat: seat, route: route, hasRepo: false) { return placement.message }
             let matching = BudgetStore.matching(config.budgets, route: council.name, root: rootKey, vendor: seat.harness)
             return try budgets.admit(id: "", quote: Self.quote(seat, prompt: question), budgets: matching, routeKey: council.name,
                                      rootKey: rootKey, vendor: seat.harness, commit: false, free: seat.plan == .free)?.message
