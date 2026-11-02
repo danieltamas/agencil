@@ -1,4 +1,8 @@
-## Unreleased
+## 0.1.1 (2026-11-02)
+
+- About shows a release install as a release: the 0.1.0 build was stamped as built from source, so About read "v0.1.0, built from source"; release builds now carry no source stamp
+- The README opens with the launch film, and a release is refused until it does
+- The release lists Agencil in the registry when it is missing
 
 ## 0.1.0 (2026-11-02)
 
