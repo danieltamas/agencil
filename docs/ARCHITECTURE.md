@@ -44,3 +44,6 @@ only as labelled evidence.
 
 `scripts/release.sh` builds a reproducible ad hoc signed zip; `release` tags and publishes it; `install.sh`
 installs it; `scripts/tap.sh` creates and pins the Homebrew cask in `danieltamas/homebrew-tap`, and `scripts/registry.sh` adds the Agencil entry to `danieltamas/registry` when it is missing.
+
+The release refuses to go out unless the README opens with the launch film (`scripts/readme-video.sh`, in `.release.json`
+`test`): a user-attachments URL on its own line, made by dragging `brag-output/agencil.mp4` into the GitHub editor.
