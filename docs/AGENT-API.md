@@ -207,7 +207,7 @@ Entries (exact syntax verified against each harness's current docs in U6; these 
 
 | Harness | Entry |
 |---------|-------|
-| claude | `claude mcp add agencil --scope user -- ~/.local/bin/agencil mcp --caller claude` |
+| claude | `claude mcp add agencil --scope user -- <home>/.local/bin/agencil mcp --caller claude` |
 | codex | `~/.codex/config.toml`: `[mcp_servers.agencil]` `command = "~/.local/bin/agencil"` `args = ["mcp", "--caller", "codex"]` |
 | opencode | `opencode.json` `mcp.agencil`: `{"type": "local", "command": ["~/.local/bin/agencil", "mcp", "--caller", "opencode"]}` |
 | hermes | Its MCP config, same command and args |

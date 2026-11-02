@@ -29,6 +29,7 @@ config.json) and `drift: [String]`. Drift strings (plain words, one each):
 - `instructions without server`: instruction present, MCP not installed.
 - `no route for this caller`: MCP installed, master switch on, zero routes.
 - `server entry does not match this app`: installed entry's command is not `~/.local/bin/agencil`.
+- `sandbox blocks Agencil`: the claude entry is installed and the Claude Code sandbox is enabled but does not allow `~/.agencil` or its socket (U26).
 - `access is off`: MCP installed and master switch off (informational, always listed).
 A harness with nothing installed and no instruction has no drift.
 

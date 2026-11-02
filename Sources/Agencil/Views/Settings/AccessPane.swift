@@ -111,6 +111,16 @@ struct AccessPane: View {
             let fields = state?.entry.map(AccessFacts.entryFields) ?? []
             if !fields.isEmpty { EntryLines(fields: fields.map { field in EntryLines.Field(key: field.key, value: field.value) }) }
             if let problem = state?.problem { ProblemText(text: problem) }
+            if wiring?.drift.contains(Wiring.sandboxBlocks) == true {
+                RowDivider()
+                StatusRow(title: "Sandbox", detail: "~/.claude/settings.json", status: "blocked",
+                          color: Theme.color(for: .warn)) {
+                    AsyncPress(id: "sandbox:\(harness)", action: store.installAction(harness, uninstall: false)) { running, press in
+                        ChipButton(title: running ? "Working..." : "Repair", width: SettingsMetrics.actionWidth, action: press)
+                            .accessibilityLabel("Let the \(harness) sandbox reach Agencil")
+                    }
+                }
+            }
             RowDivider()
             StatusRow(title: "Instructions", detail: store.instructionPath(harness), status: AccessFacts.instructionLabel(instruction),
                       color: Theme.color(for: Self.signal(instruction))) {

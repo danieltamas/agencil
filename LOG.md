@@ -1,5 +1,6 @@
-## Unreleased
+## 0.1.2 (2026-11-02)
 
+- The Claude entry is installed with the full path to the command (the literal ~ made Claude fail to start the server), and the Claude Code sandbox is allowed to write ~/.agencil and reach its socket; Settings, Agent access shows when the sandbox blocks it and repairs it
 ## 0.1.1 (2026-11-02)
 
 - About shows a release install as a release: the 0.1.0 build was stamped as built from source, so About read "v0.1.0, built from source"; release builds now carry no source stamp

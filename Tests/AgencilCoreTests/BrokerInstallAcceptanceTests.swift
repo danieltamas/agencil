@@ -185,7 +185,7 @@ private func installHashes(_ object: Any) -> [String] {
         #expect(code == 0)
         let args = try String(contentsOf: argv, encoding: .utf8).split(separator: "\n").map(String.init)
         #expect(args.count == 10)
-        #expect(Array(args.prefix(7)) == ["mcp", "add", "agencil", "--scope", "user", "--", "~/.local/bin/agencil"])
+        #expect(Array(args.prefix(7)) == ["mcp", "add", "agencil", "--scope", "user", "--", NSHomeDirectory() + "/.local/bin/agencil"])
         #expect(Array(args.suffix(3)) == ["mcp", "--caller", "claude"])
     }
 }

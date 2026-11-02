@@ -97,6 +97,7 @@ public struct AgentAccess: Sendable {
 public struct Wiring: Equatable, Sendable {
     /// The drift line for an entry whose command is not this app's installed CLI.
     public static let entryMismatch = "server entry does not match this app"
+    public static let sandboxBlocks = "sandbox blocks Agencil"
     public static let accessOff = "access is off"
     public static let instructionsOutdated = "instructions outdated"
     public static let instructionsBroken = "instructions markers broken"
@@ -137,6 +138,7 @@ extension AgentAccess {
                 if instruction == .absent { drift.append("instructions missing") }
                 if masterOn && targets.isEmpty { drift.append("no route for this caller") }
                 if !masterOn { drift.append(Wiring.accessOff) }
+                if harness == "claude" && installer.claudeSandboxBlocks { drift.append(Wiring.sandboxBlocks) }
                 if let entry = mcp.entry, !Self.runsThisApp(harness, entry) {
                     drift.append(Wiring.entryMismatch)
                 }

@@ -246,6 +246,13 @@ struct McpInstaller {
     }
 
     /// A hash of the user-scope `agencil` server as Claude's config holds it; nil when it holds none (or no config).
+    /// The command of the user-scope `agencil` server in Claude's config; nil when there is none.
+    private func claudeEntryCommand() -> String? {
+        guard let data = try? Data(contentsOf: claudeConfig),
+              let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let entry = (root["mcpServers"] as? [String: Any])?["agencil"] as? [String: Any] else { return nil }
+        return entry["command"] as? String
+    }
     private func claudeEntryHash() throws -> String? {
         guard FileManager.default.fileExists(atPath: claudeConfig.path) else { return nil }
         guard let data = try? Data(contentsOf: claudeConfig) else {
@@ -261,26 +268,74 @@ struct McpInstaller {
 
     private func runClaude(caller: String, dryRun: Bool, uninstall: Bool) throws -> Int32 {
         let arguments = uninstall ? ["mcp", "remove", "agencil", "--scope", "user"]
-            : ["mcp", "add", "agencil", "--scope", "user", "--", "~/.local/bin/agencil", "mcp", "--caller", caller]
+            : ["mcp", "add", "agencil", "--scope", "user", "--", command, "mcp", "--caller", caller]
         let line = (["claude"] + arguments).joined(separator: " ")
-        if dryRun { print("+\(line)"); return 0 }
+        let sandbox = ClaudeSandbox(environment: environment)
+        if dryRun {
+            print("+\(line)")
+            if !uninstall { for addition in sandbox.missing() { print("+\(sandbox.url.path): \(addition.line)") } }
+            return 0
+        }
         var entries = try readRecord()
         let recorded = entries["claude"] as? [String: Any]
+        let owned = (recorded?["sandbox"] as? [[String: String]] ?? []).compactMap { item in
+            item["key"].flatMap { key in item["value"].flatMap { value in
+                item["file"].map { ClaudeSandbox.Addition(key: key, value: value, file: $0) } } }
+        }
         let present = try claudeEntryHash()
+        let adopted = recorded?["adopted"] as? Bool == true
         // An entry Claude holds is ours only while it still hashes to what we saw right after writing it.
         // A "pending" record means a previous run died after asking claude to add the server: adopt what is there.
         let adopting = recorded?["pending"] as? Bool == true
-        if let present, !adopting, present != recorded?["entry"] as? String {
+        // An entry that already runs this very app is kept as it is, not refused: only the sandbox settings need repair.
+        // It stays the owner's: Agencil never removes a server entry it did not write.
+        let sameCommand = !uninstall && claudeEntryCommand() == command
+        let ours = present != nil && present == recorded?["entry"] as? String
+        if let present, !adopting, !adopted, !sameCommand, !ours {
             throw Refusal(message: recorded == nil
                 ? "claude already has an agencil server that Agencil did not write; it was left untouched"
                 : "the agencil server in claude changed since Agencil wrote it; it was left untouched")
         }
         if uninstall && recorded == nil { print("agencil: nothing to remove for claude"); return 0 }
+        if present != nil, sameCommand {
+            // Repeat run: the server entry is in place, so only the sandbox settings are repaired.
+            if recorded == nil { entries["claude"] = ["command": line, "hash": Self.hash(line), "adopted": true] }
+            try allowSandbox(&entries, sandbox, keeping: owned)
+            print("agencil: the agencil server is already in claude")
+            return 0
+        }
+        if uninstall && adopted {
+            try sandbox.remove(owned)
+            entries.removeValue(forKey: "claude")
+            try writeRecord(entries)
+            print("agencil: removed the agencil sandbox settings; the server entry in claude is yours and was left in place")
+            return 0
+        }
         let before = entries
         if !uninstall {
             entries["claude"] = ["command": line, "hash": Self.hash(line), "pending": true]
             try writeRecord(entries)
+            // An entry an earlier version wrote with a command that does not start (a literal `~`) is replaced.
+            if ours { _ = try runClaudeCLI(["mcp", "remove", "agencil", "--scope", "user"], before: before) }
         }
+        try runClaudeCLI(arguments, line: line, before: before)
+        if uninstall {
+            try sandbox.remove(owned)
+            entries.removeValue(forKey: "claude")
+        } else {
+            let entry = try claudeEntryHash()
+            var written: [String: Any] = ["command": line, "hash": Self.hash(line)]
+            if let entry { written["entry"] = entry }
+            entries["claude"] = written
+            try allowSandbox(&entries, sandbox, keeping: owned)
+        }
+        try writeRecord(entries)
+        print(uninstall ? "agencil: removed the agencil server from claude" : "agencil: added the agencil server to claude")
+        return 0
+    }
+
+    @discardableResult
+    private func runClaudeCLI(_ arguments: [String], line: String? = nil, before: [String: Any]) throws -> Int32 {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = ["claude"] + arguments
@@ -290,19 +345,30 @@ struct McpInstaller {
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {
             try? writeRecord(before)
-            throw Refusal(message: "`\(line)` failed with status \(process.terminationStatus)") }
-        if uninstall {
-            entries.removeValue(forKey: "claude")
-        } else {
-            let entry = try claudeEntryHash()
-            var written: [String: Any] = ["command": line, "hash": Self.hash(line)]
-            if let entry { written["entry"] = entry }
-            entries["claude"] = written
+            throw Refusal(message: "`\(line ?? (["claude"] + arguments).joined(separator: " "))` failed with status \(process.terminationStatus)")
         }
-        try writeRecord(entries)
-        print(uninstall ? "agencil: removed the agencil server from claude" : "agencil: added the agencil server to claude")
         return 0
     }
+
+    /// Records what is about to be added before the settings change, so a crash in between cannot lose ownership.
+    private func allowSandbox(_ entries: inout [String: Any], _ sandbox: ClaudeSandbox, keeping owned: [ClaudeSandbox.Addition]) throws {
+        let planned = sandbox.missing()
+        try recordSandbox(&entries, adding: planned, keeping: owned)
+        _ = try sandbox.apply(planned)
+    }
+
+    /// Records the sandbox values Agencil added (and keeps the ones an earlier run added) in the claude entry.
+    private func recordSandbox(_ entries: inout [String: Any], adding added: [ClaudeSandbox.Addition],
+                               keeping owned: [ClaudeSandbox.Addition]) throws {
+        var claude = entries["claude"] as? [String: Any] ?? [:]
+        let all = owned + added.filter { !owned.contains($0) }
+        if all.isEmpty { claude.removeValue(forKey: "sandbox") } else { claude["sandbox"] = all.map(\.record) }
+        entries["claude"] = claude
+        try writeRecord(entries)
+    }
+
+    /// Whether the claude entry is installed, the sandbox is enabled and its settings still lack a value.
+    var claudeSandboxBlocks: Bool { !ClaudeSandbox(environment: environment).missing().isEmpty }
 
     // MARK: installed.json
 
