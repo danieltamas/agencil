@@ -86,7 +86,7 @@ extension DetailPage {
     static func sitting(_ row: PanelData.Sitting, detail: SittingDetail?, vendors: [String: String] = [:]) -> DetailPage {
         let card = DemoPanel.Sitting(row)
         let state = row.state == "running" ? "Sitting" : row.verdict ?? (row.state == "failed" ? "Stopped" : row.state)
-        var page = DetailPage(id: row.id, kind: .sitting, title: "\(row.council) sitting \(row.no)", state: state,
+        var page = DetailPage(id: row.id, kind: .sitting, title: row.question ?? "\(row.council) sitting \(row.no)", state: state,
                               tone: PanelTone.signal(state: detail?.reason == "stopped" ? "stopped" : state), live: card.live)
         let reported = detail?.rounds.flatMap(\.seats).compactMap(\.costUSD)
         let spent = (reported?.isEmpty == false ? reported?.reduce(0, +) : nil) ?? (row.costUSD > 0 ? row.costUSD : nil)
