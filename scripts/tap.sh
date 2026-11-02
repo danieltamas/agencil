@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Points the Homebrew cask (danieltamas/homebrew-tap, Casks/agencil.rb) at a published release:
+# Points the Homebrew cask (danieltamas/homebrew-tap, Casks/agencil.rb, created from scripts/agencil.cask.rb on the first release) at a published release:
 # version and sha256 from dist/SHA256SUMS, checked against the bytes GitHub serves before anything
 # is committed, one commit on the tap's main, then `brew fetch` proves the cask installs from the
 # tap. Runs from the release's verify step (docs/RELEASE.md).
@@ -56,7 +56,11 @@ else
   gh repo clone danieltamas/homebrew-tap "$tap" -- -q
 fi
 cask=$tap/Casks/agencil.rb
-[[ -f $cask ]] || fail "$cask is missing"
+# The first release creates the cask from the reviewed template; later ones only move the pins.
+if [[ ! -f $cask ]]; then
+  mkdir -p "$tap/Casks"
+  cp "$(dirname "$0")/agencil.cask.rb" "$cask"
+fi
 # Only the two pinned lines change; the stanza order, comments and steps stay as reviewed.
 sed -i '' -e "s/^  version \".*\"/  version \"$version\"/" -e "s/^  sha256 \".*\"/  sha256 \"$sha\"/" "$cask"
 grep -q "version \"$version\"" "$cask" && grep -q "sha256 \"$sha\"" "$cask" || fail "the cask did not take the new pins"
