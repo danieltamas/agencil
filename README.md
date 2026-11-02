@@ -123,7 +123,7 @@ It never acts on a verdict by itself: the verdict is advice a person or an agent
 
 The CLI and the MCP server are thin clients of one broker on a Unix socket. The contract (commands, envelope, exit
 codes, routing) is [docs/AGENT-API.md](docs/AGENT-API.md); the structure is [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-and the UI standard is [docs/DESIGN.md](docs/DESIGN.md). `agencil install-mcp <harness>` writes the server entry into a harness's config (`--dry-run` shows the diff); Settings, Agent access does it for each harness
+and the UI standard is [docs/DESIGN.md](docs/DESIGN.md). `agencil install-mcp <harness>` writes the server entry into a harness's config (`--dry-run` shows the diff); Settings, Agent access does it for each harness.
 
 ## Build from source
 
