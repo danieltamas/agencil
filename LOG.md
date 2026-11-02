@@ -1,4 +1,12 @@
-## Unreleased
+## 0.1.0 (2026-11-02)
+
+First release. Agencil is a macOS menu bar app, the `agencil` CLI and a local MCP server that convene councils of coding agents on your own subscriptions: ask any configured seat (a harness plus a model), or wake a council that answers blind, argues, and records a verdict with the minority report kept. Install with `brew install --cask danieltamas/tap/agencil` or the curl installer.
+
+- Every sitting is named for the question it asked, shows the vendor marks of the seats that sat, and sums the tokens and cost the harnesses report
+- Threads and sittings keep the harness and model that actually answered, even after a seat is edited
+- Residency is enforced before a seat is probed, and explicit probes honour hard budgets
+- The build history of this first version follows.
+
 
 - Every ask and sitting round records the tokens in and out and the cost its harness reports (claude and opencode JSON result, codex `--json` events), or the cost from the model price list when the model has one, flagged `estimated` (`estimated, subscription` on subscription seats); the thread and sitting detail show them instead of unknown, budgets are charged as before
 - Settings > Agent access groups each agent in one card (vendor mark, route count, aligned MCP entry and Instructions rows): one fact drives the badge, detail and button (installed, not installed, drifted), the entry reads as command/args/caller instead of raw JSON or TOML, claude shows its config path, and the destructive chip is a quiet outline at fixed widths
