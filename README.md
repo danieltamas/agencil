@@ -17,15 +17,10 @@
   <img src="https://img.shields.io/badge/license-MIT-22C55E" alt="MIT">
 </p>
 
-<!-- The launch film (brag-output/agencil.mp4). GitHub plays a video inline only from a user-attachments URL on its
-     own line, which only the GitHub editor can create: drag agencil.mp4 into the editor and paste the URL below.
-     Until then the poster links to the film attached to the release. scripts/readme-video.sh checks this at release. -->
-
+<!-- The launch film (brag-output/agencil.mp4, under 10 MB): the user-attachments URL below is the only form GitHub plays
+     inline, and only the GitHub editor can make one. scripts/readme-video.sh checks it at release. -->
 
 https://github.com/user-attachments/assets/34a20b7a-9bcc-4aa4-9a86-24915eaf8abc
-
-
-[![The Agencil launch film](docs/media/film-poster.png)](https://github.com/danieltamas/agencil/releases/download/v0.1.0/agencil.mp4)
 
 > **Status:** early releases. By using Agencil you accept that it may have bugs; one worth reporting goes to
 > [github.com/danieltamas/agencil/issues](https://github.com/danieltamas/agencil/issues). The app is signed
