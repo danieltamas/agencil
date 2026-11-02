@@ -117,7 +117,8 @@ extension Broker {
     private func panelSittings() throws -> [[String: Any]] {
         try ledger.query("""
             SELECT s.id, s.no, s.council, s.state, s.round, s.created_at, s.ended_at, s.verdict,
-              (SELECT COALESCE(SUM(cost_usd), 0) FROM seat_runs WHERE run_id = s.id), s.reason,
+              COALESCE(NULLIF((SELECT SUM(cost_usd) FROM seat_runs WHERE run_id = s.id), 0),
+                (SELECT SUM(e.cost_usd) FROM thread_rounds r JOIN exchanges e ON e.thread_id = r.thread_id WHERE r.sitting_id = s.id), 0), s.reason,
               (SELECT group_concat(seat, char(10)) FROM (SELECT DISTINCT seat FROM seat_runs WHERE run_id = s.id ORDER BY seat))
             FROM sittings s ORDER BY s.created_at DESC, s.id DESC LIMIT \(Self.listLimit);
             """, []) { row -> [String: Any] in
