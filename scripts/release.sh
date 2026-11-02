@@ -62,8 +62,8 @@ build_zip() {
   rm -rf "$dir"
   mkdir -p "$dir/src"
   git archive "$commit" | tar -x -C "$dir/src"
-  app=$(cd "$dir/src" && SOURCE_DATE_EPOCH=$epoch scripts/bundle.sh --universal --version "$version" --build "$number" \
-    --source "$ref" --scratch "$dir/scratch" --out "$dir/out") || fail "the build failed"
+  app=$(cd "$dir/src" && SOURCE_DATE_EPOCH=$epoch scripts/bundle.sh --universal --version "$version" --build "$number" --release \
+    --scratch "$dir/scratch" --out "$dir/out") || fail "the build failed"
   [[ -d $app ]] || fail "the build produced no app"
   zip=$dir/Agencil-$version-adhoc.zip
   pack "$app" "$zip" || fail "could not pack $zip"

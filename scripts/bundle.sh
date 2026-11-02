@@ -13,6 +13,7 @@ archs=("$(uname -m)")
 version=""
 build=""
 source=""
+release=0
 scratch=.build
 out=build
 identity=""
@@ -22,10 +23,11 @@ while (($#)); do
     --version) version=$2; shift ;;
     --build) build=$2; shift ;;
     --source) source=$2; shift ;;
+    --release) release=1 ;;
     --scratch) scratch=$2; shift ;;
     --out) out=$2; shift ;;
     --identity) identity=$2; shift ;;
-    *) echo "usage: bundle.sh [--universal] [--version <x.y.z> --build <n>] [--source <describe>] [--scratch <dir>] [--out <dir>] [--identity <name>|-]" >&2; exit 2 ;;
+    *) echo "usage: bundle.sh [--universal] [--version <x.y.z> --build <n>] [--source <describe>] [--release] [--scratch <dir>] [--out <dir>] [--identity <name>|-]" >&2; exit 2 ;;
   esac
   shift
 done
@@ -82,7 +84,10 @@ if [[ -n $version ]]; then
 fi
 # A checkout without tags or without git still names where it came from.
 [[ -n $source ]] || source=$(git describe --tags --always 2>/dev/null || echo unknown)
-plutil -replace AgencilSource -string "$source" "$app/Contents/Info.plist"
+# A release build carries no source: About shows it as a release, not as a build from a checkout.
+if ((!release)); then
+  plutil -replace AgencilSource -string "$source" "$app/Contents/Info.plist"
+fi
 cp Support/AppIcon.icns Support/MenuBarIcon.pdf Support/mesh.png "$app/Contents/Resources/"
 cp -R Support/MenuBarFrames Support/Vendors "$app/Contents/Resources/"
 # Settings > More apps starts from this copy of the app registry (scripts/registry-snapshot.sh takes it).
