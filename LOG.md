@@ -1,3 +1,5 @@
+## Unreleased
+
 ## 0.1.0 (2026-11-02)
 
 First release. Agencil is a macOS menu bar app, the `agencil` CLI and a local MCP server that convene councils of coding agents on your own subscriptions: ask any configured seat (a harness plus a model), or wake a council that answers blind, argues, and records a verdict with the minority report kept. Install with `brew install --cask danieltamas/tap/agencil` or the curl installer.
