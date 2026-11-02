@@ -1,3 +1,5 @@
+## Unreleased
+
 ## 0.1.2 (2026-11-02)
 
 - The Claude entry is installed with the full path to the command (the literal ~ made Claude fail to start the server), and the Claude Code sandbox is allowed to write ~/.agencil and reach its socket; Settings, Agent access shows when the sandbox blocks it and repairs it
