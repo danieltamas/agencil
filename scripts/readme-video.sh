@@ -2,7 +2,8 @@
 # The README opens with the launch film, as MacMax, Bton and RMJ do: a github.com/user-attachments URL on its own
 # line, the only form GitHub plays inline (it can only be made by dragging the mp4 into the GitHub editor). A release
 # does not go out while the README lacks it, so the film is never forgotten. The film is brag-output/agencil.mp4
-# (git-ignored; rebuilt by the brag workflow).
+# (git-ignored; rebuilt by the brag workflow). GitHub takes an upload under 10 MB, so the film is re-encoded to about 1.5 Mbps
+# (two-pass libx264, aac 112k) after the render.
 set -euo pipefail
 
 readme=$(cd "$(dirname "$0")/.." && pwd)/README.md
