@@ -21,6 +21,10 @@
      own line, which only the GitHub editor can create: drag agencil.mp4 into the editor and paste the URL below.
      Until then the poster links to the film attached to the release. scripts/readme-video.sh checks this at release. -->
 
+
+https://github.com/user-attachments/assets/34a20b7a-9bcc-4aa4-9a86-24915eaf8abc
+
+
 [![The Agencil launch film](docs/media/film-poster.png)](https://github.com/danieltamas/agencil/releases/download/v0.1.0/agencil.mp4)
 
 > **Status:** early releases. By using Agencil you accept that it may have bugs; one worth reporting goes to
