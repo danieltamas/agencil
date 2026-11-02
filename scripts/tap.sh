@@ -65,10 +65,11 @@ fi
 sed -i '' -e "s/^  version \".*\"/  version \"$version\"/" -e "s/^  sha256 \".*\"/  sha256 \"$sha\"/" "$cask"
 grep -q "version \"$version\"" "$cask" && grep -q "sha256 \"$sha\"" "$cask" || fail "the cask did not take the new pins"
 
-if git -C "$tap" diff --quiet; then
+git -C "$tap" add Casks/agencil.rb
+if git -C "$tap" diff --cached --quiet; then
   echo "tap: agencil $version already pinned"
 else
-  git -C "$tap" commit -q -am "agencil $version" --author "Daniel Tamas <hello@danieltamas.ro>"
+  git -C "$tap" commit -q -m "agencil $version" --author "Daniel Tamas <hello@danieltamas.ro>"
   git -C "$tap" push -q origin main
   echo "tap: pushed agencil $version ($sha)"
 fi
