@@ -43,4 +43,4 @@ only as labelled evidence.
 ## Release
 
 `scripts/release.sh` builds a reproducible ad hoc signed zip; `release` tags and publishes it; `install.sh`
-installs it; `scripts/tap.sh` creates and pins the Homebrew cask in `danieltamas/homebrew-tap`.
+installs it; `scripts/tap.sh` creates and pins the Homebrew cask in `danieltamas/homebrew-tap`, and `scripts/registry.sh` adds the Agencil entry to `danieltamas/registry` when it is missing.
