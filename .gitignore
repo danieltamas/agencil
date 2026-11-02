@@ -5,3 +5,6 @@ dist/
 .DS_Store
 .worktrees/
 scripts/forbidden-names.txt
+
+# Launch video workspace (local only)
+brag-output/
