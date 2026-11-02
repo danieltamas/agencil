@@ -1,4 +1,7 @@
-## Unreleased
+## 0.1.3 (2026-11-02)
+
+- Asks to the Claude and Codex seats no longer fail when the agent is started from a Superset terminal: the seat runs the real harness instead of Superset's launcher script (which could not find it from inside the sandbox), and the sandbox can read /etc, so Codex no longer stops on its requirements file
+
 
 ## 0.1.2 (2026-11-02)
 
