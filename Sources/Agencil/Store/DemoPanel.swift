@@ -11,6 +11,8 @@ enum DemoPanel {
     struct Sitting: Identifiable {
         let id: String; let kind: String; let hue: Int; let target: String; let wokenBy: String
         let state: String; let seats: Int; let elapsed: String; let cost: String; let live: Bool
+        /// One vendor per seat that sat, in seat order, for the marks on the card.
+        var vendors: [String] = []
     }
     struct Finding: Identifiable, Equatable {
         let id: String; let severity: String; let place: String; let claim: String; let backers: Int; let dissent: Int

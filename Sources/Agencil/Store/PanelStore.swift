@@ -307,7 +307,7 @@ import SwiftUI
     }
 
     func sittings(search: String) -> [DemoPanel.Sitting] {
-        (data?.sittings ?? []).map(DemoPanel.Sitting.init).filter { Self.matches(search, [$0.target, $0.kind, $0.state]) }
+        (data?.sittings ?? []).map { DemoPanel.Sitting($0, vendors: vendors) }.filter { Self.matches(search, [$0.target, $0.kind, $0.state]) }
     }
 
     func findings(search: String) -> [DemoPanel.Finding] {

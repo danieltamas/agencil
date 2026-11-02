@@ -51,6 +51,8 @@ public struct PanelData: Sendable, Equatable {
         public let verdict: String?
         /// Why a failed sitting failed; `stopped` when the owner stopped it.
         public var reason: String? = nil
+        /// The seats that sat, by name; empty when the ledger has no seat runs for it.
+        public var seats: [String] = []
     }
 
     public struct Finding: Sendable, Equatable {
@@ -124,7 +126,7 @@ public struct PanelData: Sendable, Equatable {
                     state: try field($0, "state", "sittings."), round: try field($0, "round", "sittings."),
                     started: try date($0, "started", "sittings."), ended: try optionalDate($0, "ended", "sittings."),
                     costUSD: try number($0, "cost_usd", "sittings."), verdict: $0["verdict"] as? String,
-                    reason: $0["reason"] as? String)
+                    reason: $0["reason"] as? String, seats: ($0["seats"] as? [String]) ?? [])
         }
         findings = try list("findings").map {
             Finding(id: try field($0, "id", "findings."), severity: try field($0, "severity", "findings."),

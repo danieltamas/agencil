@@ -117,7 +117,8 @@ extension Broker {
     private func panelSittings() throws -> [[String: Any]] {
         try ledger.query("""
             SELECT s.id, s.no, s.council, s.state, s.round, s.created_at, s.ended_at, s.verdict,
-              (SELECT COALESCE(SUM(cost_usd), 0) FROM seat_runs WHERE run_id = s.id), s.reason
+              (SELECT COALESCE(SUM(cost_usd), 0) FROM seat_runs WHERE run_id = s.id), s.reason,
+              (SELECT group_concat(seat, char(10)) FROM (SELECT DISTINCT seat FROM seat_runs WHERE run_id = s.id ORDER BY seat))
             FROM sittings s ORDER BY s.created_at DESC, s.id DESC LIMIT \(Self.listLimit);
             """, []) { row -> [String: Any] in
             var item: [String: Any] = ["id": Ledger.text(row, 0) ?? "", "no": Int(Ledger.text(row, 1) ?? "") ?? 0,
@@ -126,6 +127,7 @@ extension Broker {
                                        "cost_usd": Double(Ledger.text(row, 8) ?? "") ?? 0]
             if let ended = Ledger.text(row, 6) { item["ended"] = ended }
             if let reason = Ledger.text(row, 9), !reason.isEmpty { item["reason"] = reason }
+            item["seats"] = (Ledger.text(row, 10) ?? "").split(separator: "\n").map(String.init)
             if let stored = Ledger.text(row, 7), !stored.isEmpty {
                 let parsed = (try? JSONSerialization.jsonObject(with: Data(stored.utf8))) as? [String: Any]
                 item["verdict"] = parsed.map { $0["verdict"] as? String ?? stored } ?? stored

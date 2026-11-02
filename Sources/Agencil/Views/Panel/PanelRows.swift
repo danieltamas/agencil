@@ -39,6 +39,7 @@ struct SittingRow: View {
             VStack(alignment: .leading, spacing: Space.s) {
                 HStack(spacing: Space.s) {
                     Chip(text: sitting.kind, color: Theme.councilHue(sitting.hue))
+                    HStack(spacing: Space.xs) { ForEach(Array(sitting.vendors.enumerated()), id: \.offset) { _, vendor in VendorMark(vendor: vendor) } }
                     Spacer(minLength: 0)
                     Chip(text: sitting.state, color: Theme.color(for: tone))
                 }
