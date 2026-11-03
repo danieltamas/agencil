@@ -17,7 +17,7 @@ macOS 14, no third-party dependencies.
 1. A caller (the CLI, an MCP client, a trigger, the panel) sends a request to the broker over a Unix socket in
    `~/.agencil` (mode 0700; `$AGENCIL_HOME` overrides).
 2. The broker identifies the caller (peer credentials and capability), finds a route in `config.json`, and
-   refuses by default: unknown caller, no route, hop limit, residency, budget or a seat that fails preflight.
+   refuses by default: unknown caller, no route, hop limit, residency, budget or a seat that fails preflight. The one exception is the owner's own panel: a wake from the app process itself (peer pid, no `as`) runs on a synthetic one-hop route, so a manual sitting needs no configured route. A wake carries attached files: text is inlined as labelled evidence, images are copied into each vision seat's run directory (Claude and Codex) and named as not shown to the other seats in the brief.
 3. `Asks` resolves a seat (harness plus model) to a working install, admits it (capacity, memory, budget
    reservation), runs it in a confined process or an HTTP request, and records an exchange on a thread.
 4. `Sitting` convenes a council: blind round, optional rebuttal and challenge, synthesis, and a verdict with

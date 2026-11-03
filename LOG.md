@@ -1,4 +1,9 @@
-## Unreleased
+## 0.2.0 (2026-11-03)
+
+- The Sittings tab has a New sitting button (a floating pill in the bottom corner, like New rule in RMJ; docs/DESIGN.md "Floating action" makes that the one place a tab creates things, and a guard test enforces it): pick a council and a kind, ask a question, attach files and start a sitting by hand; the sitting opens with its rounds and verdict as they arrive. A sitting you start yourself needs no route; `agencil wake` takes `--file` for attachments
+- A new sitting takes screenshots: paste an image from the clipboard (Cmd-V or the Paste image button); Claude and Codex seats see it, other seats are told an image was attached and not shown
+- The panel's pages (the list, a sitting or thread detail, the new sitting form) and the New sitting pill now move in and out with the same fade and spring as the rest of the house apps.
+
 ## 0.1.3 (2026-11-02)
 
 - Asks to the Claude and Codex seats no longer fail when the agent is started from a Superset terminal: the seat runs the real harness instead of Superset's launcher script (which could not find it from inside the sandbox), and the sandbox can read /etc, so Codex no longer stops on its requirements file
