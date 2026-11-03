@@ -97,12 +97,14 @@ struct LinkButton: View {
 struct ChipButton: View {
     let title: String
     var destructive = false
+    /// The one action a card wants most: tinted with the accent instead of the neutral wash.
+    var prominent = false
     var symbol: String?
     var width: CGFloat?
     let action: () -> Void
 
     var body: some View {
-        let tint = destructive ? Theme.crit : Theme.textPrimary
+        let tint = destructive ? Theme.crit : prominent ? Theme.accent : Theme.textPrimary
         Button(action: action) {
             HStack(spacing: Space.xs) {
                 if let symbol { Image(systemName: symbol).font(.house.badge) }

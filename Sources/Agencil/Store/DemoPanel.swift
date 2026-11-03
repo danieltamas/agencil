@@ -20,6 +20,8 @@ enum DemoPanel {
         var fix: String? = nil; var confidence: String? = nil
         /// Who backed and who disputed it, by seat name, when the sitting detail knows.
         var voices: String? = nil
+        /// Where the claim points: `file:line`, or plain words when a seat raised it on the question itself.
+        var origin: String { place.hasPrefix("QUESTION:") ? "Raised on the question" : place }
     }
     struct SeatRow: Identifiable {
         let id: String; let model: String; let up: Bool; let confirmed: String; let coverage: String

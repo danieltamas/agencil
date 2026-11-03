@@ -150,7 +150,7 @@ struct PanelView: View {
         switch tab {
         case "threads": "One question to one seat, and its answer."
         case "sittings": "A council reads a brief and gives a verdict."
-        case "findings": "Claims from sittings, waiting for your call."
+        case "findings": "Claims a council raised. Confirm the ones that are right, dismiss the rest; ask a seat to judge if unsure."
         case "learn": "Changes to your councils that outcomes suggest."
         default: "Who can answer, and how often they are right."
         }

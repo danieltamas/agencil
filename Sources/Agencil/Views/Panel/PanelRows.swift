@@ -69,6 +69,8 @@ struct FindingRow: View {
     var adjudicate: (() async -> Void)?
     var open: (() -> Void)?
 
+    @State private var expanded = false
+
     private var tone: Signal { PanelTone.signal(severity: finding.severity) }
 
     var body: some View {
@@ -76,14 +78,21 @@ struct FindingRow: View {
             VStack(alignment: .leading, spacing: Space.s) {
                 HStack(spacing: Space.s) {
                     Chip(text: finding.severity, color: Theme.color(for: tone))
-                    Text(finding.place).font(.house.mono).foregroundStyle(Theme.textSecondary).lineLimit(1).truncationMode(.middle)
+                    Text(finding.origin).font(.house.mono).foregroundStyle(Theme.textSecondary).lineLimit(1).truncationMode(.middle)
                     Spacer(minLength: 0)
                     if let confidence = finding.confidence { Text(confidence).font(.house.meta).foregroundStyle(Theme.textTertiary) }
                     if finding.dissent > 0 { Chip(text: "minority", color: Theme.warn, style: .outline) }
                 }
                 Text(finding.claim).font(.house.body).foregroundStyle(Theme.textPrimary).fixedSize(horizontal: false, vertical: true)
                 if let fix = finding.fix {
-                    Text("Fix: " + fix).font(.house.meta).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+                    // Three lines are enough to judge a fix; the rest opens on demand so the buttons stay in view.
+                    (Text("Suggested fix: ").foregroundStyle(Theme.textTertiary) + Text(fix).foregroundStyle(Theme.textPrimary))
+                        .font(.house.body)
+                        .lineLimit(expanded || fix.count <= Size.clampChars ? nil : Size.clampLines)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if fix.count > Size.clampChars {
+                        ChipButton(title: expanded ? "Show less" : "Show more") { expanded.toggle() }
+                    }
                 }
                 HStack(spacing: Space.s) {
                     Text(finding.voices ?? "\(finding.backers) back, \(finding.dissent) dissent").font(.house.meta).foregroundStyle(Theme.textTertiary)
@@ -99,7 +108,7 @@ struct FindingRow: View {
                             ChipButton(title: running ? "..." : "Dismiss", action: press)
                         }
                         AsyncPress(id: "confirm:\(finding.id)", action: confirm) { running, press in
-                            ChipButton(title: running ? "..." : "Confirm", action: press)
+                            ChipButton(title: running ? "..." : "Confirm", prominent: true, action: press)
                         }
                     }
                 }

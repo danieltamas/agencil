@@ -1,3 +1,4 @@
+import AgencilCore
 import SwiftUI
 
 /// A pushed detail screen inside the panel: a back chip, what the card is, then the whole record, scrollable.
@@ -6,12 +7,19 @@ struct PanelDetailView: View {
     let store: PanelStore
     let back: () -> Void
     @State private var copied = false
+    @State private var linkCopied = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
             HStack(spacing: Space.m) {
                 ChipButton(title: "Back", symbol: "chevron.left", action: back)
                 Spacer(minLength: 0)
+                if let link = SittingLink.link(for: page.id) {
+                    IconButton(symbol: linkCopied ? "checkmark" : "link", help: "Copy an agencil:// link another agent can open") {
+                        Clipboard.copy(link)
+                        linkCopied = true
+                    }
+                }
                 if let record = page.recordMarkdown {
                     ChipButton(title: copied ? "Copied" : "Copy as Markdown", symbol: copied ? "checkmark" : "doc.on.doc") {
                         Clipboard.copy(record)
@@ -25,7 +33,8 @@ struct PanelDetailView: View {
                 Text(page.title).font(.house.header).foregroundStyle(Theme.textPrimary).fixedSize(horizontal: false, vertical: true)
             }
             ScrollView {
-                VStack(alignment: .leading, spacing: Space.l) {
+                // Lazy: a sitting with many long answers lays out what is on screen, not the whole record.
+                LazyVStack(alignment: .leading, spacing: Space.l) {
                     if let problem = page.problem { ProblemText(text: problem) }
                     if page.loading { WaitingState(title: "Reading the record...") }
                     if let synthesis = page.synthesis { synthesisBlock(synthesis) }
@@ -76,9 +85,7 @@ struct PanelDetailView: View {
     private func block(_ section: DetailPage.Section) -> some View {
         VStack(alignment: .leading, spacing: Space.xs) {
             Eyebrow(text: section.heading, color: section.tone.map(Theme.color(for:)) ?? Theme.textTertiary)
-            Text(styled(section.text)).font(.house.body)
-                .foregroundStyle(section.tone == .crit ? Theme.crit : Theme.textPrimary)
-                .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+            LongText(text: section.text, color: section.tone == .crit ? Theme.crit : Theme.textPrimary)
         }
     }
 
@@ -107,10 +114,7 @@ struct PanelDetailView: View {
                         }
                         Text(answer.meta).font(.house.meta).foregroundStyle(Theme.textTertiary).fixedSize(horizontal: false, vertical: true)
                         if let structured = answer.structured { AnswerBody(answer: structured) }
-                        else {
-                            Text(styled(answer.text)).font(.house.body).foregroundStyle(Theme.textPrimary)
-                                .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
-                        }
+                        else { LongText(text: answer.text) }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -123,10 +127,5 @@ struct PanelDetailView: View {
             Eyebrow(text: "Claims")
             ForEach(page.claims) { FindingRow(finding: $0) }
         }
-    }
-
-    /// Answers are mostly prose with the odd `code` or **bold**; inline markdown, whitespace kept.
-    private func styled(_ text: String) -> AttributedString {
-        (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
     }
 }

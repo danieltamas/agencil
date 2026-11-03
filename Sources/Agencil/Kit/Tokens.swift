@@ -57,6 +57,11 @@ enum Size {
     static let detailLabel: CGFloat = 96
     static let settingsRow: CGFloat = 34
     static let menuBarGlyph: CGFloat = 18
+    /// A long claim detail (a fix) shows this many lines and opens on demand; one under `clampChars` characters never clamps.
+    static let clampLines = 3
+    static let clampChars = 170
+    /// A long answer shows this many characters before "Show the full text".
+    static let longTextChars = 3000
     static let panelWidth: CGFloat = 404
     static let panelMaxHeight: CGFloat = 780
     /// The open panel is this tall in every tab, like its sibling apps: the tallest that fits the screen, at most `panelMaxHeight`.

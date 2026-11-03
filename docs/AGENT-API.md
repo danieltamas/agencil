@@ -197,6 +197,11 @@ acting call:
 Clients time out tool calls (Claude Code's default is configurable). So the default `wait_seconds` is 60:
 a long sitting returns `pending` and the agent polls `ask_result` or `sitting_verdict`.
 
+**Links.** The panel's detail screens have a copy-link button that puts `agencil://sitting/<id>` (or
+`agencil://thread/<id>`) on the clipboard. The owner pastes it to another agent, which passes the link, or the bare
+id, as `sitting`, `thread` or `id` to any tool above. The link carries only the id: the agent still needs agent
+access on and a route that allows the call. It is not a registered macOS URL scheme and does not open from a browser.
+
 ### Configuring local agents (Settings > Agent access)
 
 One card per detected harness:

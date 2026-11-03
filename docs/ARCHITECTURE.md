@@ -28,6 +28,24 @@ macOS 14, no third-party dependencies.
 6. `Panel` ops read the ledger for the app and the CLI: sittings, threads, details, outcomes, the leaderboard.
 7. After a sitting, the owner's panel (peer pid, never an agent) can put a follow-up to the council that held it: the `followup` op asks every seat of that council on a per-seat thread (linked to the sitting through `thread_rounds` round `followup`), each seat shown the sitting's record as labelled evidence plus the owner's text and any attached files. The `costs` op aggregates every answered exchange by local day, project, council, seat, model and caller for the Costs pane; it reads the exchange's own cost columns, so costs outlive the retention prune.
 
+## Sharing a record: `agencil://` links
+
+`SittingLink` (`AgencilCore/Councils`) is the one place a record id and a link convert. `agencil://sitting/<sit_id>`
+and `agencil://thread/<th_id>` are addresses, not a registered URL scheme: the panel's detail screens copy one with a
+link button, and `MCPServer.call` turns a link into the bare id before the broker sees the request, so the broker,
+routes, caps and budgets are unchanged and a link grants nothing the caller's route does not. Parsing fails closed:
+extra path parts, a query, a fragment, credentials, a port or a mismatched id kind return the input unchanged, and an
+unchanged value is never a routable id. The tools that take an id (`sitting_status`, `sitting_verdict`, `stop`) say so
+in their descriptions, which is how an agent learns the form.
+
+## Panel rendering
+
+A detail screen is a lazy stack, so a sitting with many long answers lays out what is on screen. `Kit/LongText`
+renders an answer or a record section: it parses inline Markdown once, off the main actor, drops a result for text
+no longer shown, and cuts at 3,000 characters behind a Show the full text button. `Kit/Tokens.swift` holds the
+limits (`Size.longTextChars`, `Size.clampLines`, `Size.clampChars`), because views name tokens and never literals.
+The Costs pane reads the ledger, so it survives the Data pane pruning old text.
+
 ## Contracts
 
 - `docs/AGENT-API.md`: CLI verbs, the seven MCP tools, routing and exit codes.

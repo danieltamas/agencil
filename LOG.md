@@ -1,3 +1,11 @@
+## Unreleased
+
+- Findings cards are easier to read: the suggested fix is body-size text limited to three lines with a Show more button, a claim raised on the question says so in words, the tab explains Confirm, Dismiss and Ask a seat, and Confirm is the accent button.
+
+- Opening a large sitting no longer stalls the panel: the record is laid out lazily and each long answer parses its Markdown once, off the main thread, and shows its first 3,000 characters with a Show the full text button.
+
+- A link button on a sitting or thread copies `agencil://sitting/<id>` (or `thread`) to share with another local agent; `sitting_status`, `sitting_verdict` and `stop` accept the link or the bare id. The link carries only the id and grants no access beyond the caller's route.
+
 ## 0.3.0 (2026-11-03)
 
 - Every sitting ends with a written synthesis (U29): what the council concluded, where the seats agree and differ, and the next step, drawn as formatted Markdown above the sitting's brief and rounds, with a Copy as Markdown button for the whole record. A council with no synthesizer has its first answering seat write it; that one is best-effort and never changes the verdict. The memory export carries the synthesis.

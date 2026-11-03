@@ -80,6 +80,8 @@ public struct MCPServer {
         request["caller"] = caller
         if let capability = ProcessInfo.processInfo.environment["AGENCIL_CAP"], !capability.isEmpty { request["cap"] = capability }
         if let thread = arguments["thread"] ?? arguments["sitting"] { request["id"] = thread }
+        // An owner may hand over an `agencil://sitting/<id>` link in place of the bare id.
+        if let id = request["id"] as? String { request["id"] = SittingLink.id(from: id) }
         if tool.brokerOp == "ask" || tool.brokerOp == "wake", let project = ProjectLabel.label(cwd: FileManager.default.currentDirectoryPath) {
             request["project"] = project
         }

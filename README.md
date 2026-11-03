@@ -96,6 +96,24 @@ harness and shows whether each is current.
   <img src="docs/media/settings-agent-access.png" alt="Settings, Agent access: the MCP command and socket, the seven tools, and per agent the MCP entry and instructions" width="520">
 </p>
 
+### Share a sitting with another agent
+
+Open a sitting (or a thread) in the panel and press the link button: it copies `agencil://sitting/<id>` (or
+`agencil://thread/<id>`). Paste it to any local agent that has the Agencil MCP server; it passes the link to
+`sitting_status`, `sitting_verdict` or `stop` and reads the same record you see, with the synthesis, rounds and claims.
+The link carries only the id, so the agent still needs agent access on and a route that allows the call. It is not
+a web address and does not open from a browser.
+
+## In the panel
+
+- **Sittings:** start one by hand with the floating New sitting button (pick a council, ask, attach files or paste a
+  screenshot). Every finished sitting opens with a written synthesis and a Copy as Markdown button, and you can put
+  follow-up questions to the seats that sat.
+- **Findings:** claims from sittings that wait for your call. Confirm the ones that are right, dismiss the rest, or ask
+  another seat to judge. A long suggested fix shows three lines and opens on demand.
+- **Costs** (Settings): daily spend, and the same money by project, council, seat, model or caller. Calls with no
+  recorded cost show as unpriced, never as zero.
+
 ## Which seat is right on which kind of change
 
 Every finding is later confirmed or refuted by evidence (a fix commit, a revert, a dismissed pull request), an
