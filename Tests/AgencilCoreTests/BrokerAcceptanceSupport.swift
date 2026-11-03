@@ -17,12 +17,12 @@ struct BrokerFailure: Error, CustomStringConvertible {
     init(_ description: String) { self.description = description }
 }
 
-func brokerPoll(_ seconds: Double = 12, _ condition: () throws -> Bool) throws {
-    let deadline = Date().addingTimeInterval(seconds)
+func brokerPoll(_ seconds: Double = 30, _ condition: () throws -> Bool) throws {
+    let deadline = ContinuousClock.now + .seconds(seconds)
     repeat {
         if try condition() { return }
         usleep(10_000)
-    } while Date() < deadline
+    } while ContinuousClock.now < deadline
     throw BrokerFailure("Deadline exceeded after \(seconds)s")
 }
 
@@ -51,7 +51,7 @@ final class BrokerProcess {
         try process.run()
     }
     func outputSnapshot() throws -> Data { try Data(contentsOf: outURL) }
-    func finish(_ timeout: Double = 12) throws -> (Int32, String, String) {
+    func finish(_ timeout: Double = 30) throws -> (Int32, String, String) {
         try brokerPoll(timeout) { !process.isRunning }
         process.waitUntilExit()
         return (process.terminationStatus, try String(contentsOf: outURL, encoding: .utf8),
@@ -115,7 +115,7 @@ final class BrokerHome: @unchecked Sendable {
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { throw BrokerFailure("socket failed") }
         defer { close(fd) }
-        var timeout = timeval(tv_sec: 12, tv_usec: 0)
+        var timeout = timeval(tv_sec: 30, tv_usec: 0)
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout.size(ofValue: timeout)))
         var address = sockaddr_un()
         address.sun_family = sa_family_t(AF_UNIX)

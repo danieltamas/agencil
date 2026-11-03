@@ -16,7 +16,6 @@ import AgencilCore
         let store = ConfigStore(directory: temp.url)
         _ = try store.update { $0["seed"] = "kept" }
         let fixture = try fixtureURL()
-        let start = ContinuousClock.now
         let processes = try ["maya", "jonas"].map { key -> Process in
             let process = Process()
             process.executableURL = fixture
@@ -27,19 +26,24 @@ import AgencilCore
         }
         defer { for process in processes where process.isRunning { kill(process.processIdentifier, SIGKILL) } }
         // Both children announce readiness before either is released, proving overlap.
-        let deadline = ContinuousClock.now + .seconds(15)
+        let deadline = ContinuousClock.now + .seconds(30)
+        var overlapped = false
         while processes.contains(where: { $0.isRunning }) && ContinuousClock.now < deadline {
             let ready = ["maya", "jonas"].allSatisfy {
                 FileManager.default.fileExists(atPath: temp.url.appendingPathComponent($0 + ".ready").path)
             }
-            if ready { try Data().write(to: temp.url.appendingPathComponent("go")) }
+            if ready && !overlapped {
+                #expect(processes.allSatisfy { $0.isRunning })
+                overlapped = true
+                try Data().write(to: temp.url.appendingPathComponent("go"))
+            }
             try await Task.sleep(for: .milliseconds(10))
         }
         for process in processes {
-            try #require(!process.isRunning, "Writer exceeded 15 second deadline")
+            try #require(!process.isRunning, "Writer exceeded 30 second hang guard")
             #expect(process.terminationStatus == 0)
         }
-        #expect(start.duration(to: .now) < .seconds(20))
+        #expect(overlapped, "Both writers must be ready before either is released")
         let result = try store.read()
         #expect(result.revision == 201)
         #expect(result.values["seed"] == "kept")

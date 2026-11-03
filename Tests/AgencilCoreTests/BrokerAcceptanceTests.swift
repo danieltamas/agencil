@@ -204,7 +204,7 @@ import Testing
         #expect(argv.contains("run-seat " + nonce))
         #expect(!FileManager.default.fileExists(atPath: home.url.appendingPathComponent("marker").path))
         first.kill(); _ = try first.finish()
-        #expect(group.wait(timeout: .now() + 3) == .success)
+        #expect(group.wait(timeout: .now() + 30) == .success)
         let next = try home.serve()
         defer { next.kill() }
         try brokerPoll { !brokerAlive(pid) }

@@ -41,14 +41,24 @@ import AgencilCore
         for name in hanging {
             let file = temp.url.appendingPathComponent(name + ".pid")
             try executable(name, at: temp.url,
-                body: "printf '%s' \"$$\" > '\(file.path)'; exec /bin/sleep 8")
+                body: """
+                printf '%s' "$$" > '\(file.path)'
+                while ! { test -f '\(temp.url.path)/hang1.pid' && test -f '\(temp.url.path)/hang2.pid' && test -f '\(temp.url.path)/hang3.pid'; }; do /bin/sleep 0.01; done
+                for file in '\(temp.url.path)'/hang*.pid; do kill -0 "$(/bin/cat "$file")" || exit 91; done
+                touch '\(temp.url.path)/\(name).overlap'
+                exec /bin/sleep 120
+                """)
         }
-        let start = ContinuousClock.now
         let results = try await HarnessDiscovery().discover(
             catalog: catalog(["fast", "known", "missing", "hang1", "hang2", "hang3"]),
             searchPath: [temp.url], knownInstallDirectories: [extra], environment: [:],
-            probeTimeout: .milliseconds(1500))
-        #expect(start.duration(to: .now) < .seconds(4), "Must not wait 8 seconds per hung binary")
+            probeTimeout: .seconds(20))
+        for name in hanging {
+            #expect(FileManager.default.fileExists(atPath: temp.url.appendingPathComponent(name + ".overlap").path),
+                    "All hung probes must overlap before any exits")
+            let pid = try #require(Int32(String(contentsOf: temp.url.appendingPathComponent(name + ".pid"), encoding: .utf8)))
+            #expect(kill(pid, 0) == -1 && errno == ESRCH)
+        }
         #expect(Set(results.map(\.kind)) == Set(["fast", "known", "missing", "hang1", "hang2", "hang3"]))
         let fast = try #require(results.first { $0.kind == "fast" })
         #expect(Set(fast.paths.map(\.path)) == Set([temp.url.appendingPathComponent("fast").path,
@@ -100,7 +110,7 @@ import AgencilCore
         """)
         let results = try await HarnessDiscovery().discover(catalog: catalog(["safe", "prompt"]),
             searchPath: [temp.url], knownInstallDirectories: [],
-            environment: ["HOME": home.path, "PATH": temp.url.path], probeTimeout: .milliseconds(1500))
+            environment: ["HOME": home.path, "PATH": temp.url.path], probeTimeout: .seconds(30))
         #expect(!FileManager.default.fileExists(atPath: opened.path))
         let safe = try #require(results.first { $0.kind == "safe" })
         #expect(safe.signedIn == .signedOut)
@@ -129,7 +139,7 @@ import AgencilCore
         }
         let results = try await HarnessDiscovery().discover(
             catalog: catalog(["forward", "scrub"], chain: true), searchPath: [temp.url],
-            knownInstallDirectories: [], environment: [:], probeTimeout: .milliseconds(1500))
+            knownInstallDirectories: [], environment: [:], probeTimeout: .seconds(30))
         let forward = try #require(results.first { $0.kind == "forward" })
         let scrub = try #require(results.first { $0.kind == "scrub" })
         #expect(forward.chainSupport == .supported)

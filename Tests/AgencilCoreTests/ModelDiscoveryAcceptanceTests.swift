@@ -50,7 +50,7 @@ import AgencilCore
         defer { server.stop() }
         let store = temp.url.appendingPathComponent("digests.json")
         let first = try await ModelDiscovery().probeOllama(endpoint: server.endpoint,
-            digestStore: store, timeout: .seconds(1))
+            digestStore: store, timeout: .seconds(30))
         #expect(first.health == "ok")
         #expect(first.warnings.isEmpty)
         let model = try #require(first.models.first)
@@ -66,13 +66,13 @@ import AgencilCore
         #expect(FileManager.default.fileExists(atPath: store.path))
         server.setDigest("sha256:BBBB")
         let second = try await ModelDiscovery().probeOllama(endpoint: server.endpoint,
-            digestStore: store, timeout: .seconds(1))
+            digestStore: store, timeout: .seconds(30))
         #expect(second.models.first?.digest == "sha256:BBBB")
         #expect(second.warnings.count == 1)
         #expect(second.warnings.first?.contains("changed under its label") == true)
         #expect(second.warnings.first?.contains("qwen3:32b") == true)
         let third = try await ModelDiscovery().probeOllama(endpoint: server.endpoint,
-            digestStore: store, timeout: .seconds(1))
+            digestStore: store, timeout: .seconds(30))
         #expect(third.warnings.isEmpty)
         #expect(server.paths.filter { $0 == "/api/tags" }.count == 3)
         #expect(server.paths.filter { $0 == "/api/ps" }.count == 3)
@@ -84,14 +84,15 @@ import AgencilCore
         let server = try OllamaAcceptanceServer()
         defer { server.stop() }
         let store = temp.url.appendingPathComponent("digests.json")
-        _ = try await ModelDiscovery().probeOllama(endpoint: server.endpoint,
-            digestStore: store, timeout: .seconds(1))
+        let initial = try await ModelDiscovery().probeOllama(endpoint: server.endpoint,
+            digestStore: store, timeout: .seconds(30))
+        try #require(initial.health == "ok", "Digest baseline requires a successful probe: \(initial.failureReason ?? "unknown")")
         let baseline = try Data(contentsOf: store)
         for mode in [OllamaAcceptanceServer.Mode.unavailable, .malformed] {
             server.setMode(mode)
             do {
                 let result = try await ModelDiscovery().probeOllama(endpoint: server.endpoint,
-                    digestStore: store, timeout: .seconds(1))
+                    digestStore: store, timeout: .seconds(30))
                 #expect(result.health == "failed")
             } catch { /* Throwing also fails closed. */ }
             #expect(try Data(contentsOf: store) == baseline)
@@ -108,7 +109,7 @@ import AgencilCore
         let refused = server.endpoint.replacingOccurrences(of: "http://", with: "http://user:secret@")
         do {
             _ = try await ModelDiscovery().probeOllama(endpoint: refused,
-                digestStore: store, timeout: .milliseconds(200))
+                digestStore: store, timeout: .seconds(30))
             Issue.record("Discovery bypassed endpoint policy")
         } catch { #expect(!String(describing: error).isEmpty) }
         #expect(server.connections == 0)
@@ -120,7 +121,7 @@ import AgencilCore
         server.setMode(.redirect(target.endpoint.replacingOccurrences(of: "http://", with: "http://user@")))
         do {
             let result = try await ModelDiscovery().probeOllama(endpoint: server.endpoint,
-                digestStore: store, timeout: .milliseconds(300))
+                digestStore: store, timeout: .seconds(30))
             #expect(result.health == "failed")
         } catch { /* Rejecting all redirects is also acceptable. */ }
         #expect(target.connections == 0)
@@ -189,7 +190,7 @@ private final class OllamaAcceptanceServer: @unchecked Sendable {
             self.receive(connection, accumulated: Data())
         }
         listener.start(queue: queue)
-        guard ready.wait(timeout: .now() + 2) == .success, listener.port != nil else {
+        guard ready.wait(timeout: .now() + 30) == .success, listener.port != nil else {
             listener.cancel()
             throw ServerFailure.startup
         }

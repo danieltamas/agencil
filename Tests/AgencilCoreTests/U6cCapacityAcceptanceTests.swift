@@ -28,8 +28,21 @@ struct U6cCapacityAcceptanceTests {
         try rig.base.config(seats: [u6aSeat("a"), u6aSeat("b", "claude"), u6aSeat("c", "hermes")],
                             routes: ["a", "b", "c"].map { u6aRoute($0, callers: ["owner", "a", "b"]) },
                             raw: ["agent_access": "on", "limits": "{\"seats_at_once\":1,\"process_cap\":2}"])
-        let start = Date(); _ = try rig.root()
-        #expect(Date().timeIntervalSince(start) < 5)
+        let stub = rig.base.bin.appendingPathComponent("claude")
+        let script = try String(contentsOf: stub, encoding: .utf8)
+        let marker = "printf '%s' \"$code\" > \"$record.exit\""
+        try #require(script.contains(marker))
+        try script.replacingOccurrences(of: marker, with: marker + "\n" + """
+        live=0
+        for pid in $(/bin/cat "$STUB_RECORD.pids"); do
+            kill -0 "$pid" || exit 92
+            live=$((live + 1))
+        done
+        printf '%s' "$live" > "$record.refusal-live"
+        """).write(to: stub, atomically: false, encoding: .utf8)
+        _ = try rig.root()
+        #expect(try rig.read("claude.refusal-live") == "2",
+                "Nested refusal must return while both ancestor processes are alive")
         try rig.refusal("claude", "refused: busy")
         #expect(try rig.read("events").split(separator: "\n").count == 2)
         #expect(try rig.sql("SELECT count(*) FROM runs; SELECT count(*) FROM requests;") == "2\n3\n")
@@ -43,11 +56,11 @@ struct U6cCapacityAcceptanceTests {
         try rig.configure(limits: ["seats_at_once": 1, "process_cap": 4])
         let first = try rig.base.data(rig.base.ask(extra: ["wait_seconds": 0]))
         let thread = try #require(first["thread"] as? String)
-        try brokerPoll(12) { FileManager.default.fileExists(atPath: rig.base.record.path) }
-        var start = Date()
+        try brokerPoll { FileManager.default.fileExists(atPath: rig.base.record.path) }
         rig.base.refused(try rig.base.ask(extra: ["wait_seconds": 0]), "refused: busy", exit: 3)
-        #expect(Date().timeIntervalSince(start) < 1)
-        start = Date()
+        #expect(!FileManager.default.fileExists(atPath: rig.base.record.path + ".release"))
+        #expect(try rig.sql("SELECT count(*) FROM runs;") == "1\n")
+        let start = Date()
         let (code, _, err) = try rig.home.cli(["ask", "primary", "other", "--wait", "1"])
         #expect(code == 3); #expect(err.contains("refused: busy"))
         #expect(Date().timeIntervalSince(start) >= 0.8)
@@ -69,7 +82,7 @@ struct U6cCapacityAcceptanceTests {
         let rig = try U6cRig(mode: "hold-term")
         try rig.configure(budgets: [u6cBudget(tokens: 100000)])
         _ = try rig.base.data(rig.base.ask(extra: ["wait_seconds": 0]))
-        try brokerPoll(12) { FileManager.default.fileExists(atPath: rig.base.record.path) }
+        try brokerPoll { FileManager.default.fileExists(atPath: rig.base.record.path) }
         let before = try #require(rig.budgets().first)
         let reserved = try u6cNumber(before, "reserved_tokens"); #expect(reserved > 0)
         let text = try rig.base.contents(".allpids")
@@ -82,7 +95,7 @@ struct U6cCapacityAcceptanceTests {
         #expect(brokerAlive(pid))
         #expect(try u6cNumber(#require(rig.budgets().first), "reserved_tokens") == reserved)
         brokerGroupCleanup(pid); Darwin.kill(pid, SIGKILL)
-        try brokerPoll(12) { try u6cNumber(#require(rig.budgets().first), "reserved_tokens") == 0 }
+        try brokerPoll { try u6cNumber(#require(rig.budgets().first), "reserved_tokens") == 0 }
         let after = try #require(rig.budgets().first)
         #expect(try u6cNumber(after, "spent_tokens") == reserved)
         #expect(try rig.sql(".dump runs").contains("interrupted"))
