@@ -28,6 +28,12 @@ struct PanelClient: Sendable {
         return reply["data"] as? [String: Any] ?? [:]
     }
 
+
+    /// A whole request as the form composed it; the reply's `data` object.
+    func data(for request: [String: Any]) async throws -> [String: Any] {
+        try await send(request)["data"] as? [String: Any] ?? [:]
+    }
+
     private func send(_ request: [String: Any]) async throws -> [String: Any] {
         let client = client
         let payload = JSONBox(value: request)

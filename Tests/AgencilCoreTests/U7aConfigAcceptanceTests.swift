@@ -49,9 +49,9 @@ import Testing
     }
     @Test func missingRouteWritesRefusalWithoutRun() throws {
         let r = try U7aRig(); try r.configure(routes: [u6aRoute("a")])
-        let reply = try r.home.request(["op": "wake", "caller": "owner", "council": "panel",
+        let reply = try r.home.request(["op": "wake", "caller": "claude", "council": "panel",
                                        "change_kind": "design", "question": "probe"])
-        r.base.refused(reply, "refused: no route from owner to panel", exit: 3)
+        r.base.refused(reply, "refused: no route from claude to panel", exit: 3)
         try r.noRuns()
         #expect(try r.sql("SELECT count(*) FROM requests WHERE outcome='refused';") == "1\n")
     }

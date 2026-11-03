@@ -1,0 +1,3 @@
+func createControl() -> some View {
+    ChipButton(title: "New sitting") {}
+}

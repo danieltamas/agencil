@@ -63,6 +63,8 @@ enum Size {
     static let settingsSidebar: CGFloat = 196
     static let modalWidth: CGFloat = 520
     static let panelListLimit: CGFloat = 340
+    /// Room kept under a scrolling list so the last row clears a floating action.
+    static let floatingClearance: CGFloat = 64
     static let bentoSide: CGFloat = 140
     static let bentoRing: CGFloat = 96
     static let sidebarGlyph: CGFloat = 24

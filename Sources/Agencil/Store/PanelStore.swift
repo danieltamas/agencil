@@ -13,7 +13,16 @@ import SwiftUI
     private(set) var proposals: [ProposalItem] = []
     private(set) var canRollback = false
     private(set) var seen: Set<String> = []
-    private(set) var problem: String?
+    var problem: String?
+    /// The manual sitting form while it is open (Store/PanelCompose.swift).
+    var compose: SittingDraft?
+    var composeProblem: String?
+    /// The Agencil home; pasted images are saved in its `attachments` folder (nil: a temporary one).
+    @ObservationIgnored var attachmentsRoot: URL?
+    var pastedFiles: Set<String> = []
+    var councilNames: [String] = []
+    @ObservationIgnored var starting = false
+    @ObservationIgnored var brokerRequest: (@MainActor (sending [String: Any]) async throws -> [String: Any])?
     private(set) var readAt: Date?
     private(set) var starOffer = false
     @ObservationIgnored private var repoStar: RepoStar?
@@ -63,6 +72,8 @@ import SwiftUI
         store.notifier = PanelNotifier(settings: { (try? ConfigStore(directory: home.directory).read()).flatMap { try? NotifySettings(values: $0.values) } })
         store.control = StopControl(stop: { id in try await client.stop(id) })
         store.detailReader = { id in try await client.call("detail", ["id": id]) }
+        store.brokerRequest = { request in try await client.data(for: request) }
+        store.attachmentsRoot = home.directory
         store.start()
         return store
     }
@@ -204,7 +215,7 @@ import SwiftUI
         detail = nil
     }
 
-    private func present(_ page: DetailPage) {
+    func present(_ page: DetailPage) {
         detail = page
         detailLoad?.cancel()
         guard page.kind != .finding else { return }

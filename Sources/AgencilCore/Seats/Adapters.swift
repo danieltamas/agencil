@@ -46,11 +46,12 @@ public enum Adapter {
     /// `reportUsage` swaps in each harness's JSON output so the run's tokens and cost can be read (UsageCapture); the
     /// availability probe keeps the plain-text invocation.
     public static func command(seat: Seat, executable: String, prompt: String, answerFile: String,
-                               runDirectory: String, reportUsage: Bool = false) throws -> Invocation? {
+                               runDirectory: String, reportUsage: Bool = false, images: [String] = []) throws -> Invocation? {
         switch seat.harness {
         case "codex":
             return Invocation(argv: [executable, "exec", "--ignore-user-config", "--disable", "hooks", "-s", "read-only",
-                                     "--skip-git-repo-check", "-o", answerFile, "-m", seat.model] + (reportUsage ? ["--json"] : []) + [prompt],
+                                     "--skip-git-repo-check", "-o", answerFile, "-m", seat.model] + (reportUsage ? ["--json"] : [])
+                                     + images.flatMap { ["-i", $0] } + (images.isEmpty ? [] : ["--"]) + [prompt],
                               environment: [:], workingDirectory: nil, stdoutIsAnswer: false, usage: reportUsage ? .codexEvents : nil)
         case "claude":
             return Invocation(argv: [executable, "-p", prompt, "--model", seat.model, "--setting-sources", "user",
@@ -73,13 +74,16 @@ public enum Adapter {
         }
     }
 
+    /// Whether the harness can look at an attached image: claude reads the file it is named, codex takes `-i`.
+    public static func seesImages(_ harness: String) -> Bool { harness == "claude" || harness == "codex" }
+
     /// Whether the harness refuses files outside its working directory, so attachments must be placed inside it.
     public static func restrictsExternalDirectories(_ harness: String) -> Bool { harness == "opencode" }
 
     /// The labelled evidence a seat is shown: the question, the files, never instructions from them. `attached` names
     /// briefs already written under the working directory; `withheld` counts files the redaction rules kept back.
     public static func prompt(question: String, files: [(path: String, text: String)], transcript: [(asked: String, answered: String)],
-                              attached: [String] = [], withheld: Int = 0, verbatim: Bool = false) -> String {
+                              attached: [String] = [], withheld: Int = 0, verbatim: Bool = false, imageLines: [String] = []) -> String {
         var parts: [String] = []
         for exchange in transcript { parts.append("ASKED:\n\(exchange.asked)\nANSWERED:\n\(exchange.answered)") }
         // A sitting builds its whole prompt, labels included.
@@ -87,6 +91,7 @@ public enum Adapter {
         for file in files { parts.append("FILE \(file.path):\n\(file.text)") }
         for name in attached { parts.append("FILE \(name): attached") }
         if withheld > 0 { parts.append("[\(withheld) file(s) withheld by the redaction rules]") }
+        parts.append(contentsOf: imageLines)
         return parts.joined(separator: "\n\n")
     }
 }

@@ -23,6 +23,94 @@ import Testing
     private let tabs = ["threads", "sittings", "findings", "seats"]
     private let tolerance: CGFloat = 0.5
 
+    @Test func sittingCreatePillFloatsInsidePanelAndHidesOnPages() throws {
+        let previous = Appearance.shared.look
+        defer { Appearance.shared.look = previous }
+        for look in Look.allCases {
+            Appearance.shared.look = look
+            let store = PanelStore(data: DemoPanel.data)
+            let panel = try bitmap(PanelView(store: store, tab: "sittings"), look: look)
+            let frame = try #require(try brandPill(in: panel, look: look), "Floating pill missing: \(look)")
+            let panelWidth = CGFloat(panel.pixelsWide) / 2
+            #expect(frame.minX >= 0 && frame.maxX <= panelWidth, "Pill outside panel: \(look)")
+            // Brand-fill detection excludes about 1 pt of antialiased/stroked capsule edge.
+            // Allow that raster measurement error without changing the layout inset.
+            #expect(abs(panelWidth - frame.maxX - Space.panelInset) <= 1.5, "Trailing inset: \(look)")
+            // The existing fittingSize seam measures the real footer control.
+            // DESIGN specifies 10 points above and below it; poll labels use
+            // the same badge font. This is an inferred footer band, not AX.
+            let footerHeight = HouseRender.fittingSize(of: AppControls(restart: {}, quit: {})).height + 20
+            let footerTop = CGFloat(panel.pixelsHigh) / 2 - footerHeight
+            #expect(frame.maxY < footerTop, "Pill overlaps footer: \(look)")
+
+            let data = try #require(DemoPanel.data)
+            store.open(sitting: try #require(data.sittings.first).id)
+            #expect(store.detail != nil)
+            let detail = try bitmap(PanelView(store: store, tab: "sittings"), look: look)
+            #expect(try brandPill(in: detail, look: look) == nil, "Pill on detail: \(look)")
+            store.closeDetail()
+            store.compose = SittingDraft()
+            let compose = try bitmap(PanelView(store: store, tab: "sittings"), look: look)
+            #expect(try brandPill(in: compose, look: look) == nil, "Pill on compose: \(look)")
+        }
+        // Last-row scroll clearance requires driving the scroll view; this
+        // offscreen, static render makes no claim about that interaction.
+    }
+
+    private func bitmap<V: View>(_ view: V, look: Look) throws -> NSBitmapImageRep {
+        try #require(NSBitmapImageRep(data: HouseRender.png(view, look: look, scale: 2, now: DemoStore.now)))
+    }
+
+    /// Detect a connected brand-fill region, not a separately composited control.
+    /// Sampling Theme.brand also covers the two monochrome looks. Text, shadows
+    /// and antialiasing need not match; substantial capsule-sized regions do.
+    private func brandPill(in image: NSBitmapImageRep, look: Look) throws -> CGRect? {
+        let swatch = try bitmap(Rectangle().fill(Theme.brand).frame(width: 128, height: 4), look: look)
+        func rgb(_ bitmap: NSBitmapImageRep, _ x: Int, _ y: Int) -> [CGFloat]? {
+            guard let c = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { return nil }
+            return [c.redComponent, c.greenComponent, c.blueComponent]
+        }
+        let colors = stride(from: 0, to: swatch.pixelsWide, by: 4).compactMap { rgb(swatch, $0, 4) }
+        let footerHeight = HouseRender.fittingSize(of: AppControls(restart: {}, quit: {})).height + 20
+        let width = image.pixelsWide
+        let bottom = Int(CGFloat(image.pixelsHigh) - footerHeight * 2)
+        var remaining = Set<Int>()
+        for y in Int(CGFloat(image.pixelsHigh) * 0.8)..<bottom {
+            for x in 0..<width {
+                guard let pixel = rgb(image, x, y) else { continue }
+                if colors.contains(where: { color in
+                    (0..<3).allSatisfy { abs(pixel[$0] - color[$0]) <= 0.06 }
+                }) { remaining.insert(y * width + x) }
+            }
+        }
+        var regions: [CGRect] = []
+        while let seed = remaining.first {
+            remaining.remove(seed)
+            var queue = [seed]
+            var cursor = 0
+            var minX = seed % width, maxX = minX
+            var minY = seed / width, maxY = minY
+            while cursor < queue.count {
+                let point = queue[cursor]
+                cursor += 1
+                let x = point % width, y = point / width
+                minX = min(minX, x); maxX = max(maxX, x)
+                minY = min(minY, y); maxY = max(maxY, y)
+                for (nx, ny) in [(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)] where nx >= 0 && nx < width {
+                    let next = ny * width + nx
+                    if remaining.remove(next) != nil { queue.append(next) }
+                }
+            }
+            let frame = CGRect(x: CGFloat(minX) / 2, y: CGFloat(minY) / 2,
+                               width: CGFloat(maxX - minX + 1) / 2, height: CGFloat(maxY - minY + 1) / 2)
+            if frame.width >= 60 && frame.height >= Size.control - 1 && frame.height <= Size.control + 1 {
+                regions.append(frame)
+            }
+        }
+        #expect(regions.count <= 1, "Multiple floating brand regions: \(look)")
+        return regions.first
+    }
+
     @Test func everyTabIs404PointsInEveryLook() throws {
         let previous = Appearance.shared.look
         defer { Appearance.shared.look = previous }

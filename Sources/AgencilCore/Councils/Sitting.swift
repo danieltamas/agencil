@@ -43,13 +43,18 @@ extension Broker {
             return Self.failure(error.localizedDescription, exit: 70)
         }
         let kinds = parent.flatMap { config.seat(named: $0.seat)?.harness }.map { [$0] } ?? []
-        guard let route = config.route(from: [caller] + kinds, to: name) else {
+        // The owner's own panel needs no route: routes limit agents. The wire's `caller` is only a claim, so the
+        // exemption also needs the connection to come from the app's own process (docs/U27-SPEC.md item 1).
+        let ownerRoute = caller == "owner" && parent == nil && request["as"] == nil && isAppPeer(peer)
+            ? Route(callers: ["owner"], target: name, hopLimit: 1, fallbacks: []) : nil
+        guard let route = config.route(from: [caller] + kinds, to: name) ?? ownerRoute else {
             return settle(Refusal(exit: 3, message: "refused: no route from \(caller) to \(name)"))
         }
         guard let council = config.council(named: name) else { return settle(Refusal(exit: 4, message: "failed: no council named \(name)")) }
         if (parent?.chain.count ?? 0) > route.hopLimit { return settle(Refusal(exit: 3, message: "refused: hop limit")) }
         do {
             let repo = try repository(request["repo"])
+            let attached = try AttachedFiles.readAll(request["files"], atMost: 8)
             let author = authorVendor(request["author_vendor"] as? String, parent: parent, config: config)
             let chosen = try Self.chosenSeats(request["seats"], council: council)
             let cap = try Self.capOverride(request["cap_seconds"])
@@ -77,12 +82,13 @@ extension Broker {
             let brief = ["change_kind: \(kind)", "question: \(question)", request["diff"].flatMap { $0 as? String }.map { "diff: \($0)" },
                          "author_vendor: \(author)",
                          seatsLine, capLine].compactMap { $0 }.joined(separator: "\n") + "\n"
+                + attached.paths.map { "file: \($0)\n" }.joined() + Self.imagesNotShown(attached.images, council: council, config: config)
             let opened = try sittingRows.open(council: council.name, snapshot: snapshot, authorVendor: author, brief: brief,
                                               project: ProjectLabel.clean(request["project"]))
             let sitting = SittingRun(id: opened.id, number: opened.number, council: council, config: config, route: councilRoute,
                                      caller: caller, parent: parent, snapshot: snapshot, changeKind: kind,
                                      diffRange: request["diff"] as? String, question: question, authorVendor: author, slots: slots,
-                                     spares: spares)
+                                     spares: spares, attached: attached.files, images: attached.images)
             if fallbackUsed { sitting.noteFallback() }
             tracking.withLock { sittings[opened.id] = sitting }
             try? threads.recordRequest(caller: caller, outcome: "accepted", runID: opened.id)
@@ -90,9 +96,27 @@ extension Broker {
             return sittingReply(opened.id, wait: waitSeconds(request, fallback: Self.defaultSittingWait))
         } catch let refusal as Refusal {
             return settle(refusal)
+        } catch let failure as Failure {
+            return Self.failure(failure.message, exit: failure.exit)
         } catch {
             return Self.failure(error.localizedDescription, exit: 70)
         }
+    }
+
+    /// The brief line naming the council's seats that will not see the attached images; empty when every seat can.
+    private static func imagesNotShown(_ images: [AttachedImage], council: Council, config: SeatConfig) -> String {
+        guard !images.isEmpty else { return "" }
+        let blind = (council.seats + council.spares + council.synthesizers).compactMap { config.seat(named: $0) }
+            .filter { !Adapter.seesImages($0.harness) }.map(\.name)
+        return blind.isEmpty ? "" : "images_not_shown: \(blind.joined(separator: ", "))\n"
+    }
+
+    /// The panel runs in the broker's own process, so its connection's peer is this process. With test seams on, a
+    /// named peer stands in for it.
+    private func isAppPeer(_ peer: Int32?) -> Bool {
+        guard let peer else { return false }
+        if peer == getpid() { return true }
+        return environment["AGENCIL_TEST_SEAMS"] == "1" && environment["AGENCIL_TEST_APP_PEER"].flatMap(Int32.init) == peer
     }
 
     /// The brief's author vendor when it names a vendor the sitting can reason about, else the vendor of the seat that
@@ -109,7 +133,7 @@ extension Broker {
 
     private func header(_ s: SittingRun, _ round: String, _ seat: Seat) -> String {
         SittingPrompt.header(round: round, sitting: s.id, seat: seat.name, snapshot: s.snapshot.id, kind: s.changeKind,
-                             diff: s.diffRange, question: s.question)
+                             diff: s.diffRange, question: s.question, attached: s.attached)
     }
 
     private func conduct(_ s: SittingRun) {

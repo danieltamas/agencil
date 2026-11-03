@@ -34,7 +34,7 @@ extension Broker {
                 return settle(Refusal(exit: 4, message: problem.message))
             }
             let kinds = parent.flatMap { config.seat(named: $0.seat)?.harness }.map { [$0] } ?? []
-            let files = try readFiles(request["files"])
+            let files = try AttachedFiles.read(request["files"])
             let repo = try repository(request["repo"])
             let world = resolverWorld()
             var existing: ThreadRecord?
@@ -132,7 +132,7 @@ extension Broker {
     // MARK: running one exchange
 
     func run(_ resolved: Resolved, caller: String, chain: [String], parent: CapabilityRun?, requested: String, question: String,
-                     files: [(path: String, text: String)], repo: String?, thread existing: ThreadRecord?, limits: Limits,
+                     files: [(path: String, text: String)], images: [AttachedImage] = [], repo: String?, thread existing: ThreadRecord?, limits: Limits,
                      wait: Int, placeWait: Int? = nil, snapshot: Snapshot? = nil, verbatim: Bool = false, project: String? = nil,
                      sittingRound: (sitting: String, round: String)? = nil,
                      isOver: () -> Bool = { false }) throws -> [String: Any] {
@@ -162,7 +162,7 @@ extension Broker {
             let answerFile = runDirectory.appendingPathComponent("answer.txt").path
             let seat = resolved.seat
             let packet = try packet(seat: seat, runDirectory: runDirectory, repo: repo, question: question, files: files, transcript: transcript,
-                                snapshot: snapshot, verbatim: verbatim)
+                                snapshot: snapshot, verbatim: verbatim, images: images)
             let prompt = packet.prompt
 
             func fail(_ reason: String) -> [String: Any] {
@@ -202,7 +202,7 @@ extension Broker {
             }
             guard let executable = resolved.executable,
                   var invocation = try Adapter.command(seat: seat, executable: executable, prompt: prompt, answerFile: answerFile,
-                                                       runDirectory: runDirectory.path, reportUsage: true) else {
+                                                       runDirectory: runDirectory.path, reportUsage: true, images: packet.imagePaths) else {
                 return fail("\(seat.harness) has no adapter")
             }
             if seat.harness == "opencode" {
@@ -330,18 +330,6 @@ extension Broker {
 
     func waitSeconds(_ request: [String: Any], fallback: Int = defaultWait) -> Int {
         min(max(request["wait_seconds"] as? Int ?? fallback, 0), 3600)
-    }
-
-    private func readFiles(_ value: Any?) throws -> [(path: String, text: String)] {
-        guard let paths = value as? [String] else { return [] }
-        return try paths.map { path in
-            guard path.hasPrefix("/"), let data = FileManager.default.contents(atPath: path) else {
-                throw Failure(message: "cannot read \(path)")
-            }
-            var text = String(decoding: data.prefix(Self.fileLimit), as: UTF8.self)
-            if data.count > Self.fileLimit { text += "\n[truncated: cut at 64 KB]" }
-            return (path, text)
-        }
     }
 }
 

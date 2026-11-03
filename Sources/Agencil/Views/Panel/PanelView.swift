@@ -24,12 +24,17 @@ struct PanelView: View {
         ]
     }
 
+    /// Which page the panel shows: the swap animates on this, so detail, compose and the list all move the same way.
+    private var page: String { store.detail?.id ?? (store.compose == nil ? "list" : "compose") }
+
     var body: some View {
         VStack(spacing: 0) {
             header
             VStack(spacing: Space.l) {
                 if let page = store.detail {
-                    PanelDetailView(page: page, back: store.closeDetail)
+                    PanelDetailView(page: page, back: store.closeDetail).houseTransition()
+                } else if store.compose != nil {
+                    ComposeView(store: store).houseTransition()
                 } else {
                     bento
                     TabIsland(tabs: tabs, selection: $tab)
@@ -40,10 +45,11 @@ struct PanelView: View {
                     content
                 }
             }
-            .paneSwap(store.detail?.id)
             .padding(.horizontal, Space.panelInset)
             .padding(.bottom, Space.l)
             .frame(maxHeight: .infinity, alignment: .top)
+            .floatingAction(newSittingPill)
+            .paneSwap(page)
             footer
         }
         .frame(width: Size.panelWidth)
@@ -51,6 +57,14 @@ struct PanelView: View {
         .background(Backdrop())
         .houseScheme()
         .trackPanelVisibility()
+    }
+
+    /// The Sittings tab's one create action, floated over its list (docs/DESIGN.md "Floating action").
+    private var newSittingPill: AsyncPress<FloatingPill>? {
+        guard tab == "sittings", store.detail == nil, store.compose == nil, store.data != nil else { return nil }
+        return AsyncPress(id: "sitting:new", action: store.newSittingAction()) { running, press in
+            FloatingPill(title: running ? "Opening..." : "New sitting", disabled: running, action: press)
+        }
     }
 
     private var header: some View {
@@ -127,7 +141,7 @@ struct PanelView: View {
         if store.data == nil {
             WaitingState(title: waiting)
         } else {
-            ScrollView { rows }.scrollIndicators(.hidden)
+            ScrollView { rows.padding(.bottom, tab == "sittings" ? Size.floatingClearance : 0) }.scrollIndicators(.hidden)
         }
     }
 
@@ -135,7 +149,7 @@ struct PanelView: View {
     private var subtitle: String {
         switch tab {
         case "threads": "One question to one seat, and its answer."
-        case "sittings": "A council reads a brief in rounds and gives a verdict."
+        case "sittings": "A council reads a brief and gives a verdict."
         case "findings": "Claims from sittings, waiting for your call."
         case "learn": "Changes to your councils that outcomes suggest."
         default: "Who can answer, and how often they are right."

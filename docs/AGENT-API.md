@@ -126,7 +126,7 @@ is off by default, and routes default to refuse.
 |------|--------------|
 | `ask <seat-or-alias> <question> [--file <path>]... [--thread <id>] [--wait <s>] [--as <caller-id>]` | One-seat council. Default wait 120 s. On timeout returns `pending` with the thread id |
 | `result <thread-or-sitting-id> [--wait <s>]` | The answer or the verdict, waiting up to `wait` |
-| `wake <council> --brief <file> [--repo <path>] [--diff <range>] [--wait <s>]` | Starts a sitting. The brief must name a change kind, a question and, for code, a diff range, or the call exits 64 |
+| `wake <council> --brief <file> [--file <path>]... [--repo <path>] [--diff <range>] [--wait <s>]` | Starts a sitting. The owner (no `--as`, outside every seat) needs no route to the council; an agent does. `--file` attaches up to 8 absolute-path files: text (64 KB each) that every seat reads as evidence, and images (PNG, JPEG, GIF or WebP, 10 MB each, 20 MB in all) that claude and codex seats see natively; any other seat is told an image was attached and not shown, and the brief lists them as `images_not_shown`. `ask --file` takes text only. The brief must name a change kind, a question and, for code, a diff range, or the call exits 64 |
 | `status <id>` | State, seats, elapsed time, cost |
 | `stop <id>` | Stops a thread or sitting; seats are killed by process group |
 | `seats`, `councils`, `routes`, `triggers` | The configuration, read-only. `triggers` also shows each trigger's last fire and sitting (docs/U7-SPEC.md "Triggers") |

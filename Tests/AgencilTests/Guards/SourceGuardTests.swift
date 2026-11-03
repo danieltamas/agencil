@@ -14,6 +14,10 @@ import Testing
         #expect(!bad.isEmpty)
         let clean = try GuardScanner.violations(guard: rule, in: good)
         #expect(clean.isEmpty, "Good fixtures: \(clean.map(\.description).joined(separator: "\n"))")
+        if rule == .createAction {
+            let duplicate = try GuardScanner.violations(guard: rule, in: good + good)
+            #expect(duplicate.contains { $0.rule.contains("at most one") })
+        }
         if rule == .press {
             let missing = try GuardScanner.violations(guard: rule, in: [])
             #expect(missing.contains { $0.rule.contains("found 0") && $0.line == 1 })
@@ -36,6 +40,7 @@ import Testing
 
     @Test func press() throws { try check(.press) }
     @Test func buttons() throws { try check(.buttons) }
+    @Test func createAction() throws { try check(.createAction) }
     @Test func font() throws { try check(.font) }
     @Test func sizeAndSpacing() throws { try check(.size) }
     @Test func color() throws { try check(.color) }

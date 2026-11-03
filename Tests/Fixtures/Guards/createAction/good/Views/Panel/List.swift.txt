@@ -1,0 +1,5 @@
+let pill = FloatingPill(title: "New sitting") {}
+content.floatingAction(pill)
+ChipButton(title: "Show sittings", symbol: "arrow.right") {}
+// ChipButton(title: "New sitting", symbol: "plus") {}
+let example = "PillButton(title: New sitting)"

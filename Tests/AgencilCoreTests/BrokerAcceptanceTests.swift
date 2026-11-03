@@ -47,11 +47,17 @@ import Testing
         defer { broker.kill() }
         let brief = home.url.appendingPathComponent("brief")
         try "change_kind: docs\nquestion: Review the guide\n".write(to: brief, atomically: true, encoding: .utf8)
-        for args in [["ask", "reviewer", "Review"], ["wake", "review", "--brief", brief.path]] {
-            let (code, _, error) = try home.cli(args)
-            #expect(code == 3)
-            #expect(error.hasPrefix("agencil: refused: no route "))
-        }
+        let (code, _, error) = try home.cli(["ask", "reviewer", "Review"])
+        #expect(code == 3)
+        #expect(error.hasPrefix("agencil: refused: no route "))
+        let reply = try home.request(["op": "wake", "caller": "claude", "council": "review",
+                                      "change_kind": "docs", "question": "Review the guide"])
+        #expect(reply["exit"] as? Int == 3)
+        #expect((reply["error"] as? String)?.hasPrefix("refused: no route ") == true)
+        // Only the app's own panel is exempt from routes; the owner CLI still needs one.
+        let (ownerCode, _, ownerError) = try home.cli(["wake", "review", "--brief", brief.path])
+        #expect(ownerCode == 3)
+        #expect(ownerError.hasPrefix("agencil: refused: no route from owner to review"))
     }
 
     @Test func configurationClientsReturnVersionedEnvelopes() throws {

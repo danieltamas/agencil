@@ -139,6 +139,7 @@ Meaning hues (`Theme.color(for:)`, the only place hex appears outside `Palette`)
 |-----|-----------|-------|
 | Start any async work from a press | `AsyncPress` / `AsyncPillButton` / `AsyncIconButton` with a stable `id` | `Task {}` in a button closure |
 | Primary or secondary action | `PillButton` (`prominent:`) | Ad hoc `Button` styling |
+| The primary create action of a tab (New sitting, New rule) | `FloatingPill`, placed with `.floatingAction(_:)` over the bottom-trailing corner of the tab's list | A `ChipButton` or `PillButton` in a header, subtitle or filter row; a create action that scrolls away |
 | Destructive or small inline action | `ChipButton` (`destructive:`) | Red text buttons |
 | On/off | `SwitchRow` (whole row is the hit area) | Native `Toggle`, mini toggles |
 | Pick one of 2 to 5 | Row of `SegmentChip` | `MenuField`, popovers |
@@ -148,7 +149,8 @@ Meaning hues (`Theme.color(for:)`, the only place hex appears outside `Palette`)
 | Secret | `SecretField` | Showing the value after save |
 | Multi-line text, prompts | `GlassEditor` (monospaced for prompts) | |
 | Search | `SearchField` (on `FieldCapsule`) | |
-| Create or edit an object | `.houseSheet(item:)`: the kit's only sheet presenter. It wraps its content in `ModalFrame` + `ModalFooter` (Cancel, Create or Save) itself | `.sheet(` anywhere outside `Kit/`, a separate screen, inline Save buttons in a pane |
+| Create or edit an object in Settings | `.houseSheet(item:)`: the kit's only sheet presenter. It wraps its content in `ModalFrame` + `ModalFooter` (Cancel, Create or Save) itself | `.sheet(` anywhere outside `Kit/`, inline Save buttons in a pane |
+| Create an object from the panel (a manual sitting) | A compose page pushed into the panel like a detail page (back chip, header and footer stay), opened by the tab's `FloatingPill`; Start is a `PillButton` pinned under the form | A sheet over the menu bar panel (it dismisses when a file picker takes focus), a form in the tab's header |
 | A list | `RowStack` (25 per page, "Show N more", newest first) | Plain `VStack` of rows |
 | A row that opens something | `HoverCard(accent:, action:)` | Rows without hover |
 | Expand a row in place | `Collapsible` | |
@@ -205,6 +207,14 @@ The Seats row keeps its own band: `ok` while the seat can sit, `crit` when it ca
    - `StarOffer` until starred.
    - Poll ages: `probed 40s`, `ollama-box 12s`.
    - `AppControls` (Restart, Quit).
+
+Floating action (the one convention for creating something from a tab, the same as RMJ's "New rule"):
+- A tab that creates an object has exactly one create action: a `FloatingPill` (a prominent `PillButton` with a plus disc and a soft shadow), titled "New <thing>", floated over the bottom-trailing corner of the tab's list, `Space.panelInset` from the right edge and `Space.l` above the footer.
+- It is placed with `.floatingAction(_:)` on the panel's middle container, never inside the scrolling list; the list keeps its last row clear of it with `Size.floatingClearance`.
+- It shows only on its own tab with the list open: it hides while a detail or compose page is open, and while the panel has nothing to list (no first read yet).
+- It is the same control and place in every tab and every app that creates things; a second create action on a tab, or one in the header, the subtitle or the filter row, is a defect.
+- Its press goes through `AsyncPress` (a stable id such as `sitting:new`), so a second press while it works is nothing, and its title says what is happening ("Opening...").
+- Tabs and their create actions: Sittings, "New sitting" (the manual sitting compose page). Threads, Findings, Seats and Learn have none today; Seats are added in Settings.
 
 Tabs:
 Under the tab island, one muted line says what the open tab is. Pressing a Thread, Sitting or Finding row pushes a
@@ -389,6 +399,7 @@ The scan strips comments and string literals first, then matches tokens.
 | Scheme | No `.preferredColorScheme` or `.environment(\.colorScheme` | `Kit/HouseScheme.swift` |
 | Motion | No `.animation(`, `withAnimation`, `.repeatForever` or `TimelineView`; transitions use kit modifiers (`.riseIn`, `.houseTransition`) | `Kit/Synapse/`, `Kit/Motion.swift`, and `Kit/RelativeTime.swift` (a minute clock, paused when the panel is hidden) |
 | Sheet | `.houseSheet(item:)` is the only presenter; it wraps content in `ModalFrame` itself | `Kit/HouseSheet.swift` |
+| Create action | A `ChipButton`, `PillButton` or `AsyncPillButton` whose title starts with "New " or "Add ", or whose symbol is `plus`, does not appear in `Views/Panel/`; the create action is a `FloatingPill` through `.floatingAction(_:)`, and `.floatingAction(` appears once in the panel | `Kit/` |
 | Kit purity | `Kit/` imports only SwiftUI, AppKit, QuartzCore and Foundation, and names no type from `Views/` or `Store/` | |
 
 A screen that seems to need a literal or a native control is the signal to add a kit component, never to
@@ -396,6 +407,7 @@ widen a guard's allowlist.
 
 Layout tests (RMJ `PanelLayoutTests`, rendered offscreen):
 - The panel is exactly 404 pt wide in every tab and look.
+- On the Sittings tab the floating pill sits inside the panel, trailing edge `Space.panelInset` from the right and clear of the footer, in every look; the last row of a full list scrolls clear of it.
 - Every control in a row measures `Size.control` (28) tall, within 0.5 pt.
 - The longest synthetic names fit: a 48-character repo, a 60-character model id, a 120-character reason.
 - Every empty and waiting state renders in every look.

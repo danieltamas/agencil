@@ -13,9 +13,10 @@ enum SittingPrompt {
     static let summaryFormat = "Answer with one JSON object and nothing else: {\"summary\": \"...\"}"
 
     static func header(round: String, sitting: String, seat: String, snapshot: String, kind: String, diff: String?,
-                       question: String) -> String {
+                       question: String, attached: [(path: String, text: String)] = []) -> String {
         let range = diff.map { "\nDIFF RANGE: \($0)" } ?? ""
-        return "ROUND: \(round)\nSITTING: \(sitting)\nSEAT: \(seat)\nSNAPSHOT: \(snapshot)\nCHANGE KIND: \(kind)\(range)\nQUESTION:\n\(question)"
+        let files = attached.isEmpty ? "" : "\n\n" + AttachedFiles.block(attached)
+        return "ROUND: \(round)\nSITTING: \(sitting)\nSEAT: \(seat)\nSNAPSHOT: \(snapshot)\nCHANGE KIND: \(kind)\(range)\nQUESTION:\n\(question)\(files)"
     }
 
     /// One claim as a single line: evidence is flattened so it can never pose as another line of the prompt.
@@ -81,6 +82,6 @@ struct RoundPromptHeader: Equatable {
         diffRange = field("DIFF RANGE")
         // The question runs to the answer format or the evidence block that every round prompt appends after a blank line.
         let rest = lines[(marker + 1)...]
-        question = rest.prefix { !$0.hasPrefix("Answer with one JSON") }.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        question = rest.prefix { !$0.hasPrefix("Answer with one JSON") && !$0.hasPrefix("ATTACHED FILE ") }.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

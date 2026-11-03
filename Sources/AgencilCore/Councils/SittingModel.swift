@@ -41,6 +41,10 @@ final class SittingRun: @unchecked Sendable {
     let changeKind: String
     let diffRange: String?
     let question: String
+    /// Files attached to the question; they travel in every round's prompt as evidence.
+    let attached: [(path: String, text: String)]
+    /// Images attached to the question: every round hands them to the seats that can see them.
+    let images: [AttachedImage]
     let authorVendor: String
     let deadline: Date
     private let lock = NSLock()
@@ -60,10 +64,11 @@ final class SittingRun: @unchecked Sendable {
     let conveneVendors: Set<String>
 
     init(id: String, number: Int, council: Council, config: SeatConfig, route: Route, caller: String, parent: CapabilityRun?,
-         snapshot: Snapshot, changeKind: String, diffRange: String?, question: String, authorVendor: String, slots: [Slot], spares: [Seat]) {
+         snapshot: Snapshot, changeKind: String, diffRange: String?, question: String, authorVendor: String, slots: [Slot], spares: [Seat],
+         attached: [(path: String, text: String)] = [], images: [AttachedImage] = []) {
         self.id = id; self.number = number; self.council = council; self.config = config; self.route = route
         self.caller = caller; self.parent = parent; self.snapshot = snapshot; self.changeKind = changeKind
-        self.diffRange = diffRange; self.question = question; self.authorVendor = authorVendor
+        self.diffRange = diffRange; self.question = question; self.authorVendor = authorVendor; self.attached = attached; self.images = images
         self.slots = slots; self.spares = spares
         conveneVendors = Set(slots.filter { $0.phase != .recused }.map(\.seat.vendor))
         deadline = Date().addingTimeInterval(Double(council.deadlineSeconds))

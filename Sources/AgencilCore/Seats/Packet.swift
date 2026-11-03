@@ -5,11 +5,14 @@ struct Packet {
     let prompt: String
     /// The exported repo, which is also the seat's working directory; nil when the ask named no repo.
     let copy: URL?
+    /// Where this seat run's copies of the attached images were written, for the harness that takes them as flags.
+    var imagePaths: [String] = []
 }
 
 extension Broker {
     func packet(seat: Seat, runDirectory: URL, repo: String?, question: String, files: [(path: String, text: String)],
-                transcript: [(asked: String, answered: String)], snapshot: Snapshot? = nil, verbatim: Bool = false) throws -> Packet {
+                transcript: [(asked: String, answered: String)], snapshot: Snapshot? = nil, verbatim: Bool = false,
+                images: [AttachedImage] = []) throws -> Packet {
         var copy: URL?
         if let repo {
             let target = runDirectory.appendingPathComponent("copy")
@@ -24,13 +27,37 @@ extension Broker {
             shown = files.filter { !rules.withholds(attachment: $0.path, text: $0.text, base: repo) }
             withheld = files.count - shown.count
         }
+        let shownImages = try imagesFor(seat, images, runDirectory: runDirectory)
         let briefsRoot = copy ?? (Adapter.restrictsExternalDirectories(seat.harness) ? runDirectory : nil)
         guard let briefsRoot, !shown.isEmpty else {
-            return Packet(prompt: Adapter.prompt(question: question, files: shown, transcript: transcript, withheld: withheld, verbatim: verbatim), copy: copy)
+            return Packet(prompt: Adapter.prompt(question: question, files: shown, transcript: transcript, withheld: withheld, verbatim: verbatim,
+                                                 imageLines: shownImages.lines), copy: copy, imagePaths: shownImages.paths)
         }
         let names = try RepoCopy.writeBriefs(shown, into: briefsRoot)
-        return Packet(prompt: Adapter.prompt(question: question, files: [], transcript: transcript, attached: names, withheld: withheld, verbatim: verbatim),
-                      copy: copy)
+        return Packet(prompt: Adapter.prompt(question: question, files: [], transcript: transcript, attached: names, withheld: withheld, verbatim: verbatim,
+                                             imageLines: shownImages.lines),
+                      copy: copy, imagePaths: shownImages.paths)
+    }
+
+    /// What a seat run is given of the attached images: a seat that can see them gets a private copy in its run
+    /// directory (claude is told the path, codex gets it as a flag); any other seat is only told one was attached.
+    private func imagesFor(_ seat: Seat, _ images: [AttachedImage], runDirectory: URL) throws -> (paths: [String], lines: [String]) {
+        guard !images.isEmpty else { return ([], []) }
+        guard Adapter.seesImages(seat.harness) else {
+            return ([], images.map { "IMAGE \($0.name): attached, not shown to this seat" })
+        }
+        let folder = runDirectory.appendingPathComponent("images")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        var paths: [String] = []
+        for image in images {
+            let url = folder.appendingPathComponent(image.name)
+            guard FileManager.default.createFile(atPath: url.path, contents: image.data, attributes: [.posixPermissions: 0o600]) else {
+                throw Refusal(exit: 70, message: "failed: could not write the attached image")
+            }
+            paths.append(url.path)
+        }
+        let lines = seat.harness == "claude" ? paths.map { "IMAGE FILE \($0) (an attached image; open it with your Read tool)" } : []
+        return (paths, lines)
     }
 
     func removeStrandedCopies(except asking: Set<String>) {

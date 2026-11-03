@@ -2,7 +2,7 @@ import Foundation
 
 struct GuardScanner {
     enum Rule: String, CaseIterable, Sendable {
-        case press, buttons, font, size, color, nativeControls, scheme, motion, sheet, purity
+        case press, buttons, font, size, color, nativeControls, scheme, motion, sheet, purity, createAction
     }
 
     struct Violation: CustomStringConvertible {
@@ -15,6 +15,7 @@ struct GuardScanner {
     struct Token {
         let text: String
         let line: Int
+        var literal: String? = nil
     }
 
     // Lexing rather than replacing regex matches preserves lines and nested comments.
@@ -49,18 +50,22 @@ struct GuardScanner {
             var hashes = 0
             while at(hashes) == "#" { hashes += 1 }
             if at(hashes) == "\"" {
+                let startLine = line
                 advance(hashes)
                 let quotes = at(1) == "\"" && at(2) == "\"" ? 3 : 1
                 advance(quotes)
+                let contentStart = i
+                var contentEnd = i
                 while i < chars.count {
                     if at(0) == "\\", hashes == 0 { advance(2); continue }
                     let closes = (0..<quotes).allSatisfy { at($0) == "\"" }
                         && (0..<hashes).allSatisfy { at(quotes + $0) == "#" }
-                    if closes { advance(quotes + hashes); break }
+                    if closes { contentEnd = i; advance(quotes + hashes); break }
                     advance()
                 }
                 // Keep an opaque marker so a string cannot join adjacent code tokens.
-                result.append(Token(text: "<string>", line: line))
+                result.append(Token(text: "<string>", line: startLine,
+                                    literal: String(chars[contentStart..<contentEnd])))
                 continue
             }
             let start = i
@@ -102,6 +107,7 @@ struct GuardScanner {
         })
         var found: [Violation] = []
         var performs: [(URL, Int)] = []
+        var floatingActions: [(URL, Int)] = []
         for (url, tokens) in sources {
             let words = tokens.map(\.text)
             let kit = role(url) == "kit"
@@ -115,6 +121,36 @@ struct GuardScanner {
                 func hit(_ reason: String) { found.append(Violation(file: url.path, line: tokens[index].line, rule: reason)) }
                 let dot = index > 0 && words[index - 1] == "."
                 switch rule {
+                case .createAction:
+                    guard url.path.contains("/Views/Panel/") else { continue }
+                    if dot && matches(index, ["floatingAction", "("]) {
+                        floatingActions.append((url, tokens[index].line))
+                    }
+                    if ["ChipButton", "PillButton", "AsyncPillButton"].contains(word), matches(index + 1, ["("]) {
+                        // Inspect only labelled arguments at this call's own depth;
+                        // nested calls/closures must not donate their title or symbol.
+                        var depth = 1
+                        var cursor = index + 2
+                        var argument: String?
+                        while cursor < words.count && depth > 0 {
+                            let text = words[cursor]
+                            if depth == 1 && (cursor == index + 2 || words[cursor - 1] == ",")
+                                && cursor + 1 < words.count && words[cursor + 1] == ":" {
+                                argument = text
+                            }
+                            if depth == 1, let literal = tokens[cursor].literal {
+                                if (argument == "title" && (literal.hasPrefix("New ") || literal.hasPrefix("Add ")))
+                                    || (argument == "symbol" && literal == "plus") {
+                                    hit("Create action: use FloatingPill through .floatingAction(_:)")
+                                    break
+                                }
+                            }
+                            if ["(", "[", "{"].contains(text) { depth += 1 }
+                            if [")", "]", "}"].contains(text) { depth -= 1 }
+                            if depth == 1 && text == "," { argument = nil }
+                            cursor += 1
+                        }
+                    }
                 case .press:
                     if matches(index, ["inFlight", ".", "perform", "("]) { performs.append((url, tokens[index].line)) }
                     if view && (["Task", "DispatchQueue", "await"].contains(word) || matches(index, ["async", "let"])) {
@@ -160,6 +196,12 @@ struct GuardScanner {
                     }
                     if kit && declarations.contains(word) { hit("Kit purity: references app type \(word)") }
                 }
+            }
+        }
+        if rule == .createAction {
+            for (url, line) in floatingActions.dropFirst() {
+                found.append(Violation(file: url.path, line: line,
+                                       rule: "Create action: at most one .floatingAction in Views/Panel/"))
             }
         }
         if rule == .press {
