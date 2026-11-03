@@ -17,6 +17,10 @@ import SwiftUI
     /// The manual sitting form while it is open (Store/PanelCompose.swift).
     var compose: SittingDraft?
     var composeProblem: String?
+    /// What the owner has typed to ask a finished sitting's seat, per sitting id (Store/PanelFollowUp.swift).
+    var followUpDrafts: [String: FollowUpDraft] = [:]
+    var followUpProblem: String?
+    @ObservationIgnored var followingUp = false
     /// The Agencil home; pasted images are saved in its `attachments` folder (nil: a temporary one).
     @ObservationIgnored var attachmentsRoot: URL?
     var pastedFiles: Set<String> = []
@@ -101,6 +105,7 @@ import SwiftUI
             control?.observe(next)
             syncStopping(next)
             await readProposals(client)
+            if let id = SettingsRoute.shared.claimDetail() { id.hasPrefix("sit_") ? open(sitting: id) : open(thread: id) }
             await refreshStarOffer()
             if detail?.live == true { await loadDetail() }
         } catch {
@@ -189,6 +194,7 @@ import SwiftUI
     /// The broker's `detail` reply for one thread or sitting id; the demo store answers from `DemoPanel`.
     @ObservationIgnored var detailReader: ((String) async throws -> [String: Any])?
     @ObservationIgnored private var detailLoad: Task<Void, Never>?
+    @ObservationIgnored private var detailGeneration = 0
     private(set) var detail: DetailPage?
 
     /// Model vendor by seat name, for the marks beside threads and answers.
@@ -223,14 +229,19 @@ import SwiftUI
     }
 
     /// Rebuilds the open page from the latest row and the broker's detail; a failed read keeps what is shown and says why.
-    private func loadDetail() async {
+    func loadDetail() async {
         guard let reader = detailReader, let open = detail, open.kind != .finding else { return }
+        // Reads can finish out of order; only the one started last may change the page, or an older read that began before
+        // a follow-up was asked would wipe it from the page and stop the refresh.
+        detailGeneration += 1
+        let generation = detailGeneration
         do {
             let json = try await reader(open.id)
-            guard !Task.isCancelled, detail?.id == open.id else { return }
+            guard !Task.isCancelled, detail?.id == open.id, generation == detailGeneration else { return }
             detail = rebuilt(open, json: json)
+            syncFollowUpDraft()
         } catch {
-            guard detail?.id == open.id else { return }
+            guard detail?.id == open.id, generation == detailGeneration else { return }
             detail?.problem = error.localizedDescription
             detail?.loading = false
         }

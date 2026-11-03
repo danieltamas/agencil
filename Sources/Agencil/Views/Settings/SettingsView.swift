@@ -2,13 +2,13 @@ import SwiftUI
 
 /// The Settings window: sidebar of panes on the left, the open pane on the right (docs/DESIGN.md "Settings").
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, seats, councils, routes, harnesses, models, budgets, scoring, leaderboard, data, access, apps, about
+    case general, seats, councils, routes, harnesses, models, budgets, costs, scoring, leaderboard, data, access, apps, about
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .general: "General"; case .seats: "Seats"; case .councils: "Councils"; case .routes: "Routes"
-        case .harnesses: "Harnesses"; case .models: "Models"; case .budgets: "Budgets"; case .scoring: "Scoring"
+        case .harnesses: "Harnesses"; case .models: "Models"; case .budgets: "Budgets"; case .costs: "Costs"; case .scoring: "Scoring"
         case .leaderboard: "Leaderboard"; case .data: "Data"; case .access: "Agent access"; case .apps: "More apps"
         case .about: "About"
         }
@@ -18,7 +18,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general: "slider.horizontal.3"; case .seats: "person.2.wave.2"; case .councils: "circle.hexagongrid"
         case .routes: "arrow.triangle.branch"; case .harnesses: "terminal"; case .models: "cpu"
-        case .budgets: "gauge.with.dots.needle.50percent"; case .scoring: "checkmark.seal"
+        case .budgets: "gauge.with.dots.needle.50percent"; case .costs: "dollarsign.circle"; case .scoring: "checkmark.seal"
         case .leaderboard: "chart.bar.xaxis"; case .data: "internaldrive"; case .access: "sparkles"
         case .apps: "square.grid.2x2"; case .about: "info.circle"
         }
@@ -28,7 +28,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .councils, .leaderboard: .cool
         case .routes, .scoring: .good
-        case .budgets: .caution
+        case .budgets, .costs: .caution
         case .harnesses, .data, .about: .quiet
         case .models, .apps: .rose
         default: .accent

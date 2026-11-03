@@ -1,3 +1,11 @@
+## 0.3.0 (2026-11-03)
+
+- Every sitting ends with a written synthesis (U29): what the council concluded, where the seats agree and differ, and the next step, drawn as formatted Markdown above the sitting's brief and rounds, with a Copy as Markdown button for the whole record. A council with no synthesizer has its first answering seat write it; that one is best-effort and never changes the verdict. The memory export carries the synthesis.
+
+- You can ask a finished sitting's seats follow-up questions (U30): the sitting's page ends with an Ask the council box pinned to the bottom, with a floating Ask button; it goes to every seat of the council that held the sitting, each answering on its own thread. Paste screenshots or files into it (Cmd-V, several at once) and they show as tiles. Each seat is shown the sitting's question, synthesis, each seat's last answer and the verdict as evidence; later questions continue each seat's thread. Answers are kept with their cost, and the thread shows in the Threads list.
+
+- Settings has a Costs pane (U31): 30 bars of daily spend with a day's calls underneath, the same money by project, council, seat, model or caller over today, 7 days, 30 days or this month, and a Months card. It reads the ledger, so costs stay after the Data pane prunes old text, and calls with no recorded cost show as unpriced instead of as zero.
+
 ## 0.2.0 (2026-11-03)
 
 - The Sittings tab has a New sitting button (a floating pill in the bottom corner, like New rule in RMJ; docs/DESIGN.md "Floating action" makes that the one place a tab creates things, and a guard test enforces it): pick a council and a kind, ask a question, attach files and start a sitting by hand; the sitting opens with its rounds and verdict as they arrive. A sitting you start yourself needs no route; `agencil wake` takes `--file` for attachments

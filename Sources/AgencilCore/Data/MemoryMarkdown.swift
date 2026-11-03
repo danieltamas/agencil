@@ -28,7 +28,7 @@ extension MemoryExport {
         struct Header { let council: String; let state: String; let opened: String }
         struct Verdict { let text: String; let minority: String?; let flags: String? }
         struct Claim { let id: String; let seat: String; let kind: String?; let severity: String?; let file: String?; let line: String?; let body: String }
-        let (header, verdict, claims) = try ledger.locked {
+        let (header, verdict, claims, summary) = try ledger.locked {
             let header = try ledger.query("SELECT council, state, created_at FROM sittings WHERE id = ?;", [sitting]) {
                 Header(council: Ledger.text($0, 0) ?? "", state: Ledger.text($0, 1) ?? "", opened: Ledger.text($0, 2) ?? "")
             }.first
@@ -42,7 +42,10 @@ extension MemoryExport {
                 Claim(id: Ledger.text($0, 0) ?? "", seat: Ledger.text($0, 1) ?? "", kind: Ledger.text($0, 2), severity: Ledger.text($0, 3),
                       file: Ledger.text($0, 4), line: Ledger.text($0, 5), body: Ledger.text($0, 6) ?? "")
             }
-            return (header, verdict, claims)
+            // The sitting's result JSON holds the council's written synthesis.
+            let summary = try ledger.query("SELECT verdict FROM sittings WHERE id = ?;", [sitting]) { Ledger.text($0, 0) }.first
+                .flatMap { $0 }.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }?["summary"] as? String
+            return (header, verdict, claims, summary)
         }
         guard let header else { throw DataError(message: "unknown sitting \(sitting)") }
 
@@ -53,6 +56,8 @@ extension MemoryExport {
             if let minority = verdict.minority, !minority.isEmpty { out += "\n### Minority report\n\n" + Self.fenced(minority) }
             if let flags = verdict.flags, !flags.isEmpty { out += "\n### Independence flags\n\n" + Self.fenced(flags) }
         }
+        // The seats' own Markdown, fenced like every other untrusted text so it cannot reshape this file.
+        if let summary { out += "\n## Synthesis\n\n" + Self.fenced(summary) }
         out += "\n## Claims\n"
         for claim in claims {
             let place = [claim.file.map(Self.line), claim.line.map(Self.line)].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ":")

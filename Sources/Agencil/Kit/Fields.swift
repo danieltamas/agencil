@@ -93,6 +93,8 @@ struct GlassEditor: View {
     @Binding var text: String
     var monospaced = false
     var minHeight: CGFloat = 90
+    /// A box that never grows past this height (the editor scrolls instead).
+    var maxHeight: CGFloat?
 
     var body: some View {
         TextEditor(text: $text)
@@ -100,7 +102,7 @@ struct GlassEditor: View {
             .foregroundStyle(Theme.textPrimary)
             .scrollContentBackground(.hidden)
             .padding(Space.m)
-            .frame(minHeight: minHeight)
+            .frame(minHeight: minHeight, maxHeight: maxHeight)
             .background(Theme.canvas.opacity(0.7), in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: Radius.control, style: .continuous).strokeBorder(Theme.hairline, lineWidth: 0.5))
     }

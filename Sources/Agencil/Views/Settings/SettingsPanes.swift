@@ -32,6 +32,7 @@ struct SettingsPaneView: View {
             case .harnesses: harnessesPane
             case .models: ModelsPane(store: store)
             case .budgets: budgetsPane
+            case .costs: CostsPane(store: store.costs, open: { SettingsRoute.shared.show(detail: $0) })
             case .scoring: scoringPane
             case .leaderboard: leaderboardPane
             case .data: dataPane
@@ -39,7 +40,9 @@ struct SettingsPaneView: View {
             case .about: AboutPane(store: store)
             }
         }
-        .onAppear { store.panes.begin() }
+        .onAppear { store.panes.begin(); if pane == .costs { store.loadCosts() } }
+        .onChange(of: pane) { _, now in if now == .costs { store.loadCosts() } else { store.stopCosts() } }
+        .onDisappear { store.stopCosts() }
         .onChange(of: pane) { _, _ in store.panes.begin() }
         .houseSheet(item: $store.presenting, title: { kind in store.sheetTitle(kind) }, detail: { kind in kind.detail }, footer: { kind in
             ModalFooter(secondary: .init(title: "Cancel") { store.presenting = nil },
@@ -56,6 +59,7 @@ struct SettingsPaneView: View {
         case .harnesses: "The coding agents found on this Mac."
         case .models: "Every model your harnesses and the public price list know, and any you add yourself."
         case .budgets: "Weekly caps per vendor and council type."
+        case .costs: "What every seat call on this Mac has cost, read from the ledger."
         case .scoring: "How outcomes are counted and when a seat has enough data."
         case .leaderboard: "Publishing the seat leaderboard is off until you turn it on."
         case .data: "Where the ledger lives and what leaves this Mac."

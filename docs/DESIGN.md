@@ -148,7 +148,8 @@ Meaning hues (`Theme.color(for:)`, the only place hex appears outside `Palette`)
 | Text, one line | `GlassField` (on `FieldCapsule`) | Native `TextField` styling |
 | Secret | `SecretField` | Showing the value after save |
 | Multi-line text, prompts | `GlassEditor` (monospaced for prompts) | |
-| Search | `SearchField` (on `FieldCapsule`) | |
+| A council's written synthesis, or any text with Markdown blocks (headings, lists, code) | `MarkdownBlock` (wraps at the width it is given, text selectable) | Parsing or drawing block Markdown in a view; `MarkdownDocument` outside `Kit/MarkdownBlock.swift` |
+| A row of day bars, a share meter, a dollar amount, chips that wrap | `BarStrip`, `ShareBar`, `Money`, `FlowLayout` (Costs pane) | A literal height, capsule or currency format in a view; an `HStack` of chips that cannot wrap || Search | `SearchField` (on `FieldCapsule`) | |
 | Create or edit an object in Settings | `.houseSheet(item:)`: the kit's only sheet presenter. It wraps its content in `ModalFrame` + `ModalFooter` (Cancel, Create or Save) itself | `.sheet(` anywhere outside `Kit/`, inline Save buttons in a pane |
 | Create an object from the panel (a manual sitting) | A compose page pushed into the panel like a detail page (back chip, header and footer stay), opened by the tab's `FloatingPill`; Start is a `PillButton` pinned under the form | A sheet over the menu bar panel (it dismisses when a file picker takes focus), a form in the tab's header |
 | A list | `RowStack` (25 per page, "Show N more", newest first) | Plain `VStack` of rows |
@@ -287,7 +288,7 @@ Panes, in order (symbol, hue):
 | Harnesses | terminal | neutral | Detected harnesses (path, version, signed-in state, last probe, Probe now), hardening flags, the catalog of ones not installed |
 | Models | cpu | memory hue | Hosted providers (key present yes/no, by Keychain name), Ollama endpoints local and remote (URL, health, loaded models, Pull), free-model change warnings |
 | Budgets | gauge.with.dots.needle.50percent | warn | Weekly caps per vendor and per council type, alert thresholds, "Pause wakes at 90%" |
-| Scoring | checkmark.seal | ok | Outcome sources, unresolved window, minimum n, golden set, composite metric, weekly proposal job and its reviewing seat |
+| Costs | dollarsign.circle | warn | What every answered seat call has cost: 30 day bars with the selected day's calls, the By card (Today, 7 days, 30 days, This month; Project, Council, Seat, Model, Caller), Months. Read-only; retention stays in Data || Scoring | checkmark.seal | ok | Outcome sources, unresolved window, minimum n, golden set, composite metric, weekly proposal job and its reviewing seat |
 | Leaderboard | chart.bar.xaxis | accent2 | Publish on/off (default off), schedule, the exact JSON that would be published, last publish result |
 | Data | internaldrive | neutral | Ledger location and size, retention, export to a Bton memory folder per repo |
 | Agent access | sparkles | accent | MCP server on/off (default off), per-harness install lines and "Install for X" presses, the CLI line, what each harness was told, recent MCP calls |

@@ -97,7 +97,8 @@ extension Broker {
             FROM threads t
             -- A sitting's per-round seat exchanges are threads too; they belong to the sitting's detail, not to the direct asks.
             -- A thread with a thread_rounds row is classified by it; only one from before that table is read from its prompt.
-            WHERE NOT EXISTS (SELECT 1 FROM thread_rounds l WHERE l.thread_id = t.id AND l.sitting_id IS NOT NULL)
+            -- A follow-up the owner asked a seat about a sitting is the exception: it is listed like any thread.
+            WHERE NOT EXISTS (SELECT 1 FROM thread_rounds l WHERE l.thread_id = t.id AND l.sitting_id IS NOT NULL AND l.round IS NOT 'followup')
               AND NOT (NOT EXISTS (SELECT 1 FROM thread_rounds l WHERE l.thread_id = t.id)
                 AND EXISTS (SELECT 1 FROM exchanges r WHERE r.thread_id = t.id AND r.seq = 1
                   AND r.question LIKE 'ROUND: %' AND instr(r.question, char(10) || 'SITTING: sit_') > 0))
@@ -105,7 +106,10 @@ extension Broker {
             """, []) { row -> [String: Any] in
             let raw = Ledger.text(row, 5) ?? "failed"
             let state = ["asking", "answered"].contains(raw) ? raw : "failed"
-            let question = (Ledger.text(row, 4) ?? "").split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? ""
+            var asked = Ledger.text(row, 4) ?? ""
+            // A follow-up's first question is the evidence packet; the list shows the owner's own words.
+            if asked.hasPrefix("FOLLOW-UP ON SITTING ") { asked = FollowupPacket.ownerText(of: asked) }
+            let question = asked.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? ""
             var item: [String: Any] = ["id": Ledger.text(row, 0) ?? "", "caller": Ledger.text(row, 1) ?? "", "seat": Ledger.text(row, 2) ?? "",
                                        "question": String(question.prefix(200)), "state": state, "started": Ledger.text(row, 3) ?? ""]
             if state == "failed" { item["reason"] = Ledger.text(row, 6) ?? raw }

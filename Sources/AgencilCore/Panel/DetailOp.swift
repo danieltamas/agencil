@@ -70,11 +70,16 @@ extension Broker {
         return data
     }
 
-    private func sittingDetail(_ id: String, config: SeatConfig?) throws -> [String: Any] {
+    func sittingDetail(_ id: String, config: SeatConfig?) throws -> [String: Any] {
         guard let record = try sittingRows.record(id) else { throw Failure(message: "unknown id \(id)") }
         var data: [String: Any] = ["sitting": id, "no": record.number, "council": record.council, "state": record.state, "round": record.round,
                                    "verdict": record.verdict ?? NSNull()]
         if let reason = record.reason { data["reason"] = reason }
+        if let summary = record.verdict?["summary"] as? String {
+            data["summary"] = Self.capped(summary)
+            if let by = record.verdict?["summary_by"] as? String { data["summary_by"] = by }
+            if record.verdict?["summary_fallback"] as? Bool == true { data["summary_fallback"] = true }
+        }
         let source = try ledger.query("""
             SELECT s.snapshot_id, s.repo, b.body, (SELECT project FROM run_origins WHERE run_id = s.id) FROM sittings s
             LEFT JOIN snapshots n ON n.id = s.snapshot_id LEFT JOIN briefs b ON b.id = n.brief_id WHERE s.id = ?;
@@ -87,7 +92,7 @@ extension Broker {
         let seats = try ledger.query("""
             SELECT t.id, t.seat, t.created_at, (SELECT ended_at FROM runs WHERE id = t.id), e.question, e.answer, e.state, e.reason, l.round
             FROM threads t JOIN exchanges e ON e.thread_id = t.id AND e.seq = 1 LEFT JOIN thread_rounds l ON l.thread_id = t.id
-            WHERE l.sitting_id = ?1
+            WHERE (l.sitting_id = ?1 AND l.round IS NOT 'followup')
                OR (l.thread_id IS NULL AND e.question LIKE 'ROUND: %' AND instr(e.question, ?2) > 0)
             ORDER BY t.created_at, t.id;
             """, [id, "\nSITTING: \(id)\n"]) { row -> (header: RoundPromptHeader?, round: String?, seat: [String: Any]) in
@@ -112,6 +117,37 @@ extension Broker {
         let held = ["blind", "rebuttal", "challenge", "synthesis"]
         let order = bySeats.keys.sorted { (held.firstIndex(of: $0) ?? held.count, $0) < (held.firstIndex(of: $1) ?? held.count, $1) }
         data["rounds"] = order.map { ["round": $0, "seats": bySeats[$0] ?? []] as [String: Any] }
+        data["followups"] = try followups(sitting: id, config: config)
+        if let config, let council = config.council(named: record.council) {
+            let choices = followupChoices(data, council: council, config: config)
+            data["follow_up_seats"] = choices.seats
+            if let preferred = choices.preferred { data["follow_up_default"] = preferred }
+        }
         return data
+    }
+
+    /// The owner's follow-ups to the sitting's seats (docs/U30-SPEC.md item 6): one entry per thread, the owner's own words
+    /// as the question, never the evidence packet the seat was shown.
+    private func followups(sitting: String, config: SeatConfig?) throws -> [[String: Any]] {
+        let linked = try ledger.query("""
+            SELECT t.id, t.seat FROM threads t JOIN thread_rounds l ON l.thread_id = t.id
+            WHERE l.sitting_id = ? AND l.round = 'followup'
+            -- Two threads can open in one second, which the stamp cannot order; the launch of the first exchange can.
+            ORDER BY t.created_at, COALESCE((SELECT ln.created_at FROM exchanges e JOIN launches ln ON ln.id = e.launch_id
+                                             WHERE e.thread_id = t.id AND e.seq = 1), 0), t.id;
+            """, [sitting]) { (thread: Ledger.text($0, 0) ?? "", seat: Ledger.text($0, 1) ?? "") }
+        return try linked.map { entry in
+            var row: [String: Any] = ["seat": entry.seat, "thread": entry.thread]
+            addSeat(&row, thread: entry.thread, name: entry.seat, config: config)
+            row["exchanges"] = try threads.exchanges(thread: entry.thread).map { exchange -> [String: Any] in
+                var item: [String: Any] = ["seq": exchange.seq, "question": Self.capped(FollowupPacket.ownerText(of: exchange.question)),
+                                           "state": exchange.state.rawValue]
+                if let answer = exchange.answer { item["answer"] = Self.capped(answer) }
+                if let reason = exchange.reason { item["reason"] = reason }
+                addReport(&item, thread: entry.thread, seq: exchange.seq)
+                return item
+            }
+            return row
+        }
     }
 }

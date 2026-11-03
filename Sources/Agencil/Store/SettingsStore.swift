@@ -56,6 +56,9 @@ enum EditTarget: Equatable {
     private(set) var socket: AccessFacts.Socket?
     /// The broker-fed panes (harnesses, models, budgets, data, leaderboard).
     var panes = PaneStore()
+    /// The Costs pane's report; it reads the broker when the pane opens.
+    @ObservationIgnored var costsLoop: Task<Void, Never>?
+    var costs = CostsStore(reader: { _ in ["now": ISO8601DateFormatter().string(from: Date()), "rows": [[String: Any]]()] })
     /// The More apps list and the release check About shows.
     private(set) var apps = MoreAppsStore()
     /// The Models pane: the catalog, its filters and its Add model sheet.
@@ -107,6 +110,7 @@ enum EditTarget: Equatable {
         let store = SettingsStore()
         store.seatInfos = DemoPanel.seatRows.map { SeatInfo(id: $0.id, vendor: $0.vendor, harness: $0.harness, model: $0.model, plan: $0.plan) }
         store.panes = PaneStore.demo()
+        store.costs = CostsStore.demo()
         store.councilRows = DemoPanel.councils
         store.routeRows = DemoPanel.routes
         store.seatNames = DemoPanel.seatRows.map(\.id)
@@ -144,6 +148,7 @@ enum EditTarget: Equatable {
         let store = SettingsStore(directory: directory, environment: environment)
         if let home = try? AgencilHome(directory: fallback, environment: environment) {
             store.panes = PaneStore(directory: directory, client: PanelClient(home: home))
+            store.costs = CostsStore(client: PanelClient(home: home))
         }
         return store
     }

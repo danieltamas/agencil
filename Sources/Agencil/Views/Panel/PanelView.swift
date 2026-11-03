@@ -32,7 +32,7 @@ struct PanelView: View {
             header
             VStack(spacing: Space.l) {
                 if let page = store.detail {
-                    PanelDetailView(page: page, back: store.closeDetail).houseTransition()
+                    PanelDetailView(page: page, store: store, back: store.closeDetail).houseTransition()
                 } else if store.compose != nil {
                     ComposeView(store: store).houseTransition()
                 } else {

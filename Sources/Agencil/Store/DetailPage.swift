@@ -16,8 +16,37 @@ struct DetailPage: Equatable, Identifiable {
         var id: String { seat + meta + String(text.prefix(24)) }
     }
     struct Round: Equatable, Identifiable { let name: String; let answers: [Answer]; var id: String { name } }
+    struct Turn: Equatable {
+        let question: String; let answer: String; let meta: String; let tone: Signal
+        /// The answer's blocks, for the kit to draw.
+        var items: [MarkdownBlock.Item] { DetailPage.markdownItems(answer) }
+    }
+    struct Followup: Equatable, Identifiable { let seat: String; let vendor: String; let turns: [Turn]; var id: String { seat } }
+    /// `writer` is the caption: who wrote it, and that no synthesizer was set when a council seat did.
+    struct Synthesis: Equatable {
+        let markdown: String
+        let writer: String
+
+        /// The blocks the kit draws.
+        var items: [MarkdownBlock.Item] { DetailPage.markdownItems(markdown) }
+    }
+
+    /// The kit imports no logic, so the parsed blocks are handed over in its own type.
+    static func markdownItems(_ markdown: String) -> [MarkdownBlock.Item] {
+        MarkdownDocument.parse(markdown).map { block in
+            switch block {
+            case .heading(let level, let title): .heading(level, title)
+            case .paragraph(let text): .paragraph(text)
+            case .bullets(let items): .bullets(items)
+            case .numbered(let items): .numbered(items)
+            case .code(let text): .code(text)
+            }
+        }
+    }
 
     static let unknown = "unknown"
+    /// How many seats a follow-up picker shows as chips across the panel; more go in a menu.
+    static let seatChipLimit = 3
     /// The card's cost slot when no seat reported a figure: the ledger holds none, and a $0.00 would be a guess.
     static let unknownCost = "cost unknown"
 
@@ -33,6 +62,16 @@ struct DetailPage: Equatable, Identifiable {
     /// The seat's model vendor, for the mark beside a thread's title; "" when unknown.
     var vendor = ""
     var brief: [Fact] = []
+    /// What the council concluded, written by one seat once the sitting ended; nil until then or when none was written.
+    var synthesis: Synthesis?
+    /// The `Copy as Markdown` text of a sitting that has a synthesis.
+    var recordMarkdown: String?
+    /// What the owner asked the council's seats after it sat, per seat; and the seats a new question may go to.
+    var followups: [Followup] = []
+    var followUpSeats: [String] = []
+    var followUpDefault: String?
+    /// The composer shows once the sitting is over, its detail has loaded and there is a seat to ask.
+    var canFollowUp = false
     var rounds: [Round] = []
     var claims: [DemoPanel.Finding] = []
     var loading = false
@@ -98,6 +137,12 @@ extension DetailPage {
             fact("Rule", detail?.rule), fact("Snapshot", detail?.snapshot),
         ]
         guard let detail else { page.loading = true; return page }
+        if let summary = detail.summary {
+            let by = detail.summaryBy ?? "a seat"
+            page.synthesis = Synthesis(markdown: summary, writer: "written by " + by + (detail.summaryFallback ? ", no synthesizer is set" : ""))
+            page.recordMarkdown = recordMarkdown(title: detail.question ?? row.question ?? page.title, verdict: detail.verdict ?? state, summary: summary,
+                                                 finalAnswers: finalAnswers(of: detail))
+        }
         if let brief = detail.brief {
             if let facts = BriefFacts.parse(brief) { page.brief = facts.map { Fact(name: $0.name, value: $0.value) } }
             else { page.sections.append(Section(heading: "Brief", text: brief)) }
@@ -115,6 +160,13 @@ extension DetailPage {
                               backers: claim.backers.count, dissent: claim.dissenters.count, fix: claim.body.fix,
                               confidence: claim.body.confidence, voices: voices(claim))
         }
+        page.followups = detail.followups.map { followup in
+            Followup(seat: followup.seat, vendor: vendors[followup.seat] ?? "", turns: followup.exchanges.map { turn(followup, $0) })
+        }
+        page.followUpSeats = detail.followUpSeats
+        page.followUpDefault = detail.followUpDefault
+        page.canFollowUp = row.state != "running" && !detail.followUpSeats.isEmpty
+        if detail.followups.contains(where: { $0.exchanges.contains { $0.state == "asking" } }) { page.live = true }
         return page
     }
 
@@ -126,6 +178,30 @@ extension DetailPage {
         page.sections = [Section(heading: "Claim", text: finding.claim)]
         if let fix = finding.fix { page.sections.append(Section(heading: "Fix", text: fix)) }
         return page
+    }
+
+    private static func turn(_ followup: SittingDetail.Followup, _ exchange: ThreadDetail.Exchange) -> Turn {
+        let model = followup.model.map { name in followup.harness.map { "\(name) (\($0))" } ?? name }
+        let meta = [model, exchange.costUSD.map { costText($0, notes: [exchange.costNote]) }, tokens(exchange.tokens).map { "\($0) tokens" }]
+            .compactMap { $0 }.joined(separator: " - ")
+        let text = exchange.answer ?? exchange.reason ?? (exchange.state == "asking" ? "Thinking..." : "No answer recorded.")
+        return Turn(question: exchange.question, answer: text, meta: meta.isEmpty ? exchange.state : meta, tone: PanelTone.signal(state: exchange.state))
+    }
+
+    /// Each seat's last answer, in the order the seats first appear; a seat that failed a later round keeps its earlier one.
+    private static func finalAnswers(of detail: SittingDetail) -> [(seat: String, text: String)] {
+        var order: [String] = [], latest: [String: String] = [:]
+        for seat in detail.rounds.filter({ $0.name != "synthesis" }).flatMap(\.seats) {
+            if !order.contains(seat.name) { order.append(seat.name) }
+            if let answer = seat.answer { latest[seat.name] = ReadableAnswer.text(answer) }
+        }
+        return order.compactMap { name in latest[name].map { (seat: name, text: $0) } }
+    }
+
+    private static func recordMarkdown(title: String, verdict: String, summary: String, finalAnswers: [(seat: String, text: String)]) -> String {
+        var out = "# \(title)\n\n**Verdict:** \(verdict)\n\n## Synthesis\n\n\(summary)\n\n## Seats\n"
+        for answer in finalAnswers { out += "\n### \(answer.seat)\n\n\(answer.text)\n" }
+        return out
     }
 
     private static func answer(round seat: SittingDetail.Seat, vendor: String) -> Answer {

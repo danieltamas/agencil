@@ -55,6 +55,7 @@ extension Broker {
         do {
             let repo = try repository(request["repo"])
             let attached = try AttachedFiles.readAll(request["files"], atMost: 8)
+            let synthesize = try Self.synthesizeFlag(request["synthesize"])
             let author = authorVendor(request["author_vendor"] as? String, parent: parent, config: config)
             let chosen = try Self.chosenSeats(request["seats"], council: council)
             let cap = try Self.capOverride(request["cap_seconds"])
@@ -89,6 +90,7 @@ extension Broker {
                                      caller: caller, parent: parent, snapshot: snapshot, changeKind: kind,
                                      diffRange: request["diff"] as? String, question: question, authorVendor: author, slots: slots,
                                      spares: spares, attached: attached.files, images: attached.images)
+            sitting.wantsSummary = synthesize
             if fallbackUsed { sitting.noteFallback() }
             tracking.withLock { sittings[opened.id] = sitting }
             try? threads.recordRequest(caller: caller, outcome: "accepted", runID: opened.id)
@@ -113,7 +115,7 @@ extension Broker {
 
     /// The panel runs in the broker's own process, so its connection's peer is this process. With test seams on, a
     /// named peer stands in for it.
-    private func isAppPeer(_ peer: Int32?) -> Bool {
+    func isAppPeer(_ peer: Int32?) -> Bool {
         guard let peer else { return false }
         if peer == getpid() { return true }
         return environment["AGENCIL_TEST_SEAMS"] == "1" && environment["AGENCIL_TEST_APP_PEER"].flatMap(Int32.init) == peer
@@ -194,41 +196,61 @@ extension Broker {
                             authorUnknown: s.authorVendor == "unknown", synthesizerFailed: synthesizerFailed)
     }
 
-    /// The first synthesizer that is not recused and can run summarises the sitting; none left is a failed synthesis.
+    /// The first synthesizer that is not recused and can run summarises the sitting; none left is a failed synthesis, which
+    /// the verdict table turns into INCOMPLETE. A council with no synthesizer has its answering seats write the summary in
+    /// council order instead: that one is best-effort, and its failure leaves the verdict as computed.
     private func sitSynthesis(_ s: SittingRun) throws {
-        guard !s.council.synthesizers.isEmpty else { return }
-        s.synthesizerFailed = true
+        let configured = !s.council.synthesizers.isEmpty
+        // A fallback writer is the seat in its slot, so a `cap` override of the wake binds its synthesis too.
+        let candidates: [Seat] = configured ? s.council.synthesizers.compactMap { s.config.seat(named: $0) }
+            : s.wantsSummary ? s.locked { s.slots.filter { $0.phase == .answered && !$0.excluded }.map(\.seat) } : []
+        guard configured || !candidates.isEmpty else { return }
+        if configured { s.synthesizerFailed = true }
         guard !s.isOver else { return }
         try sittingRows.setRound(s.id, "synthesis")
         s.setRound("synthesis")
         let preview = VerdictTable.decide(input(s, synthesizerFailed: nil))
-        for name in s.council.synthesizers {
-            guard let seat = s.config.seat(named: name), s.authorVendor == "unknown" || seat.vendor != s.authorVendor else { continue }
-            let base = SittingPrompt.synthesis(header(s, "synthesis", seat), claims: preview.claims, votes: votes(s))
-            var text = base
-            var retried = false
-            while true {
-                let began = Date()
-                let outcome = sitRun(s, seat: seat, round: "synthesis", prompt: text)
-                func record(exit: Int) { _ = try? sittingRows.seatRun(sitting: s.id, seat: seat, started: began, ended: Date(), exit: exit) }
-                switch outcome {
-                case .unplaceable: break
-                case .answer(let answer):
-                    switch AnswerContract.parseSummary(answer) {
-                    case .success(let summary):
-                        record(exit: 0)
-                        s.summary = summary; s.synthesizerFailed = false
-                        return
-                    case .failure(let problem):
-                        record(exit: 1)
-                        if retried { return }
-                        retried = true
-                        text = SittingPrompt.retry(base, error: problem.message)
-                        continue
-                    }
-                default: record(exit: 1); return
+        let notes = s.locked { s.slots.compactMap { slot in slot.notes.map { (seat: slot.seat.name, text: $0) } } }
+        for seat in candidates {
+            guard !configured || s.authorVendor == "unknown" || seat.vendor != s.authorVendor else { continue }
+            switch writeSummary(s, seat: seat, prompt: SittingPrompt.synthesis(header(s, "synthesis", seat), claims: preview.claims,
+                                                                              votes: votes(s), notes: notes)) {
+            case .written(let summary):
+                s.locked { s.summary = summary; s.summaryBy = seat.name; s.summaryFallback = !configured }
+                if configured { s.synthesizerFailed = false }
+                return
+            case .failed where configured: return
+            case .unplaceable, .failed: if s.isOver { return }
+            }
+        }
+    }
+
+    private enum Summary { case written(String), unplaceable, failed }
+
+    /// One seat's run of the synthesis round, retrying an answer that does not validate once.
+    private func writeSummary(_ s: SittingRun, seat: Seat, prompt base: String) -> Summary {
+        var text = base
+        var retried = false
+        while true {
+            let began = Date()
+            let outcome = sitRun(s, seat: seat, round: "synthesis", prompt: text)
+            func record(exit: Int) { _ = try? sittingRows.seatRun(sitting: s.id, seat: seat, started: began, ended: Date(), exit: exit) }
+            switch outcome {
+            case .unplaceable: return .unplaceable
+            case .answer(let answer):
+                switch AnswerContract.parseSummary(answer) {
+                case .success(let summary):
+                    record(exit: 0)
+                    return .written(summary)
+                case .failure(let problem):
+                    record(exit: 1)
+                    if retried { return .failed }
+                    retried = true
+                    text = SittingPrompt.retry(base, error: problem.message)
                 }
-                break
+            default:
+                record(exit: 1)
+                return .failed
             }
         }
     }
@@ -263,7 +285,11 @@ extension Broker {
             "minority": outcome.minority.map { ["claim": $0.claim, "seat": $0.seat, "vendor": $0.vendor] },
             "independence": outcome.flags,
         ]
-        if let summary = s.summary { json["summary"] = summary }
+        if let summary = s.summary {
+            json["summary"] = summary
+            json["summary_by"] = s.summaryBy
+            if s.summaryFallback { json["summary_fallback"] = true }
+        }
         let minority = outcome.minority.map { ["claim": $0.claim, "seat": $0.seat, "vendor": $0.vendor] }
         try sittingRows.finish(s.id, state: "done", reason: nil, json: json,
                                row: (outcome.verdict, outcome.flags, minority, s.snapshot.id))
@@ -326,6 +352,15 @@ extension Broker {
             throw Refusal(exit: 64, message: "usage: seats must be seats of the council")
         }
         return council.seats.filter(names.contains)
+    }
+
+    /// `synthesize` asks a council with no synthesizer for a written summary anyway; absent means not asked.
+    static func synthesizeFlag(_ value: Any?) throws -> Bool {
+        guard let value else { return false }
+        guard let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() else {
+            throw Refusal(exit: 64, message: "usage: synthesize must be true or false")
+        }
+        return number.boolValue
     }
 
     static func capOverride(_ value: Any?) throws -> Int? {

@@ -59,6 +59,8 @@ extension PanelStore {
         var request: [String: Any] = [
             "op": "wake", "caller": "owner", "council": draft.council, "change_kind": draft.kind,
             "question": draft.question.trimmingCharacters(in: .whitespacesAndNewlines), "wait_seconds": 0,
+            // A sitting asked for by hand is read by its owner: it always ends with a written synthesis.
+            "synthesize": true,
         ]
         if !draft.files.isEmpty { request["files"] = draft.files }
         if draft.isCode { request["repo"] = draft.repo; request["diff"] = draft.diff }
@@ -111,6 +113,11 @@ extension PanelStore {
     }
 }
 
+struct PasteRefused: LocalizedError {
+    let message: String
+    var errorDescription: String? { message }
+}
+
 extension PanelStore {
     /// Where pasted images are kept until a sitting starts: private to the owner (docs/U28-SPEC.md).
     private var attachments: URL {
@@ -120,26 +127,27 @@ extension PanelStore {
     /// Whether the form saved this file itself (a pasted image), as opposed to one the owner picked.
     func isPasted(_ path: String) -> Bool { pastedFiles.contains(path) }
 
-    /// Adds a copied image to the form as a PNG file of its own: any image format the system reads, one PNG out.
+    /// Saves a copied image as a PNG file of its own, private to the owner: any image format the system reads, one PNG out.
+    func savePastedImage(_ data: Data) throws -> String {
+        guard let png = NSBitmapImageRep(data: data)?.representation(using: .png, properties: [:]) else { throw PasteRefused(message: "that is not an image") }
+        try FileManager.default.createDirectory(at: attachments, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let url = attachments.appendingPathComponent(UUID().uuidString + ".png")
+        guard FileManager.default.createFile(atPath: url.path, contents: png, attributes: [.posixPermissions: 0o600]) else {
+            throw PasteRefused(message: "could not save the image")
+        }
+        pastedFiles.insert(url.path)
+        return url.path
+    }
+
+    /// Adds a copied image to the form as a PNG file of its own.
     func attachImage(_ data: Data) {
         guard var draft = compose else { return }
         guard draft.files.count < SittingDraft.fileLimit else {
             composeProblem = "at most \(SittingDraft.fileLimit) files"
             return
         }
-        guard let png = NSBitmapImageRep(data: data)?.representation(using: .png, properties: [:]) else {
-            composeProblem = "that is not an image"
-            return
-        }
         do {
-            try FileManager.default.createDirectory(at: attachments, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-            let url = attachments.appendingPathComponent(UUID().uuidString + ".png")
-            guard FileManager.default.createFile(atPath: url.path, contents: png, attributes: [.posixPermissions: 0o600]) else {
-                composeProblem = "could not save the image"
-                return
-            }
-            draft.files.append(url.path)
-            pastedFiles.insert(url.path)
+            draft.files.append(try savePastedImage(data))
             compose = draft
             composeProblem = nil
         } catch {
@@ -156,7 +164,7 @@ extension PanelStore {
         attachImage(data)
     }
 
-    private func discardPasted(_ paths: [String]) {
+    func discardPasted(_ paths: [String]) {
         for path in paths where pastedFiles.remove(path) != nil { try? FileManager.default.removeItem(atPath: path) }
     }
 }

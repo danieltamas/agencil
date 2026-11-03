@@ -131,6 +131,7 @@ extension Broker {
                 case .success(let parsed):
                     s.locked {
                         slot.phase = .answered; slot.reason = nil; slot.vote = parsed.vote ?? slot.vote
+                        slot.notes = parsed.notes ?? slot.notes
                         slot.result = RoundResult(seat: seat, started: started, answer: parsed)
                     }
                     return

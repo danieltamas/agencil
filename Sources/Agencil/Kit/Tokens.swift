@@ -40,6 +40,8 @@ enum Space {
     static let l: CGFloat = 12
     static let xl: CGFloat = 16
     static let xxl: CGFloat = 22
+    /// A button floating inside the bottom-trailing corner of a field.
+    static let float: CGFloat = 10
     static let pane: CGFloat = 28
     /// Panel horizontal inset; the footer uses the same value.
     static let panelInset: CGFloat = 14
@@ -76,6 +78,14 @@ enum Size {
     static let rowText: CGFloat = 240
     /// The scrolling model table in Settings: tall enough to read a screenful, short enough to leave the card above it in view.
     static let priceTable: CGFloat = 380
+    /// The Costs pane: the day bars' strip, the least a bar shows, and the share meter.
+    static let barStrip: CGFloat = 72
+    /// The follow-up box: half the height an open editor takes, and the tile of one attachment.
+    static let followUpEditor: CGFloat = 112
+    static let attachment: CGFloat = 44
+    static let barMin: CGFloat = 3
+    static let shareBar: CGFloat = 4
+    static let shareBarMin: CGFloat = 2
     static let appIcon: CGFloat = 52
     static let aboutIcon: CGFloat = 64
 }

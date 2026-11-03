@@ -15,6 +15,8 @@ final class Slot {
     var excluded = false
     /// What this round produced, held until the round's barrier stores it.
     var result: RoundResult?
+    /// The notes of the latest answer that had any, kept across rounds: a seat that fails a later round still said them.
+    var notes: String?
 
     init(seat: Seat) { self.seat = seat }
 
@@ -59,6 +61,11 @@ final class SittingRun: @unchecked Sendable {
     /// Latest stance of each seat on each claim: claim id, then seat.
     private(set) var stances: [String: [String: (stance: String, why: String)]] = [:]
     var summary: String?
+    /// The seat that wrote `summary`, and whether it did so for want of a configured synthesizer.
+    var summaryBy: String?
+    var summaryFallback = false
+    /// The caller asked for a written summary even when the council has no synthesizer.
+    var wantsSummary = false
     var synthesizerFailed: Bool?
     /// Vendors the council was convened with, before any spare took a seat over.
     let conveneVendors: Set<String>

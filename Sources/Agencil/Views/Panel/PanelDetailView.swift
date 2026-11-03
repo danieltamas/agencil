@@ -3,13 +3,21 @@ import SwiftUI
 /// A pushed detail screen inside the panel: a back chip, what the card is, then the whole record, scrollable.
 struct PanelDetailView: View {
     let page: DetailPage
+    let store: PanelStore
     let back: () -> Void
+    @State private var copied = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
             HStack(spacing: Space.m) {
                 ChipButton(title: "Back", symbol: "chevron.left", action: back)
                 Spacer(minLength: 0)
+                if let record = page.recordMarkdown {
+                    ChipButton(title: copied ? "Copied" : "Copy as Markdown", symbol: copied ? "checkmark" : "doc.on.doc") {
+                        Clipboard.copy(record)
+                        copied = true
+                    }
+                }
                 Chip(text: page.state, color: Theme.color(for: page.tone))
             }
             HStack(spacing: Space.m) {
@@ -20,15 +28,18 @@ struct PanelDetailView: View {
                 VStack(alignment: .leading, spacing: Space.l) {
                     if let problem = page.problem { ProblemText(text: problem) }
                     if page.loading { WaitingState(title: "Reading the record...") }
+                    if let synthesis = page.synthesis { synthesisBlock(synthesis) }
                     factsCard(page.facts)
                     if !page.brief.isEmpty { VStack(alignment: .leading, spacing: Space.xs) { Eyebrow(text: "Brief"); factsCard(page.brief) } }
                     ForEach(page.sections) { section in block(section) }
                     if !page.seats.isEmpty { seats }
                     ForEach(page.rounds) { round in roundView(round) }
                     if !page.claims.isEmpty { claims }
+                    if page.kind == .sitting { FollowUpView(page: page, store: store) }
                 }
             }
             .scrollIndicators(.hidden)
+            if page.kind == .sitting { FollowUpComposer(page: page, store: store) }
         }
     }
 
@@ -45,6 +56,18 @@ struct PanelDetailView: View {
                             Spacer(minLength: 0)
                         }
                     }
+                }
+            }
+        }
+    }
+
+    private func synthesisBlock(_ synthesis: DetailPage.Synthesis) -> some View {
+        VStack(alignment: .leading, spacing: Space.xs) {
+            Eyebrow(text: "Synthesis")
+            HoverCard(accent: Theme.color(for: page.tone), action: nil) {
+                VStack(alignment: .leading, spacing: Space.s) {
+                    MarkdownBlock(items: synthesis.items)
+                    Text(synthesis.writer).font(.house.meta).foregroundStyle(Theme.textTertiary)
                 }
             }
         }

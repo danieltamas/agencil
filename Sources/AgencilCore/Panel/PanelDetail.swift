@@ -25,12 +25,16 @@ public struct ThreadDetail: Sendable, Equatable {
         model = json["model"] as? String
         harness = json["harness"] as? String
         project = json["project"] as? String
-        exchanges = (json["exchanges"] as? [[String: Any]] ?? []).map {
-            Exchange(question: $0["question"] as? String ?? "", answer: $0["answer"] as? String, state: $0["state"] as? String ?? "",
-                     reason: $0["reason"] as? String, costUSD: ($0["cost_usd"] as? NSNumber)?.doubleValue,
-                     tokens: ($0["tokens"] as? NSNumber)?.intValue, tokensIn: ($0["tokens_in"] as? NSNumber)?.intValue,
-                     tokensOut: ($0["tokens_out"] as? NSNumber)?.intValue, costNote: $0["cost_note"] as? String)
-        }
+        exchanges = (json["exchanges"] as? [[String: Any]] ?? []).map(Exchange.init(json:))
+    }
+}
+
+extension ThreadDetail.Exchange {
+    init(json: [String: Any]) {
+        self.init(question: json["question"] as? String ?? "", answer: json["answer"] as? String, state: json["state"] as? String ?? "",
+                  reason: json["reason"] as? String, costUSD: (json["cost_usd"] as? NSNumber)?.doubleValue,
+                  tokens: (json["tokens"] as? NSNumber)?.intValue, tokensIn: (json["tokens_in"] as? NSNumber)?.intValue,
+                  tokensOut: (json["tokens_out"] as? NSNumber)?.intValue, costNote: json["cost_note"] as? String)
     }
 }
 
@@ -86,11 +90,36 @@ public struct SittingDetail: Sendable, Equatable {
     public let verdict: String?
     public let reasons: [String]
     public let reason: String?
+    /// The council's written synthesis (Markdown), the seat that wrote it, and whether it did so for want of a synthesizer.
+    public let summary: String?
+    public let summaryBy: String?
+    public let summaryFallback: Bool
+    /// The owner's follow-ups to the council's seats, and the seats a new one may go to (docs/U30-SPEC.md).
+    public struct Followup: Sendable, Equatable {
+        public let seat: String
+        public let thread: String
+        public let model: String?
+        public let harness: String?
+        public let exchanges: [ThreadDetail.Exchange]
+    }
+
+    public let followups: [Followup]
+    public let followUpSeats: [String]
+    public let followUpDefault: String?
     public let votes: [Vote]
     public let claims: [Claim]
     public let rounds: [Round]
 
     public init(json: [String: Any]) {
+        summary = json["summary"] as? String
+        summaryBy = json["summary_by"] as? String
+        summaryFallback = json["summary_fallback"] as? Bool ?? false
+        followups = (json["followups"] as? [[String: Any]] ?? []).map {
+            Followup(seat: $0["seat"] as? String ?? "", thread: $0["thread"] as? String ?? "", model: $0["model"] as? String,
+                     harness: $0["harness"] as? String, exchanges: ($0["exchanges"] as? [[String: Any]] ?? []).map(ThreadDetail.Exchange.init(json:)))
+        }
+        followUpSeats = json["follow_up_seats"] as? [String] ?? []
+        followUpDefault = json["follow_up_default"] as? String
         brief = json["brief"] as? String
         project = json["project"] as? String
         changeKind = json["change_kind"] as? String

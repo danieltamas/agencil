@@ -52,6 +52,9 @@ public final class Broker: @unchecked Sendable {
     var ollamaTasks: [String: URLSessionTask] = [:]
     /// Sittings that are running, by id; a finished sitting is read from the ledger.
     var sittings: [String: SittingRun] = [:]
+    /// "<sitting>|<seat>" of follow-ups between finding the seat's thread and the exchange existing, so two panels' first
+    /// questions to one seat cannot open two threads.
+    var followupsStarting: Set<String> = []
     /// Launches a dead predecessor left running; each holds a place until its group is gone.
     var startupOrphans: Set<String> = []
     private var connections = 0
@@ -178,8 +181,10 @@ public final class Broker: @unchecked Sendable {
             // A wake records its own request with the caller and the outcome, like an ask; a second, outcome-less row
             // for the same request would make the ledger's request log lie about what happened.
             case "wake": return wake(request, peer: peer, peerStart: peerStart)
+            case "followup": return followupOp(request, peer: peer, peerStart: peerStart)
             case "triggers": return try triggersOp()
             case "panel": return try panelOp()
+            case "costs": return try costsOp(request)
             case "detail": return try detailOp(request)
             case "tick":
                 guard environment["AGENCIL_TEST_SEAMS"] == "1" else { return Self.failure("unknown op tick", exit: 64) }

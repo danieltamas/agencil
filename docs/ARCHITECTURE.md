@@ -26,6 +26,7 @@ macOS 14, no third-party dependencies.
    answered, tokens and cost), sittings, claims, assessments, reservations and preflights. Rows that record
    history are never rewritten.
 6. `Panel` ops read the ledger for the app and the CLI: sittings, threads, details, outcomes, the leaderboard.
+7. After a sitting, the owner's panel (peer pid, never an agent) can put a follow-up to the council that held it: the `followup` op asks every seat of that council on a per-seat thread (linked to the sitting through `thread_rounds` round `followup`), each seat shown the sitting's record as labelled evidence plus the owner's text and any attached files. The `costs` op aggregates every answered exchange by local day, project, council, seat, model and caller for the Costs pane; it reads the exchange's own cost columns, so costs outlive the retention prune.
 
 ## Contracts
 

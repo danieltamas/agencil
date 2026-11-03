@@ -21,7 +21,8 @@ public struct CommandLineTool: Sendable {
         "version": Spec(positionals: 0...0),
         "ask": Spec(positionals: 2...2, valued: ["--file", "--thread", "--wait", "--as", "--repo"]),
         "result": Spec(positionals: 1...1, valued: ["--wait"], switches: ["--json", "--full"]),
-        "wake": Spec(positionals: 1...1, valued: ["--brief", "--file", "--repo", "--diff", "--wait", "--author-vendor", "--seats", "--cap"]),
+        "wake": Spec(positionals: 1...1, valued: ["--brief", "--file", "--repo", "--diff", "--wait", "--author-vendor", "--seats", "--cap"],
+                     switches: ["--json", "--synthesize"]),
         "status": Spec(positionals: 1...1), "stop": Spec(positionals: 1...1),
         "budgets": Spec(positionals: 0...0),
         "seats": Spec(positionals: 0...2, valued: ["--preset"]), "councils": Spec(positionals: 0...0), "triggers": Spec(positionals: 0...0),
@@ -114,6 +115,7 @@ public struct CommandLineTool: Sendable {
             if verb == "wake" {
                 request["council"] = parsed.positionals[0]
                 request.merge(try Self.brief(parsed)) { _, new in new }
+                if parsed.flags.contains("--synthesize") { request["synthesize"] = true }
             }
             if let seats = parsed.value("--seats") {
                 let names = seats.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
