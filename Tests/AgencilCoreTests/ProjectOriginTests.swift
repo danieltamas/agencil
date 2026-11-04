@@ -137,7 +137,8 @@ import Testing
             ALTER TABLE exchanges DROP COLUMN cost_basis;
             ALTER TABLE exchanges DROP COLUMN harness;
             ALTER TABLE exchanges DROP COLUMN model;
-            PRAGMA user_version = \(version - 3);
+            ALTER TABLE sittings DROP COLUMN caller;
+            PRAGMA user_version = \(version - 4);
             """)
         #expect(try sqlite(file, "SELECT count(*) FROM sqlite_master WHERE name = 'run_origins';").out == "0\n")
         try ledger.migrate()

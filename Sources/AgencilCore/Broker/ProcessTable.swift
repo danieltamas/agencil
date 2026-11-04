@@ -99,3 +99,15 @@ enum ProcessTable {
         }
     }
 }
+
+extension ProcessTable {
+    /// The working directory the kernel reports for `pid`; nil when it cannot be read.
+    static func workingDirectory(of pid: Int32) -> String? {
+        var info = proc_vnodepathinfo()
+        let size = Int32(MemoryLayout<proc_vnodepathinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &info, size) == size else { return nil }
+        return withUnsafePointer(to: &info.pvi_cdir.vip_path) { pointer in
+            pointer.withMemoryRebound(to: CChar.self, capacity: Int(MAXPATHLEN)) { String(cString: $0) }
+        }
+    }
+}

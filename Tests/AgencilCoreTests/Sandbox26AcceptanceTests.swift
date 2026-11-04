@@ -70,7 +70,8 @@ private struct Sandbox26Fixture {
 }
 
 private let sandbox26Write = "~/.agencil"
-private let sandbox26Socket = "~/.agencil/agencil.sock"
+// Behavior change: Claude sandbox gets only the agent socket, no allowWrite (docs/U32-SPEC.md 3)
+private let sandbox26Socket = "~/.agencil/agent.sock"
 
 private func sandbox26Settings(write: Bool = false, socket: Bool = false,
                                enabled: Bool = true) -> [String: Any] {
@@ -105,6 +106,47 @@ private func sandbox26Arrays(_ object: [String: Any]) throws -> ([String], [Stri
 }
 
 @Suite struct Sandbox26AcceptanceTests {
+    @Test(arguments: [false, true], [0, 1, 2, 3])
+    func legacyRecordedPairIsMigratedOrUninstalled(uninstall: Bool, ownerMask: Int) throws {
+        let f = try Sandbox26Fixture()
+        try f.write(sandbox26Settings())
+        #expect(try f.run().0 == 0)
+        // Preserve the install record's real envelope and key vocabulary; simulate the old recorded pair.
+        let addition = try #require(f.additions().first { $0["value"] == sandbox26Socket })
+        let socketKey = try #require(addition["key"])
+        let writeKey = socketKey.replacingOccurrences(of: "network", with: "filesystem")
+            .replacingOccurrences(of: "allowUnixSockets", with: "allowWrite")
+        #expect(writeKey != socketKey)
+        let oldSocket = "~/.agencil/agencil.sock"
+        let ownerWrite = ownerMask & 1 != 0, ownerSocket = ownerMask & 2 != 0
+        var original = sandbox26Settings(write: true)
+        var sandbox = try #require(original["sandbox"] as? [String: Any])
+        var network = try #require(sandbox["network"] as? [String: Any])
+        network["allowUnixSockets"] = ["~/harbor/service.sock", oldSocket]
+        sandbox["network"] = network; original["sandbox"] = sandbox
+        try f.write(original)
+        let record = f.home.url.appendingPathComponent("installed.json")
+        var root = try brokerJSON(Data(contentsOf: record))
+        var entries = try #require(root["entries"] as? [String: Any])
+        var claude = try #require(entries["claude"] as? [String: Any])
+        var recorded: [[String: String]] = []
+        if !ownerSocket { recorded.append(["key": socketKey, "value": oldSocket, "file": f.settings.path]) }
+        if !ownerWrite { recorded.append(["key": writeKey, "value": sandbox26Write, "file": f.settings.path]) }
+        claude["sandbox"] = recorded; entries["claude"] = claude; root["entries"] = entries
+        try JSONSerialization.data(withJSONObject: root).write(to: record)
+        #expect(try f.run(uninstall ? ["--uninstall"] : []).0 == 0)
+        let (writes, sockets) = try sandbox26Arrays(f.object())
+        #expect(writes == ["~/harbor", "~/lumen"] + (ownerWrite ? [sandbox26Write] : []))
+        #expect(sockets == ["~/harbor/service.sock"] + (ownerSocket ? [oldSocket] : []) +
+            (uninstall ? [] : [sandbox26Socket]))
+        if !uninstall {
+            #expect(try f.run(["--uninstall"]).0 == 0)
+            let remaining = try sandbox26Arrays(f.object())
+            #expect(remaining.0 == writes)
+            #expect(remaining.1 == ["~/harbor/service.sock"] + (ownerSocket ? [oldSocket] : []))
+        }
+    }
+
     // A1: Claude starts the command directly, so shell tilde expansion cannot help.
     @Test func dryRunAndRealArgvUseExpandedExecutable() throws {
         let f = try Sandbox26Fixture()
@@ -133,13 +175,15 @@ private func sandbox26Arrays(_ object: [String: Any]) throws -> ([String], [Stri
         try FileManager.default.setAttributes([.posixPermissions: 0o640], ofItemAtPath: f.settings.path)
         let mode = try f.permissions()
         #expect(try f.run().0 == 0)
+        // Behavior change: Claude sandbox gets only the agent socket, no allowWrite (docs/U32-SPEC.md 3)
         #expect(try sandbox26Canonical(f.object()) ==
-                sandbox26Canonical(sandbox26Settings(write: true, socket: true)))
+                sandbox26Canonical(sandbox26Settings(socket: true)))
         #expect(try f.permissions() == mode)
         let additions = try f.additions()
-        #expect(additions.count == 2)
+        // Behavior change: Claude sandbox gets only the agent socket, no allowWrite (docs/U32-SPEC.md 3)
+        #expect(additions.count == 1)
         #expect(Set(additions.compactMap { $0["value"] }) ==
-                Set([sandbox26Write, sandbox26Socket]))
+                Set([sandbox26Socket]))
         #expect(additions.allSatisfy { !($0["key"] ?? "").isEmpty })
     }
 
@@ -152,7 +196,7 @@ private func sandbox26Arrays(_ object: [String: Any]) throws -> ([String], [Stri
             "owner": "maya",
             "sandbox": [
                 "enabled": true, "keep": 7,
-                "filesystem": ["allowWrite": [sandbox26Write]],
+                // Behavior change: Claude sandbox gets only the agent socket, no allowWrite (docs/U32-SPEC.md 3)
                 "network": ["allowUnixSockets": [sandbox26Socket]]
             ]
         ]
@@ -168,7 +212,8 @@ private func sandbox26Arrays(_ object: [String: Any]) throws -> ([String], [Stri
         #expect(try f.run().0 == 0)
         #expect(try sandbox26Canonical(f.object()) == first)
         let (writes, sockets) = try sandbox26Arrays(f.object())
-        #expect(writes.filter { $0 == sandbox26Write }.count == 1)
+        // Behavior change: Claude sandbox gets only the agent socket, no allowWrite (docs/U32-SPEC.md 3)
+        #expect(writes.filter { $0 == sandbox26Write }.isEmpty)
         #expect(sockets.filter { $0 == sandbox26Socket }.count == 1)
         #expect(try f.run(["--uninstall"]).0 == 0)
         #expect(try sandbox26Canonical(f.object()) == sandbox26Canonical(sandbox26Settings()))
@@ -205,11 +250,12 @@ private func sandbox26Arrays(_ object: [String: Any]) throws -> ([String], [Stri
         let original = sandbox26Settings(write: ownerWrite, socket: ownerSocket)
         try f.write(original)
         #expect(try f.run().0 == 0)
+        // Behavior change: Claude sandbox gets only the agent socket, no allowWrite (docs/U32-SPEC.md 3)
         #expect(try sandbox26Canonical(f.object()) ==
-                sandbox26Canonical(sandbox26Settings(write: true, socket: true)))
+                sandbox26Canonical(sandbox26Settings(write: ownerWrite, socket: true)))
         let additions = try f.additions()
-        let expectedValues = (ownerWrite ? [] : [sandbox26Write]) +
-            (ownerSocket ? [] : [sandbox26Socket])
+        // Behavior change: Claude sandbox gets only the agent socket, no allowWrite (docs/U32-SPEC.md 3)
+        let expectedValues = ownerSocket ? [] : [sandbox26Socket]
         #expect(additions.count == expectedValues.count)
         #expect(Set(additions.compactMap { $0["value"] }) == Set(expectedValues))
         #expect(additions.allSatisfy { !($0["key"] ?? "").isEmpty })
@@ -234,7 +280,8 @@ private func sandbox26Arrays(_ object: [String: Any]) throws -> ([String], [Stri
                 "agent_access": "on", "seats": "[]", "routes": "[]"
             ]).first { $0.harness == "claude" })
             #expect(row.mcp.installed)
-            #expect(row.drift.contains("sandbox blocks Agencil") == (mask != 3))
+            // Behavior change: Claude sandbox gets only the agent socket, no allowWrite (docs/U32-SPEC.md 3)
+            #expect(row.drift.contains("sandbox blocks Agencil") == (mask & 2 == 0))
         }
         try f.write(sandbox26Settings(enabled: false))
         #expect(try !f.audit().drift.contains("sandbox blocks Agencil"))
@@ -261,12 +308,13 @@ private func sandbox26Arrays(_ object: [String: Any]) throws -> ([String], [Stri
         try f.write(sandbox26Settings())
         #expect(try f.audit().drift.contains("sandbox blocks Agencil"))
         #expect(try f.run().0 == 0)
+        // Behavior change: Claude sandbox gets only the agent socket, no allowWrite (docs/U32-SPEC.md 3)
         #expect(try sandbox26Canonical(f.object()) ==
-                sandbox26Canonical(sandbox26Settings(write: true, socket: true)))
+                sandbox26Canonical(sandbox26Settings(socket: true)))
         #expect(try !f.audit().drift.contains("sandbox blocks Agencil"))
     }
 
-    // A7 and behaviour 4: preview both additions without changing any settings bytes.
+    // Behavior change: Claude sandbox gets only the agent socket, no allowWrite (docs/U32-SPEC.md 3)
     @Test func dryRunPrintsSandboxAdditionsWithoutWriting() throws {
         let f = try Sandbox26Fixture()
         try f.write(sandbox26Settings())
@@ -274,9 +322,7 @@ private func sandbox26Arrays(_ object: [String: Any]) throws -> ([String], [Stri
         let (code, output, _) = try f.run(["--dry-run"])
         #expect(code == 0)
         let lines = output.split(separator: "\n")
-        #expect(lines.contains {
-            $0.contains("allowWrite") && $0.contains(sandbox26Write)
-        })
+        #expect(!lines.contains { $0.contains("allowWrite") })
         #expect(lines.contains {
             $0.contains("allowUnixSockets") && $0.contains(sandbox26Socket)
         })

@@ -1,3 +1,13 @@
+## 0.5.0 (2026-11-04)
+
+- Security: agents now reach Agencil through their own socket, `agent.sock`, that serves only ask, wake, result, status, stop and list_targets. Everything else (the panel, settings, budgets, launching) stays on the owner socket. An agent can no longer claim to be the owner.
+- The agent access switch is enforced by the broker itself, so a raw client cannot get around it by skipping the MCP server.
+- An agent can only follow, read or stop its own threads, and only stop sittings it woke. Reading a sitting through an `agencil://sitting/<id>` link still works for any agent with access on.
+- Files and a repo that an agent attaches must be inside the git repository of its working directory and outside credential folders (.ssh, .aws, .config, Library/Application Support and similar). They are checked on the file that is actually opened.
+- Claude Code's sandbox integration now allows only the agent socket and no longer opens the whole `~/.agencil` folder for writing. Run `agencil install-mcp claude` again (or just open the app) to remove the old entries Agencil had added; entries you had yourself are kept.
+- Settings shows the agent socket status. A failure to open the second socket no longer leaves the first one listening.
+- Behavior change: `agent_access` off now blocks agents at the broker; a client that used to work with it off through the CLI under a non-owner label is refused.
+
 ## 0.4.1 (2026-11-04)
 
 - Security fix: a seat working in a sandbox could reach the broker's socket and ask it to start any command outside the sandbox. The broker no longer serves that request in a release build, seats that work on a repo copy can no longer connect to the broker's socket at all, and a process started by a seat is now refused on every operation except asking, waking, following and stopping its own work and listing what it may reach. Update from Settings, About, or run the install line again.

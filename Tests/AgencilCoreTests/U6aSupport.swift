@@ -52,8 +52,9 @@ final class U6aRig {
         return path
     }
     func config(seats: [[String: Any]] = [u6aSeat()], routes: [[String: Any]] = [u6aRoute()],
-                aliases: [String: String] = [:], raw: [String: String] = [:]) throws {
+                aliases: [String: String] = [:], agentAccess: String? = "on", raw: [String: String] = [:]) throws {
         let values = try ["seats": u6aText(seats), "routes": u6aText(routes), "aliases": u6aText(aliases)]
+            .merging(agentAccess.map { ["agent_access": $0] } ?? [:]) { _, b in b }
             .merging(raw) { _, b in b }
         try JSONSerialization.data(withJSONObject: ["revision": 1, "values": values])
             .write(to: home.url.appendingPathComponent("config.json"), options: .atomic)

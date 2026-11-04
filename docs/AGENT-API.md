@@ -25,7 +25,7 @@ add fields freely, never remove or repurpose one without bumping `api` in the en
 
 One broker per Mac owns the ledger, the budgets and the concurrency cap:
 - The broker is the Agencil app. `agencil serve` runs the same engine headless, for a Mac without a logged-in UI.
-- The CLI and the MCP server are thin clients. They speak JSON lines over a Unix socket, `~/.agencil/agencil.sock` (mode 0600, owner only).
+- The CLI and the MCP server are thin clients. They speak JSON lines over a Unix socket (mode 0600, owner only): the CLI on `~/.agencil/agencil.sock`, the MCP server on the agent door `~/.agencil/agent.sock`, which serves only `ping`, `ask`, `wake`, `result`, `status`, `stop` and `list_targets`.
 - With no broker running, every client command exits 3 with `agencil: Agencil is not running (open the app or run agencil serve)`. Clients never run seats themselves, so two MCP sessions can never double-spend a budget.
 
 ## Resolution (a target to a working process)
@@ -79,6 +79,8 @@ Ancestry is established two independent ways, and loops are bounded mechanically
 - **Hop limit**: the chain length must stay at or under the route's hop limit (default 2, maximum 4), else `refused: hop limit`.
 - **No cycles**: a target whose seat already appears in the chain is refused (`refused: cycle claude-opus -> codex-gpt -> claude-opus`).
 - **No replay**: a capability is useless once its run ends.
+
+**Agent door, access and ownership.** With agent access off the broker refuses every agent call with `refused: agent access is off`. A thread can be followed, read or stopped only by the caller that asked it (`refused: not your thread`); a sitting can be stopped only by the caller that woke it, and read by anyone with access on, which is what an `agencil://sitting/<id>` link is for. Files and a repo named by a non-owner caller must lie inside the git repository of the caller's working directory and outside credential folders (`refused: file outside the caller's repo`).
 
 **Confined seats and the socket.** A seat that works on a repo copy runs in a sandbox that cannot connect to the
 broker's socket, so it cannot call Agencil back; a chain starts from a seat that was asked without a repo, or from

@@ -151,5 +151,9 @@ enum LedgerSchema {
         ALTER TABLE exchanges ADD COLUMN harness TEXT;
         ALTER TABLE exchanges ADD COLUMN model TEXT;
         """,
+        // Who woke a sitting, so only that caller (or the owner) may stop it; NULL on older rows, which only the owner may stop.
+        """
+        ALTER TABLE sittings ADD COLUMN caller TEXT;
+        """,
     ]
 }

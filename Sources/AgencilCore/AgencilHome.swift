@@ -24,4 +24,6 @@ public struct AgencilHome: Sendable {
 extension AgencilHome {
     /// The Unix socket the broker serves and every `agencil` process connects to.
     public var socketPath: String { directory.appendingPathComponent("agencil.sock").path }
+    /// The agent door: the MCP server connects here, and it serves only what an agent needs (docs/U32-SPEC.md).
+    public var agentSocketPath: String { directory.appendingPathComponent("agent.sock").path }
 }

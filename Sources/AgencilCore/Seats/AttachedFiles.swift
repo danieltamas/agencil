@@ -22,21 +22,21 @@ enum AttachedFiles {
     }
 
     /// A request's `files` for an ask: text only. An image belongs to a wake.
-    static func read(_ value: Any?, atMost most: Int? = nil) throws -> [(path: String, text: String)] {
+    static func read(_ value: Any?, atMost most: Int? = nil, policy: AttachPolicy? = nil) throws -> [(path: String, text: String)] {
         let paths = try list(value, atMost: most)
         return try paths.map { path in
-            guard path.hasPrefix("/"), let data = contents(of: path, upTo: limit) else { throw Broker.Failure(message: "cannot read \(path)") }
+            guard path.hasPrefix("/"), let data = try contents(of: path, upTo: limit, policy: policy) else { throw Broker.Failure(message: "cannot read \(path)") }
             if imageExtension(of: data) != nil { throw Broker.Failure(message: "images attach to a wake, not an ask: \(path)") }
             return (path, text(data))
         }
     }
 
     /// A wake's `files`: text inlined, images kept whole under their limits.
-    static func readAll(_ value: Any?, atMost most: Int? = nil) throws -> Attachments {
+    static func readAll(_ value: Any?, atMost most: Int? = nil, policy: AttachPolicy? = nil) throws -> Attachments {
         var found = Attachments()
         var imageBytes = 0
         for path in try list(value, atMost: most) {
-            guard path.hasPrefix("/"), let data = contents(of: path, upTo: imageLimit) else { throw Broker.Failure(message: "cannot read \(path)") }
+            guard path.hasPrefix("/"), let data = try contents(of: path, upTo: imageLimit, policy: policy) else { throw Broker.Failure(message: "cannot read \(path)") }
             found.paths.append(path)
             guard let kind = imageExtension(of: data) else {
                 found.files.append((path, text(data.prefix(limit + 1))))
@@ -80,10 +80,18 @@ enum AttachedFiles {
 
     /// The first `bound + 1` bytes of a regular file: the extra byte says whether it was cut. A pipe, a device or a
     /// file that cannot be opened without waiting is not evidence, and a huge file is never read whole.
-    private static func contents(of path: String, upTo bound: Int) -> Data? {
+    private static func contents(of path: String, upTo bound: Int, policy: AttachPolicy?) throws -> Data? {
         let descriptor = open(path, O_RDONLY | O_NONBLOCK)
         guard descriptor >= 0 else { return nil }
         defer { close(descriptor) }
+        // The policy judges the file that was actually opened (the kernel's path for the descriptor), so a link or a
+        // parent folder swapped after any earlier check changes nothing.
+        if let policy {
+            var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
+            guard fcntl(descriptor, F_GETPATH, &buffer) == 0, policy.allows(String(cString: buffer)) else {
+                throw Refusal(exit: 3, message: "refused: file outside the caller's repo")
+            }
+        }
         var info = stat()
         guard fstat(descriptor, &info) == 0, info.st_mode & S_IFMT == S_IFREG else { return nil }
         var data = Data()

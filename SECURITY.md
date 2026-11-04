@@ -15,7 +15,7 @@ of each item is marked: **built** means it exists in this repository today, **pl
 - Reading the repository a council is asked about, through a frozen copy of it. **planned**
 - Sending that copy to a hosted model only after a sanitized copy is made (no `.git`, no secrets by the
   redaction rules) and only on a route that allows hosted seats. **planned**
-- A local Unix socket (`~/.agencil/agencil.sock`, mode 0600) and an MCP server, off by default. **planned**
+- A local Unix socket (`~/.agencil/agencil.sock` for the owner, `~/.agencil/agent.sock` for agents, mode 0600) and an MCP server, off by default. **planned**
 - Writing entries into other agents' config files, with a diff first and an exact-entry uninstall. **planned**
 - API keys, kept in the macOS Keychain and never in files or logs. **planned**
 

@@ -45,6 +45,9 @@ import Testing
     @Test func askAndWakeRefuseAbsentRoutes() throws {
         let home = try BrokerHome(), broker = try home.serve()
         defer { broker.kill() }
+        // U32: enable agent access so the non-owner request still exercises the absent-route guard.
+        try JSONSerialization.data(withJSONObject: ["revision": 1, "values": ["agent_access": "on"]])
+            .write(to: home.url.appendingPathComponent("config.json"))
         let brief = home.url.appendingPathComponent("brief")
         try "change_kind: docs\nquestion: Review the guide\n".write(to: brief, atomically: true, encoding: .utf8)
         let (code, _, error) = try home.cli(["ask", "reviewer", "Review"])
@@ -78,7 +81,9 @@ import Testing
     @Test func privateSocketExclusiveLockAndGracefulRestart() throws {
         let home = try BrokerHome(), first = try home.serve()
         defer { first.kill() }
-        for (path, mode) in [(home.url.path, 0o700), (home.url.appendingPathComponent("agencil.sock").path, 0o600)] {
+        for (path, mode) in [(home.url.path, 0o700),
+            (home.url.appendingPathComponent("agencil.sock").path, 0o600),
+            (home.url.appendingPathComponent("agent.sock").path, 0o600)] {
             let attributes = try FileManager.default.attributesOfItem(atPath: path)
             #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == mode)
         }
@@ -91,6 +96,7 @@ import Testing
         first.kill(SIGTERM)
         _ = try first.finish()
         #expect(!FileManager.default.fileExists(atPath: home.url.appendingPathComponent("agencil.sock").path))
+        #expect(!FileManager.default.fileExists(atPath: home.url.appendingPathComponent("agent.sock").path))
         let next = try home.serve()
         defer { next.kill() }
         #expect(try home.request(["op": "ping"])["ok"] as? Bool == true)
@@ -100,9 +106,11 @@ import Testing
         let home = try BrokerHome(), first = try home.serve()
         first.kill(); _ = try first.finish()
         #expect(FileManager.default.fileExists(atPath: home.url.appendingPathComponent("agencil.sock").path))
+        #expect(FileManager.default.fileExists(atPath: home.url.appendingPathComponent("agent.sock").path))
         let next = try home.serve()
         defer { next.kill() }
         #expect(try home.request(["op": "ping"])["ok"] as? Bool == true)
+        #expect(try home.request(["op": "ping"], socketName: "agent.sock")["ok"] as? Bool == true)
     }
 
     @Test func simultaneousBrokersHaveExactlyOneWinnerTenTimes() throws {

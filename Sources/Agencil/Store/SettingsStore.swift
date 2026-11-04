@@ -120,7 +120,7 @@ enum EditTarget: Equatable {
         store.catalog = ModelCatalogStore.demo()
         store.update = UpdateStore.demo(now: DemoStore.now)
         store.agentAccessOn = accessOn
-        store.socket = AccessFacts.Socket(path: NSHomeDirectory() + "/.agencil/agencil.sock", reachable: true, ownerOnly: true)
+        store.socket = AccessFacts.Socket(path: NSHomeDirectory() + "/.agencil/agent.sock", reachable: true, ownerOnly: true)
         let states: [(String, Bool, InstructionState, [String])] = [
             ("claude", true, .current, ["lumen-review"]), ("codex", true, .outdated, []), ("opencode", false, .absent, []),
         ]

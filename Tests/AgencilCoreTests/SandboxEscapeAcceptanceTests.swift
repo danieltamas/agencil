@@ -123,12 +123,13 @@ struct SandboxEscapeAcceptanceTests {
         return false
     }()
 
-    @Test(.enabled(if: sandboxAvailable, "sandbox-exec cannot apply a profile in this environment"))
-    func realSandboxDeniesBrokerSocketButAllowsUnrelatedSocket() throws {
+    @Test(.enabled(if: sandboxAvailable, "sandbox-exec cannot apply a profile in this environment"),
+          arguments: ["agencil.sock", "agent.sock"])
+    func realSandboxDeniesBrokerSocketButAllowsUnrelatedSocket(socketName: String) throws {
         let home = try BrokerHome(), outside = try BrokerHome()
         let brokerHome = home.url.appendingPathComponent("broker")
         try FileManager.default.createDirectory(at: brokerHome, withIntermediateDirectories: true)
-        let denied = brokerHome.appendingPathComponent("peer.sock")
+        let denied = brokerHome.appendingPathComponent(socketName)
         let allowed = outside.url.appendingPathComponent("peer.sock")
         let servers = try [denied, allowed].map { try UnixListener($0) }
         defer { for server in servers { close(server.fd) } }

@@ -23,8 +23,9 @@ public struct BrokerClient: Sendable {
 
     let socketPath: String
 
-    public init(home: AgencilHome) {
-        socketPath = home.socketPath
+    /// The owner door by default; the MCP server asks for the agent door (docs/U32-SPEC.md).
+    public init(home: AgencilHome, agentDoor: Bool = false) {
+        socketPath = agentDoor ? home.agentSocketPath : home.socketPath
     }
 
     public func send(_ request: [String: Any]) throws -> [String: Any] {

@@ -1,9 +1,9 @@
 import Foundation
 
-/// Claude Code's sandbox (`~/.claude/settings.json`, docs/U26-SPEC.md): a sandboxed session may not write `~/.agencil`
-/// or reach its socket unless the settings allow it, so installing the Claude entry also allows both. Only an enabled
-/// sandbox in a parsable file is touched, only a value whose array is a plain list of strings is edited, and every
-/// other key is left as it was.
+/// Claude Code's sandbox (`~/.claude/settings.json`, docs/U26-SPEC.md, narrowed by docs/U32-SPEC.md): a sandboxed session
+/// may not reach a socket unless the settings allow it, so installing the Claude entry allows the agent door and nothing
+/// else: never the owner door, never a write to the state directory. Only an enabled sandbox in a parsable file is
+/// touched, only a value whose array is a plain list of strings is edited, and every other key is left as it was.
 struct ClaudeSandbox {
     struct Addition: Equatable {
         let key: String
@@ -27,8 +27,14 @@ struct ClaudeSandbox {
     }
 
     private var wanted: [Addition] {
-        [Addition(key: "sandbox.filesystem.allowWrite", value: "~/.agencil", file: url.path),
-         Addition(key: "sandbox.network.allowUnixSockets", value: "~/.agencil/agencil.sock", file: url.path)]
+        [Addition(key: "sandbox.network.allowUnixSockets", value: "~/.agencil/agent.sock", file: url.path)]
+    }
+
+    /// What v0.4.1 and earlier added: the whole state directory for writing and the owner door. Agencil removes the ones
+    /// it recorded; a value the owner had before is never recorded, so never removed.
+    static func isLegacy(_ addition: Addition) -> Bool {
+        (addition.key == "sandbox.filesystem.allowWrite" && addition.value == "~/.agencil")
+            || (addition.key == "sandbox.network.allowUnixSockets" && addition.value == "~/.agencil/agencil.sock")
     }
 
     /// The settings bytes and parsed object when the sandbox is enabled; nil for a missing or unparsable file or a
@@ -68,14 +74,25 @@ struct ClaudeSandbox {
         return added
     }
 
-    /// Removes the values Agencil recorded as its own in this file; a value that is no longer there is skipped.
-    func remove(_ recorded: [Addition]) throws {
+    /// Removes the recorded values from this file and returns the ones that are confirmed gone: removed now, or already
+    /// absent from a readable list. A value in a file that cannot be read, or whose list is not plain strings, is not
+    /// confirmed, so the caller keeps its record. Works on a settings file whose sandbox is switched off too: the values
+    /// must not come back when it is switched on again.
+    func removeConfirmed(_ recorded: [Addition]) throws -> [Addition] {
         let own = recorded.filter { $0.file == url.path }
-        guard !own.isEmpty, var settings = enabledSettings() else { return }
-        for addition in own where Self.list(in: settings.root, at: addition.path) != nil {
-            settings.root = Self.setting(settings.root, path: addition.path[...]) { $0.filter { $0 != addition.value } }
+        guard !own.isEmpty, let data = try? Data(contentsOf: url),
+              var root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return [] }
+        var confirmed: [Addition] = [], changed = false
+        for addition in own {
+            guard let list = Self.list(in: root, at: addition.path) else { continue }
+            if list.contains(addition.value) {
+                root = Self.setting(root, path: addition.path[...]) { $0.filter { $0 != addition.value } }
+                changed = true
+            }
+            confirmed.append(addition)
         }
-        try write(settings.root, replacing: settings.data)
+        if changed { try write(root, replacing: data) }
+        return confirmed
     }
 
     /// Writes through a symlink to its target, and only when the file still holds the bytes that were read.

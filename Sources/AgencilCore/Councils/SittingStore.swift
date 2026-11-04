@@ -26,7 +26,7 @@ struct SittingStore {
 
     /// Writes the brief, the snapshot (once per distinct packet) and the sitting's run and number in one step.
     func open(council: String, snapshot: Snapshot, authorVendor: String, brief: String,
-              project: String? = nil) throws -> (id: String, number: Int) {
+              project: String? = nil, caller: String? = nil) throws -> (id: String, number: Int) {
         let id = Self.newID("sit_")
         let briefID = Self.newID("br_")
         let stamp = Self.now()
@@ -40,9 +40,9 @@ struct SittingStore {
             try ledger.run("INSERT INTO runs (id, kind, snapshot_id, status, started_at) VALUES (?, 'sitting', ?, 'running', ?);",
                            [id, snapshot.id, stamp])
             try ledger.run("""
-                INSERT INTO sittings (id, no, council, state, round, author_vendor, snapshot_id, created_at, repo)
-                VALUES (?, ?, ?, 'running', 'blind', ?, ?, ?, ?);
-                """, [id, String(number), council, authorVendor, snapshot.id, stamp, snapshot.repo])
+                INSERT INTO sittings (id, no, council, state, round, author_vendor, snapshot_id, created_at, repo, caller)
+                VALUES (?, ?, ?, 'running', 'blind', ?, ?, ?, ?, ?);
+                """, [id, String(number), council, authorVendor, snapshot.id, stamp, snapshot.repo, caller])
             if let project { try ledger.run("INSERT INTO run_origins (run_id, project) VALUES (?, ?);", [id, project]) }
             return (id, number)
         }
@@ -135,5 +135,12 @@ struct SittingStore {
             try ledger.run("UPDATE runs SET status = 'failed', ended_at = ? WHERE kind = 'sitting' AND status = 'running';", [stamp])
             try ledger.run("UPDATE sittings SET state = 'failed', reason = ?, ended_at = ? WHERE state = 'running';", [reason, stamp])
         }
+    }
+}
+
+extension SittingStore {
+    /// Who woke the sitting; nil when it is unknown or was recorded before callers were kept, so only the owner may stop it.
+    func caller(of id: String) throws -> String? {
+        try ledger.locked { try ledger.query("SELECT caller FROM sittings WHERE id = ?;", [id]) { Ledger.text($0, 0) }.first ?? nil }
     }
 }

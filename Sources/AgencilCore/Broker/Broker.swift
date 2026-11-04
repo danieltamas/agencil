@@ -32,12 +32,14 @@ public final class Broker: @unchecked Sendable {
     let capacity = Capacity()
     let discovery = DiscoveryCache()
     let socketPath: String
+    let agentSocketPath: String
     /// The `agencil` CLI that seats are launched through: this process in `serve`, the bundled CLI inside the app.
     let launcherExecutable: String?
     private let lockDescriptor: Int32
     private let connectionLimit = 64
     private let idleSeconds = 30
     private var listener: Int32 = -1
+    private var agentListener: Int32 = -1
     let tracking = NSLock()
     /// Proposals whose review is being asked now (docs/U23-SPEC.md): a second review of one proposal is refused.
     var reviewing: Set<String> = []
@@ -65,6 +67,7 @@ public final class Broker: @unchecked Sendable {
         self.launcherExecutable = launcherExecutable
         self.environment = environment
         socketPath = home.socketPath
+        agentSocketPath = home.agentSocketPath
         let descriptor = open(directory.appendingPathComponent("broker.lock").path, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0o600)
         guard descriptor >= 0 else { throw Failure(message: "cannot open broker.lock: \(String(cString: strerror(errno)))") }
         guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
@@ -95,9 +98,15 @@ public final class Broker: @unchecked Sendable {
         try? budgets.settleOrphans()
         try? sittingRows.failRunning(reason: "the broker restarted during the sitting")
         reconcileExchanges()
-        unlink(socketPath)
+        unlink(socketPath); unlink(agentSocketPath)
         listener = try UnixSocket.listen(at: socketPath)
-        Thread.detachNewThread { [self] in acceptLoop() }
+        do { agentListener = try UnixSocket.listen(at: agentSocketPath) } catch {
+            // Both doors or neither: leave nothing listening, so a retry starts clean.
+            close(listener); listener = -1; unlink(socketPath)
+            throw error
+        }
+        Thread.detachNewThread { [self] in acceptLoop(listener, door: .owner) }
+        Thread.detachNewThread { [self] in acceptLoop(agentListener, door: .agent) }
         startTriggerLoop()
         startMaintenanceLoop()
     }
@@ -105,19 +114,19 @@ public final class Broker: @unchecked Sendable {
     /// The headless broker: serves until SIGTERM or SIGINT; never returns normally.
     public func serve() throws -> Never {
         try start()
-        let path = socketPath
+        let path = socketPath, agentPath = agentSocketPath
         var sources: [DispatchSourceSignal] = []
         for number in [SIGTERM, SIGINT] {
             signal(number, SIG_IGN)
             let source = DispatchSource.makeSignalSource(signal: number, queue: .main)
-            source.setEventHandler { unlink(path); exit(0) }
+            source.setEventHandler { unlink(path); unlink(agentPath); exit(0) }
             source.resume()
             sources.append(source)
         }
         dispatchMain()
     }
 
-    private func acceptLoop() {
+    private func acceptLoop(_ listener: Int32, door: Door) {
         while true {
             let client = accept(listener, nil, nil)
             if client < 0 { if errno == EINTR { continue }; return }
@@ -133,13 +142,13 @@ public final class Broker: @unchecked Sendable {
             }
             guard admitted else { close(client); continue }
             Thread.detachNewThread { [self] in
-                connection(client)
+                connection(client, door: door)
                 tracking.withLock { connections -= 1 }
             }
         }
     }
 
-    private func connection(_ descriptor: Int32) {
+    private func connection(_ descriptor: Int32, door: Door) {
         defer { close(descriptor) }
         let peer = UnixSocket.peerPID(descriptor)
         let peerStart = peer.flatMap { ProcessTable.startTime(of: $0) }
@@ -155,7 +164,7 @@ public final class Broker: @unchecked Sendable {
                     UnixSocket.write(descriptor, line: UnixSocket.json(Self.failure("malformed request", exit: 64)))
                     continue
                 }
-                let response = handle(op, request, peer: peer, peerStart: peerStart)
+                let response = handle(op, request, peer: peer, peerStart: peerStart, door: door)
                 let delivered = UnixSocket.write(descriptor, line: UnixSocket.json(response))
                 if op == "register", response["go"] as? Bool == true, let nonce = request["nonce"] as? String {
                     releaseLaunch(nonce: nonce, delivered: delivered)
@@ -172,7 +181,8 @@ public final class Broker: @unchecked Sendable {
     /// Owner ops that already refuse a seat themselves, each with its own message the CLI and the app show.
     private static let selfGatedOps: Set<String> = ["followup", "adjudicate", "learn", "prune", "leaderboard", "dispose"]
 
-    private func handle(_ op: String, _ request: [String: Any], peer: Int32?, peerStart: Double?) -> [String: Any] {
+    private func handle(_ op: String, _ request: [String: Any], peer: Int32?, peerStart: Double?, door: Door) -> [String: Any] {
+        if let refusal = admit(op, request, peer: peer, peerStart: peerStart, door: door) { return refusal }
         if !Self.seatOps.contains(op), !Self.selfGatedOps.contains(op),
            case .failure(let refusal) = attributeRoot(peer: peer, peerStart: peerStart, capability: request["cap"] as? String) {
             return Self.failure(refusal.message, exit: refusal.exit)

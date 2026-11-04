@@ -53,8 +53,9 @@ extension Broker {
         guard let council = config.council(named: name) else { return settle(Refusal(exit: 4, message: "failed: no council named \(name)")) }
         if (parent?.chain.count ?? 0) > route.hopLimit { return settle(Refusal(exit: 3, message: "refused: hop limit")) }
         do {
+            let policy = parent != nil || socketCaller != "owner" ? try attachPolicy(request, peer: peer) : nil
             let repo = try repository(request["repo"])
-            let attached = try AttachedFiles.readAll(request["files"], atMost: 8)
+            let attached = try AttachedFiles.readAll(request["files"], atMost: 8, policy: policy)
             let synthesize = try Self.synthesizeFlag(request["synthesize"])
             let author = authorVendor(request["author_vendor"] as? String, parent: parent, config: config)
             let chosen = try Self.chosenSeats(request["seats"], council: council)
@@ -85,7 +86,7 @@ extension Broker {
                          seatsLine, capLine].compactMap { $0 }.joined(separator: "\n") + "\n"
                 + attached.paths.map { "file: \($0)\n" }.joined() + Self.imagesNotShown(attached.images, council: council, config: config)
             let opened = try sittingRows.open(council: council.name, snapshot: snapshot, authorVendor: author, brief: brief,
-                                              project: ProjectLabel.clean(request["project"]))
+                                              project: ProjectLabel.clean(request["project"]), caller: caller)
             let sitting = SittingRun(id: opened.id, number: opened.number, council: council, config: config, route: councilRoute,
                                      caller: caller, parent: parent, snapshot: snapshot, changeKind: kind,
                                      diffRange: request["diff"] as? String, question: question, authorVendor: author, slots: slots,

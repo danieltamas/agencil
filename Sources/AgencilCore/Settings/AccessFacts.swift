@@ -35,7 +35,8 @@ public enum AccessFacts {
     }
 
     public static func socket(home: AgencilHome) -> Socket {
-        let path = home.socketPath
+        // The MCP server, which an agent's access depends on, connects to the agent door.
+        let path = home.agentSocketPath
         var info = stat()
         let ownerOnly = lstat(path, &info) == 0 && info.st_mode & 0o077 == 0
         guard let descriptor = (try? UnixSocket.connect(to: path)) ?? nil else {

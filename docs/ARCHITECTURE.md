@@ -38,6 +38,15 @@ not sandboxed, so the broker also refuses by ancestry: `Broker.handle` runs `att
 ancestry cannot be established, is refused. `launch` runs an arbitrary argv outside every sandbox, so only a broker
 started with `AGENCIL_TEST_SEAMS=1` serves it; seats are started inside the broker, never over the socket.
 
+Two doors. The broker listens on `agencil.sock` (the owner door: everything, for the app, the CLI and your own
+commands) and on `agent.sock` (the agent door, `Broker/BrokerDoors.swift`: only `ping`, `ask`, `wake`, `result`,
+`status`, `stop` and `list_targets`, and never the label `owner`). The MCP server uses the agent door. The agent
+access switch is checked by the broker on every agent call, not only by the MCP client. A thread belongs to the
+caller that asked it and a sitting may be stopped only by the caller that woke it. For a caller that is not the owner,
+`files` and `repo` are bound to the git top level of the caller's kernel-reported working directory, judged on the
+descriptor that is opened, and credential locations are never attached. Claude Code's sandbox integration allows
+only `agent.sock`.
+
 ## Sharing a record: `agencil://` links
 
 `SittingLink` (`AgencilCore/Councils`) is the one place a record id and a link convert. `agencil://sitting/<sit_id>`

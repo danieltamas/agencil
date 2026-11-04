@@ -34,7 +34,8 @@ extension Broker {
                 return settle(Refusal(exit: 4, message: problem.message))
             }
             let kinds = parent.flatMap { config.seat(named: $0.seat)?.harness }.map { [$0] } ?? []
-            let files = try AttachedFiles.read(request["files"])
+            let policy = parent != nil || socketCaller != "owner" ? try attachPolicy(request, peer: peer) : nil
+            let files = try AttachedFiles.read(request["files"], policy: policy)
             let repo = try repository(request["repo"])
             let world = resolverWorld()
             var existing: ThreadRecord?

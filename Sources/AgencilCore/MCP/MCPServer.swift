@@ -86,7 +86,7 @@ public struct MCPServer {
             request["project"] = project
         }
         do {
-            let reply = try BrokerClient(home: home).send(request)
+            let reply = try BrokerClient(home: home, agentDoor: true).send(request)
             if reply["ok"] as? Bool == true {
                 return toolResult((reply["data"] as? [String: Any]) ?? reply.filter { $0.key != "ok" }, error: false, structured: structured)
             }

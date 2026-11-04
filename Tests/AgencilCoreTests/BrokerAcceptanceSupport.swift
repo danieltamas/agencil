@@ -111,7 +111,7 @@ final class BrokerHome: @unchecked Sendable {
         try brokerPoll { (try? self.request(["op": "ping"])["ok"] as? Bool) == true }
         return p
     }
-    func request(_ object: [String: Any]) throws -> [String: Any] {
+    func request(_ object: [String: Any], socketName: String = "agencil.sock") throws -> [String: Any] {
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { throw BrokerFailure("socket failed") }
         defer { close(fd) }
@@ -119,7 +119,7 @@ final class BrokerHome: @unchecked Sendable {
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout.size(ofValue: timeout)))
         var address = sockaddr_un()
         address.sun_family = sa_family_t(AF_UNIX)
-        let path = Array(url.appendingPathComponent("agencil.sock").path.utf8) + [0]
+        let path = Array(url.appendingPathComponent(socketName).path.utf8) + [0]
         guard path.count <= MemoryLayout.size(ofValue: address.sun_path) else { throw BrokerFailure("Socket path too long") }
         withUnsafeMutableBytes(of: &address.sun_path) { $0.copyBytes(from: path) }
         let connected = withUnsafePointer(to: &address) {

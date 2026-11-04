@@ -305,27 +305,29 @@ struct McpInstaller {
             return 0
         }
         if uninstall && adopted {
-            try sandbox.remove(owned)
-            entries.removeValue(forKey: "claude")
+            try forgetSandbox(&entries, sandbox, owned)
             try writeRecord(entries)
             print("agencil: removed the agencil sandbox settings; the server entry in claude is yours and was left in place")
             return 0
         }
         let before = entries
         if !uninstall {
-            entries["claude"] = ["command": line, "hash": Self.hash(line), "pending": true]
+            var pending: [String: Any] = ["command": line, "hash": Self.hash(line), "pending": true]
+            // The sandbox values already recorded stay owned while the server entry is replaced.
+            if let held = recorded?["sandbox"] { pending["sandbox"] = held }
+            entries["claude"] = pending
             try writeRecord(entries)
             // An entry an earlier version wrote with a command that does not start (a literal `~`) is replaced.
             if ours { _ = try runClaudeCLI(["mcp", "remove", "agencil", "--scope", "user"], before: before) }
         }
         try runClaudeCLI(arguments, line: line, before: before)
         if uninstall {
-            try sandbox.remove(owned)
-            entries.removeValue(forKey: "claude")
+            try forgetSandbox(&entries, sandbox, owned)
         } else {
             let entry = try claudeEntryHash()
             var written: [String: Any] = ["command": line, "hash": Self.hash(line)]
             if let entry { written["entry"] = entry }
+            if let held = recorded?["sandbox"] { written["sandbox"] = held }
             entries["claude"] = written
             try allowSandbox(&entries, sandbox, keeping: owned)
         }
@@ -350,11 +352,26 @@ struct McpInstaller {
         return 0
     }
 
+    /// Uninstall: takes the recorded values out, and drops the claude record unless a value could not be confirmed gone.
+    private func forgetSandbox(_ entries: inout [String: Any], _ sandbox: ClaudeSandbox, _ owned: [ClaudeSandbox.Addition]) throws {
+        let gone = try sandbox.removeConfirmed(owned)
+        let left = owned.filter { !gone.contains($0) }
+        if left.isEmpty { entries.removeValue(forKey: "claude") } else { entries["claude"] = ["sandbox": left.map(\.record)] }
+    }
+
     /// Records what is about to be added before the settings change, so a crash in between cannot lose ownership.
     private func allowSandbox(_ entries: inout [String: Any], _ sandbox: ClaudeSandbox, keeping owned: [ClaudeSandbox.Addition]) throws {
         let planned = sandbox.missing()
         try recordSandbox(&entries, adding: planned, keeping: owned)
         _ = try sandbox.apply(planned)
+        // An install from before the agent door left the state directory writable and the owner door open: take back what
+        // Agencil recorded, and only then forget it.
+        let legacy = owned.filter(ClaudeSandbox.isLegacy)
+        guard !legacy.isEmpty else { return }
+        // A record is forgotten only for a value confirmed gone; one in an unreadable file, or in a settings file whose
+        // sandbox is switched off, stays recorded for the next run.
+        let gone = try sandbox.removeConfirmed(legacy)
+        try recordSandbox(&entries, adding: planned, keeping: owned.filter { !gone.contains($0) })
     }
 
     /// Records the sandbox values Agencil added (and keeps the ones an earlier run added) in the claude entry.
