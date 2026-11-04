@@ -45,6 +45,9 @@ needed). Secrets live in the Keychain, never in files or logs.
 
 ## Rules
 
+- **Threat model first.** Every unit that adds or changes an op, socket, file read, sandbox or setting states in its
+  spec: who may call it, what a forged `caller` or path gets, and where it is enforced (the broker, never only a
+  client). Review attacks the whole trust model (`docs/U32-SPEC.md` is the template), not only the diff.
 - **Writer is not judge.** Acceptance tests for a unit are written by another vendor (Codex) from the
   unit's "Acceptance" lines before the implementation, and hashed; the implementer never edits them. Every
   diff is reviewed by another vendor; P0-P2 findings are fixed and re-reviewed before merge. Paste the
