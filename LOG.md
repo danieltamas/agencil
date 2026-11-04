@@ -1,3 +1,10 @@
+## 0.6.0 (2026-11-05)
+
+- Answers and questions in a thread or sitting are drawn as Markdown: headings, lists and fenced code show formatted instead of as raw text.
+- A long code block shows its first 8 lines, one row per line, with "Show all lines" and a copy button that takes the whole code. The findings a seat writes after a pasted script now stay in view instead of hiding behind "Show the full text".
+- Line breaks inside a paragraph are kept, and an underscore in a path (`src/__tests__/`) no longer turns the word bold.
+- Opening a long answer no longer flashes thousands of characters of raw text while it is formatted.
+
 ## 0.5.0 (2026-11-04)
 
 - Security: agents now reach Agencil through their own socket, `agent.sock`, that serves only ask, wake, result, status, stop and list_targets. Everything else (the panel, settings, budgets, launching) stays on the owner socket. An agent can no longer claim to be the owner.
