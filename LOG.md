@@ -1,4 +1,4 @@
-## Unreleased
+## 0.4.0 (2026-11-04)
 
 - Findings cards are easier to read: the suggested fix is body-size text limited to three lines with a Show more button, a claim raised on the question says so in words, the tab explains Confirm, Dismiss and Ask a seat, and Confirm is the accent button.
 
