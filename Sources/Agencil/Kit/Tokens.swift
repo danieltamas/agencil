@@ -62,6 +62,12 @@ enum Size {
     static let clampChars = 170
     /// A long answer shows this many characters before "Show the full text".
     static let longTextChars = 3000
+    /// A fenced code block in an answer shows this many lines, and at most `codePreviewChars` characters (long lines
+    /// wrap), before "Show all lines", so a pasted script does not bury the prose around it.
+    static let codePreviewLines = 8
+    static let codePreviewChars = 600
+    /// What a long text shows, as plain prose, while its Markdown is still being parsed.
+    static let placeholderChars = 400
     static let panelWidth: CGFloat = 404
     static let panelMaxHeight: CGFloat = 780
     /// The open panel is this tall in every tab, like its sibling apps: the tallest that fits the screen, at most `panelMaxHeight`.

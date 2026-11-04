@@ -60,9 +60,14 @@ in their descriptions, which is how an agent learns the form.
 ## Panel rendering
 
 A detail screen is a lazy stack, so a sitting with many long answers lays out what is on screen. `Kit/LongText`
-renders an answer or a record section: it parses inline Markdown once, off the main actor, drops a result for text
-no longer shown, and cuts at 3,000 characters behind a Show the full text button. `Kit/Tokens.swift` holds the
-limits (`Size.longTextChars`, `Size.clampLines`, `Size.clampChars`), because views name tokens and never literals.
+renders an answer or a record section as block Markdown through `Kit/MarkdownBlock`. The Kit imports no logic, so the
+caller hands it the parser (`DetailPage.markdownItems`, over `MarkdownDocument`); `LongText` parses and styles once
+per text, off the main actor, drops a result for text no longer shown, and until then shows only the opening prose.
+It budgets 3,000 characters per block behind a Show the full text button, with a fenced code block counted at its
+preview (8 lines, 600 characters, Show all lines, copy). Underscores outside code spans are literal, because agents
+write paths, not emphasis. `Kit/Tokens.swift` holds the limits (`Size.longTextChars`, `Size.codePreviewLines`,
+`Size.codePreviewChars`, `Size.placeholderChars`, `Size.clampLines`, `Size.clampChars`), because views name tokens
+and never literals.
 The Costs pane reads the ledger, so it survives the Data pane pruning old text.
 
 ## Contracts

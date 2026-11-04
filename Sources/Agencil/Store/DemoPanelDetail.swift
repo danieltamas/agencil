@@ -28,7 +28,7 @@ extension DemoPanel {
                     "project": "orbit-web  ~/Sites/orbit-web", "exchanges": [
                 ["seq": 1, "question": threads[1].question + "\nThe migration adds a NOT NULL column and backfills it in the next file.",
                  "state": "answered", "cost_usd": 0.07, "tokens": 5200,
-                 "answer": "**Reorder them.** `0042_orders.sql` adds `region` as NOT NULL before `0043_backfill.sql` fills it, so the first migration fails on a non-empty table.\n\n- Add the column as nullable in 0042.\n- Backfill in 0043.\n- Set NOT NULL in a third file."],
+                 "answer": "**Reorder them.** `0042_orders.sql` adds `region` as NOT NULL before `0043_backfill.sql` fills it, so the first migration fails on a non-empty table.\n\n```sql\n-- 0042_orders.sql\nALTER TABLE orders ADD COLUMN region text;\n\n-- 0043_backfill.sql\nUPDATE orders o\nSET region = c.region\nFROM customers c\nWHERE c.id = o.customer_id\n  AND o.region IS NULL;\n\n-- 0044_region_not_null.sql\nALTER TABLE orders\n  ALTER COLUMN region SET NOT NULL;\n```\n\n- Add the column as nullable in 0042.\n- Backfill in 0043.\n- Set NOT NULL in a third file."],
             ]]
         case "t3":
             return ["thread": id, "caller": "codex", "seat": "box-qwen3",

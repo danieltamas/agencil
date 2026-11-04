@@ -20,7 +20,8 @@ public enum MarkdownDocument {
         var code: [String]?
 
         func flush() {
-            if !paragraph.isEmpty { blocks.append(.paragraph(paragraph.joined(separator: " "))); paragraph = [] }
+            // A seat's or an agent's line break is meant, not a soft wrap, so it stays.
+            if !paragraph.isEmpty { blocks.append(.paragraph(paragraph.joined(separator: "\n"))); paragraph = [] }
             if !bullets.isEmpty { blocks.append(.bullets(bullets)); bullets = [] }
             if !numbered.isEmpty { blocks.append(.numbered(numbered)); numbered = [] }
         }
