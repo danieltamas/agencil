@@ -1,3 +1,11 @@
+## 0.4.1 (2026-11-04)
+
+- Security fix: a seat working in a sandbox could reach the broker's socket and ask it to start any command outside the sandbox. The broker no longer serves that request in a release build, seats that work on a repo copy can no longer connect to the broker's socket at all, and a process started by a seat is now refused on every operation except asking, waking, following and stopping its own work and listing what it may reach. Update from Settings, About, or run the install line again.
+
+- Behavior change: because of the socket block, a seat that works on a repo copy can no longer call Agencil back to ask another seat (a chain that starts inside a seat). Asks from your own agents, the CLI and the app are unchanged, and so are chains from a seat that was asked without a repo.
+
+- Corrected the notes of 0.4.0: an `agencil://` link is only an address for a record. It is not a permission, and it does not by itself limit what a caller can read.
+
 ## 0.4.0 (2026-11-04)
 
 - Findings cards are easier to read: the suggested fix is body-size text limited to three lines with a Show more button, a claim raised on the question says so in words, the tab explains Confirm, Dismiss and Ask a seat, and Confirm is the accent button.

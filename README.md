@@ -101,8 +101,27 @@ harness and shows whether each is current.
 Open a sitting (or a thread) in the panel and press the link button: it copies `agencil://sitting/<id>` (or
 `agencil://thread/<id>`). Paste it to any local agent that has the Agencil MCP server; it passes the link to
 `sitting_status`, `sitting_verdict` or `stop` and reads the same record you see, with the synthesis, rounds and claims.
-The link carries only the id, so the agent still needs agent access on and a route that allows the call. It is not
-a web address and does not open from a browser.
+The link is only an address for the record, never a permission or a secret. It is not a web address and does not open
+from a browser.
+
+### Connect an agent (MCP)
+
+Agencil is one MCP server, `agencil mcp`, that any local agent can run. Turn on Settings, Agent access first.
+
+- **Claude Code, Codex, OpenCode:** run `agencil install-mcp claude` (or `codex`, `opencode`); add `--dry-run` to see
+  the change first and `--uninstall` to remove it. Settings, Agent access does the same with a button per harness.
+- **Claude Desktop and Cowork:** add the server by hand to `~/Library/Application Support/Claude/claude_desktop_config.json`,
+  then quit and reopen the app. Use the path `which agencil` prints and a caller name of your choice:
+
+  ```json
+  { "mcpServers": { "agencil": { "command": "/Users/you/.local/bin/agencil", "args": ["mcp", "--caller", "claude-desktop"] } } }
+  ```
+
+- **ChatGPT Desktop:** not supported. It connects only to remote MCP servers over HTTPS, and Agencil has no network
+  port by design, only a Unix socket owned by you.
+
+Then write a route for the caller name (who may reach which seat or council): no route means refused. Agents that
+share the MCP server can ask each other's seats and pass sittings around with the links above.
 
 ## In the panel
 

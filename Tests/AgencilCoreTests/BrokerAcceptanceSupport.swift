@@ -107,7 +107,7 @@ final class BrokerHome: @unchecked Sendable {
         return try p.finish()
     }
     func serve(_ env: [String: String] = [:]) throws -> BrokerProcess {
-        let p = try BrokerProcess(["serve"], home: url, env: env)
+        let p = try BrokerProcess(["serve"], home: url, env: ["AGENCIL_TEST_SEAMS": "1"].merging(env) { _, value in value })
         try brokerPoll { (try? self.request(["op": "ping"])["ok"] as? Bool) == true }
         return p
     }

@@ -33,6 +33,15 @@ extension Broker {
         return .success(.child(of: tree))
     }
 
+    /// Root or a refusal: a seat's child, or a caller whose ancestry cannot be established, is never a root.
+    func attributeRoot(peer: Int32?, peerStart: Double?, capability token: String?) -> Result<Void, Refusal> {
+        switch attribute(peer: peer, peerStart: peerStart, capability: token) {
+        case .failure(let refusal): return .failure(refusal)
+        case .success(.root): return .success(())
+        case .success(.child): return .failure(Refusal(exit: 3, message: "refused: a seat cannot do this"))
+        }
+    }
+
     /// The seat run whose process group holds `pid` or one of its ancestors; nil when the walk reaches launchd first.
     private func seatAncestor(of pid: Int32, startedAt: Double?, failing: Bool) -> Result<CapabilityRun?, Refusal> {
         let unknown = Refusal(exit: 3, message: "refused: ancestry unknown")

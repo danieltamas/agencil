@@ -89,7 +89,7 @@ extension Broker {
         let temporary = runDirectory.appendingPathComponent("tmp")
         try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         let argv = try Confinement.wrap(invocation.argv, launcher: launcher, copy: copy, runDirectory: runDirectory, harness: harness,
-                                        home: Confinement.home(environment: environment))
+                                        home: Confinement.home(environment: environment), brokerHome: directory.path)
         return Invocation(argv: argv, environment: invocation.environment.merging(["TMPDIR": temporary.path]) { _, mine in mine },
                           workingDirectory: copy.path, stdoutIsAnswer: invocation.stdoutIsAnswer, usage: invocation.usage)
     }

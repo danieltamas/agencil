@@ -165,13 +165,27 @@ public final class Broker: @unchecked Sendable {
         }
     }
 
+    /// What a seat's own process may ask the broker: to ask or wake others (chains are bounded by routes and hops), follow
+    /// and stop its work, and list what it may reach. Everything else (the panel, details, findings, costs, config reads,
+    /// the owner's writes) is the owner's, so a seat that is told to dump or change them is refused.
+    private static let seatOps: Set<String> = ["ping", "register", "ask", "wake", "result", "status", "stop", "list_targets"]
+    /// Owner ops that already refuse a seat themselves, each with its own message the CLI and the app show.
+    private static let selfGatedOps: Set<String> = ["followup", "adjudicate", "learn", "prune", "leaderboard", "dispose"]
+
     private func handle(_ op: String, _ request: [String: Any], peer: Int32?, peerStart: Double?) -> [String: Any] {
+        if !Self.seatOps.contains(op), !Self.selfGatedOps.contains(op),
+           case .failure(let refusal) = attributeRoot(peer: peer, peerStart: peerStart, capability: request["cap"] as? String) {
+            return Self.failure(refusal.message, exit: refusal.exit)
+        }
         do {
             switch op {
             case "ping":
                 return ["ok": true, "peer_pid": peer.map { Int($0) } ?? NSNull(), "version": AgencilVersion.current()]
             case "register": return try register(request, peer: peer)
             case "launch":
+                // Runs any argv outside every sandbox. The product never sends it over the socket (seats start inside
+                // the broker), so only a test broker serves it: a client that could send it could run anything as the owner.
+                guard environment["AGENCIL_TEST_SEAMS"] == "1" else { return Self.failure("unknown op launch", exit: 64) }
                 try? store.recordRequest(peer: peer)
                 return try launch(request)
             case "status": return try status(request)

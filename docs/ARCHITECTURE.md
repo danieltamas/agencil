@@ -28,12 +28,22 @@ macOS 14, no third-party dependencies.
 6. `Panel` ops read the ledger for the app and the CLI: sittings, threads, details, outcomes, the leaderboard.
 7. After a sitting, the owner's panel (peer pid, never an agent) can put a follow-up to the council that held it: the `followup` op asks every seat of that council on a per-seat thread (linked to the sitting through `thread_rounds` round `followup`), each seat shown the sitting's record as labelled evidence plus the owner's text and any attached files. The `costs` op aggregates every answered exchange by local day, project, council, seat, model and caller for the Costs pane; it reads the exchange's own cost columns, so costs outlive the retention prune.
 
+## Confinement and who may call the broker
+
+A seat that works on a repo copy runs under `sandbox-exec` (`Seats/Confinement.swift`): writes only in its run
+directory, reads only the copy, its own harness config and system paths, network allowed for the model API, and a
+last-match deny for Unix sockets under the Agencil home, so it cannot reach the broker. A seat without a repo copy is
+not sandboxed, so the broker also refuses by ancestry: `Broker.handle` runs `attributeRoot` (the process-tree walk in
+`Seats/Attribution.swift`) before every operation outside `seatOps`, and a descendant of a seat run, or a caller whose
+ancestry cannot be established, is refused. `launch` runs an arbitrary argv outside every sandbox, so only a broker
+started with `AGENCIL_TEST_SEAMS=1` serves it; seats are started inside the broker, never over the socket.
+
 ## Sharing a record: `agencil://` links
 
 `SittingLink` (`AgencilCore/Councils`) is the one place a record id and a link convert. `agencil://sitting/<sit_id>`
 and `agencil://thread/<th_id>` are addresses, not a registered URL scheme: the panel's detail screens copy one with a
-link button, and `MCPServer.call` turns a link into the bare id before the broker sees the request, so the broker,
-routes, caps and budgets are unchanged and a link grants nothing the caller's route does not. Parsing fails closed:
+link button, and `MCPServer.call` turns a link into the bare id before the broker sees the request, so the broker's
+checks are unchanged. A link is an address, not a credential and not a permission. Parsing fails closed:
 extra path parts, a query, a fragment, credentials, a port or a mismatched id kind return the input unchanged, and an
 unchanged value is never a routable id. The tools that take an id (`sitting_status`, `sitting_verdict`, `stop`) say so
 in their descriptions, which is how an agent learns the form.

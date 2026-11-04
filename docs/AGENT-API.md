@@ -80,6 +80,11 @@ Ancestry is established two independent ways, and loops are bounded mechanically
 - **No cycles**: a target whose seat already appears in the chain is refused (`refused: cycle claude-opus -> codex-gpt -> claude-opus`).
 - **No replay**: a capability is useless once its run ends.
 
+**Confined seats and the socket.** A seat that works on a repo copy runs in a sandbox that cannot connect to the
+broker's socket, so it cannot call Agencil back; a chain starts from a seat that was asked without a repo, or from
+your own agents. A process descended from any seat is refused on every operation except `ping`, `register`, `ask`,
+`wake`, `result`, `status`, `stop` and `list_targets`, and the `launch` operation is served only by a test broker.
+
 Caller identity is for routing, accounting and loop control, not a security boundary against other software
 running as the same macOS user. A same-user process that detaches from a seat's process tree and discards
 its capability looks like a new root; it is still limited by root rate limits and budgets. The MCP server
@@ -199,8 +204,8 @@ a long sitting returns `pending` and the agent polls `ask_result` or `sitting_ve
 
 **Links.** The panel's detail screens have a copy-link button that puts `agencil://sitting/<id>` (or
 `agencil://thread/<id>`) on the clipboard. The owner pastes it to another agent, which passes the link, or the bare
-id, as `sitting`, `thread` or `id` to any tool above. The link carries only the id: the agent still needs agent
-access on and a route that allows the call. It is not a registered macOS URL scheme and does not open from a browser.
+id, as `sitting`, `thread` or `id` to any tool above. The link is only the id, an address and not a credential or a
+permission. It is not a registered macOS URL scheme and does not open from a browser.
 
 ### Configuring local agents (Settings > Agent access)
 
