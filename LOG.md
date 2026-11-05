@@ -1,4 +1,4 @@
-## Unreleased
+## 0.6.1 (2026-11-05)
 
 - A seat installed with npm (Codex) runs on the Node it was installed with: a Mac where another Node comes first on PATH (an Intel Homebrew Node) no longer fails the seat with "codex exited with status 1".
 
