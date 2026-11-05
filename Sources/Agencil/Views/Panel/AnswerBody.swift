@@ -7,6 +7,10 @@ struct AnswerBody: View {
     let answer: StructuredAnswer
 
     var body: some View {
+        if let consult = answer.consult { consultBody(consult) } else { reviewBody }
+    }
+
+    private var reviewBody: some View {
         VStack(alignment: .leading, spacing: Space.m) {
             if let vote = answer.vote { voteRow(vote) }
             if !answer.claims.isEmpty {
@@ -25,6 +29,58 @@ struct AnswerBody: View {
                         .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                 }
             }
+        }
+    }
+
+    /// A consult answer: the position first, then why, what would change it, what it asks back and how it read the others.
+    private func consultBody(_ consult: StructuredAnswer.Consult) -> some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                Text(consult.position).font(.house.rowTitle).foregroundStyle(Theme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                Spacer(minLength: 0)
+                if let confidence = consult.confidence { Text(confidence).font(.house.meta).foregroundStyle(Theme.textTertiary) }
+            }
+            if let change = consult.change { prose("Changed: " + change, secondary: true) }
+            if !consult.reasoning.isEmpty {
+                section("Reasoning", count: nil) { LongText(text: consult.reasoning, blocks: DetailPage.markdownItems) }
+            }
+            if !consult.crux.isEmpty { section("Would change it", count: nil) { prose(consult.crux, secondary: false) } }
+            if !consult.questionsBack.isEmpty {
+                section("Questions back", count: consult.questionsBack.count) {
+                    ForEach(Array(consult.questionsBack.enumerated()), id: \.offset) { _, question in prose(question, secondary: false) }
+                }
+            }
+            if !consult.assessments.isEmpty {
+                section("Assessments", count: consult.assessments.count) {
+                    ForEach(consult.assessments) { assessment in
+                        VStack(alignment: .leading, spacing: Space.xs) {
+                            HStack(spacing: Space.s) {
+                                Chip(text: assessment.stance, color: Theme.color(for: consultStanceSignal(assessment.stance)))
+                                Text(assessment.label).font(.house.mono).foregroundStyle(Theme.textSecondary).lineLimit(1)
+                                Spacer(minLength: 0)
+                            }
+                            if let why = assessment.why { prose(why, secondary: true) }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+        }
+    }
+
+    private func prose(_ text: String, secondary: Bool) -> some View {
+        Text(text).font(.house.meta).foregroundStyle(secondary ? Theme.textSecondary : Theme.textPrimary)
+            .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func consultStanceSignal(_ stance: String) -> Signal {
+        switch stance {
+        case "agree": .ok
+        case "disagree": .crit
+        case "partly": .warn
+        default: .unknown
         }
     }
 

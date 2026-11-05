@@ -32,8 +32,8 @@ extension Broker {
             }])
         case "councils":
             return reply(["councils": config.councils.map { council -> [String: Any] in
-                ["name": council.name, "seats": council.seats, "spares": council.spares, "synthesizers": council.synthesizers,
-                 "rule": council.rule.rawValue, "high_risk": council.highRisk]
+                ["name": council.name, "mode": council.mode.rawValue, "seats": council.seats, "spares": council.spares,
+                 "synthesizers": council.synthesizers, "rule": council.rule.rawValue, "high_risk": council.highRisk]
             }])
         case "routes":
             return reply(["routes": config.routes.map { route -> [String: Any] in
@@ -59,9 +59,12 @@ extension Broker {
         for alias in config.aliases.keys { kinds[alias] = "alias" }
         let ownerLimit = config.routes.map(\.hopLimit).max() ?? 1
         return kinds.keys.sorted().compactMap { name -> [String: Any]? in
-            if owner { return ["target": name, "kind": kinds[name] ?? "seat", "hop_limit": ownerLimit] }
-            guard let route = config.route(from: caller, to: name) else { return nil }
-            return ["target": name, "kind": kinds[name] ?? "seat", "hop_limit": route.hopLimit]
+            let limit: Int
+            if owner { limit = ownerLimit } else if let route = config.route(from: caller, to: name) { limit = route.hopLimit } else { return nil }
+            var row: [String: Any] = ["target": name, "kind": kinds[name] ?? "seat", "hop_limit": limit]
+            // A council's mode tells an agent whether it gates a change or gives positions on a question.
+            if let council = config.council(named: name) { row["mode"] = council.mode.rawValue }
+            return row
         }
     }
 

@@ -115,34 +115,67 @@ extension Broker {
             s.locked { slot.seat = next }
             return true
         }
+        let consult = s.council.mode == .consult
+        // A consult review must assess every position the seat was shown: a skipped one would let the rest read as agreement.
+        let shown = consult && round != "blind" ? Set(s.locked { s.labels }.filter { $0.key != seat.name }.values) : []
+        func consultParse(_ answer: String) -> Result<ConsultAnswer, AnswerContract.Problem> {
+            AnswerContract.parseConsult(answer, review: round != "blind").flatMap { parsed in
+                let missing = shown.subtracting(parsed.assessments.map(\.label)).sorted { $0.count != $1.count ? $0.count < $1.count : $0 < $1 }
+                return missing.isEmpty ? .success(parsed)
+                    : .failure(AnswerContract.Problem(message: "assessments leave out " + missing.joined(separator: ", ")))
+            }
+        }
+        /// Stores a usable answer on the slot; nil when it does not validate, with the validator's error.
+        func accept(_ answer: String) -> AnswerContract.Problem? {
+            if consult {
+                switch consultParse(answer) {
+                case .success(let parsed):
+                    s.locked {
+                        slot.phase = .answered; slot.reason = nil
+                        if round == "blind" { slot.blindConsult = parsed }
+                        slot.finalConsult = parsed
+                        slot.result = RoundResult(seat: seat, started: started)
+                    }
+                    return nil
+                case .failure(let problem): return problem
+                }
+            }
+            switch AnswerContract.parse(answer, requireVote: round != "challenge") {
+            case .success(let parsed):
+                s.locked {
+                    slot.phase = .answered; slot.reason = nil; slot.vote = parsed.vote ?? slot.vote
+                    slot.notes = parsed.notes ?? slot.notes
+                    slot.result = RoundResult(seat: seat, started: started, answer: parsed)
+                }
+                return nil
+            case .failure(let problem): return problem
+            }
+        }
+        func usable(_ answer: String) -> Bool {
+            consult ? (try? consultParse(answer).get()) != nil
+                : (try? AnswerContract.parse(answer, requireVote: round != "challenge").get()) != nil
+        }
         while true {
             let began = Date()
             let outcome = sitRun(s, seat: seat, round: round, prompt: text)
             // An attempt without a usable answer still ran, so the ledger keeps it as exit 1; a usable one is stored with
             // its round as exit 0. A seat that could not be placed never ran: availability is not a run (docs/U25-SPEC.md).
-            if case .answer(let answer) = outcome, case .success = AnswerContract.parse(answer, requireVote: round != "challenge") {
+            if case .answer(let answer) = outcome, usable(answer) {
             } else if case .unplaceable = outcome {
             } else {
                 _ = try? sittingRows.seatRun(sitting: s.id, seat: seat, started: began, ended: Date(), exit: 1)
             }
             switch outcome {
             case .answer(let answer):
-                switch AnswerContract.parse(answer, requireVote: round != "challenge") {
-                case .success(let parsed):
-                    s.locked {
-                        slot.phase = .answered; slot.reason = nil; slot.vote = parsed.vote ?? slot.vote
-                        slot.notes = parsed.notes ?? slot.notes
-                        slot.result = RoundResult(seat: seat, started: started, answer: parsed)
-                    }
+                guard let problem = accept(answer) else { return }
+                if retried {
+                    // A consult seat whose review does not validate keeps its blind position (docs/U33-SPEC.md item 8).
+                    if consult, !replaceable { s.locked { slot.phase = .answered }; return }
+                    s.locked { slot.phase = .failed; slot.reason = "failed: unparsable"; slot.excluded = true; slot.vote = nil }
                     return
-                case .failure(let problem):
-                    if retried {
-                        s.locked { slot.phase = .failed; slot.reason = "failed: unparsable"; slot.excluded = true; slot.vote = nil }
-                        return
-                    }
-                    retried = true
-                    text = SittingPrompt.retry(prompt(seat), error: problem.message)
                 }
+                retried = true
+                text = SittingPrompt.retry(prompt(seat), error: problem.message)
             case .unplaceable(let reason, let refused):
                 if swap() { continue }
                 settle(refused ? .refused : .failed, reason)

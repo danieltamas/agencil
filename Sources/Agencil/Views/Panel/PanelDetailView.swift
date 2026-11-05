@@ -38,6 +38,7 @@ struct PanelDetailView: View {
                     if let problem = page.problem { ProblemText(text: problem) }
                     if page.loading { WaitingState(title: "Reading the record...") }
                     if let synthesis = page.synthesis { synthesisBlock(synthesis) }
+                    if !page.positions.isEmpty { positions }
                     factsCard(page.facts)
                     if !page.brief.isEmpty { VStack(alignment: .leading, spacing: Space.xs) { Eyebrow(text: "Brief"); factsCard(page.brief) } }
                     ForEach(page.sections) { section in block(section) }
@@ -77,6 +78,37 @@ struct PanelDetailView: View {
                 VStack(alignment: .leading, spacing: Space.s) {
                     MarkdownBlock(items: synthesis.items)
                     Text(synthesis.writer).font(.house.meta).foregroundStyle(Theme.textTertiary)
+                }
+            }
+        }
+    }
+
+    /// Each consult seat's final position, kept apart: whether it moved and whether most others disagree with it.
+    private var positions: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            Eyebrow(text: "Positions (\(page.positions.count))")
+            ForEach(page.positions) { stand in
+                HoverCard(accent: stand.minority ? Theme.warn : nil, action: nil) {
+                    VStack(alignment: .leading, spacing: Space.xs) {
+                        HStack(spacing: Space.s) {
+                            VendorMark(vendor: stand.vendor)
+                            Text(stand.seat).font(.house.rowTitle).foregroundStyle(Theme.textPrimary).lineLimit(1)
+                            Spacer(minLength: 0)
+                            if stand.changed { Chip(text: "changed", color: Theme.unknown) }
+                            if stand.minority { Chip(text: "minority", color: Theme.warn) }
+                            if let confidence = stand.confidence { Text(confidence).font(.house.meta).foregroundStyle(Theme.textTertiary) }
+                        }
+                        Text(stand.finalPosition).font(.house.body).foregroundStyle(Theme.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                        if let change = stand.change {
+                            Text(change).font(.house.meta).foregroundStyle(Theme.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                        }
+                        if !stand.crux.isEmpty {
+                            LongText(text: "Would change it: " + stand.crux, color: Theme.textSecondary, blocks: DetailPage.markdownItems)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }

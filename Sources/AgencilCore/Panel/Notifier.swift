@@ -34,7 +34,7 @@ public enum Notifier {
         let before = Dictionary(previous.sittings.map { ($0.id, $0.state) }, uniquingKeysWith: { first, _ in first })
         for sitting in current.sittings where before[sitting.id] == "running" {
             switch sitting.state {
-            case "PASS", "INCOMPLETE": events.append(.verdict(sitting: sitting.id, verdict: sitting.state))
+            case "PASS", "INCOMPLETE", "AGREED", "SPLIT", "ANSWERED": events.append(.verdict(sitting: sitting.id, verdict: sitting.state))
             case "BLOCK": events.append(.block(sitting: sitting.id))
             default: break
             }

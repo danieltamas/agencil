@@ -61,7 +61,7 @@ struct U18BrokerListsAcceptanceTests {
                  "hosted": false, "vendor": "lumen"]
             ],
             "councils": [["name": "review", "seats": ["zeta"], "spares": ["alpha"],
-                          "synthesizers": [], "rule": "majority", "high_risk": false]],
+                          "synthesizers": [], "rule": "majority", "high_risk": false, "mode": "review"]],
             "routes": [
                 ["callers": ["codex"], "target": "zeta", "hop_limit": 3,
                  "fallbacks": ["alpha"], "local_only": false],
@@ -94,7 +94,7 @@ struct U18BrokerListsAcceptanceTests {
         try equal(rows(rig.home, "list_targets"), [
             ["target": "alpha", "kind": "seat", "hop_limit": 3],
             ["target": "helper", "kind": "alias", "hop_limit": 3],
-            ["target": "review", "kind": "council", "hop_limit": 3],
+            ["target": "review", "kind": "council", "hop_limit": 3, "mode": "review"],
             ["target": "zeta", "kind": "seat", "hop_limit": 3]
         ])
         try equal(rows(rig.home, "list_targets", caller: "codex"), [

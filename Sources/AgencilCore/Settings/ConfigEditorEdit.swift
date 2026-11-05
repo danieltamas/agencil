@@ -127,7 +127,8 @@ extension ConfigEditor {
         let synthesizer = (item["synthesizer"] as? [String]) ?? (item["synthesizer"] as? String).map { [$0] } ?? []
         return CouncilDraft(name: item["name"] as? String ?? "", seats: item["seats"] as? [String] ?? [],
                             rule: item["rule"] as? String ?? "majority", quorum: SeatConfig.whole(item["quorum"]),
-                            spare: item["spare"] as? [String] ?? [], synthesizer: synthesizer)
+                            spare: item["spare"] as? [String] ?? [], synthesizer: synthesizer,
+                            mode: item["mode"] as? String ?? "review")
     }
 
     private static func route(in list: [[String: Any]], at index: Int) -> RouteDraft? {
@@ -194,6 +195,7 @@ extension ConfigEditor {
         if draft.seats.isEmpty { problems["seats"] = "a council needs seats" }
         else if let unknown = draft.seats.first(where: { config.seat(named: $0) == nil }) { problems["seats"] = "\(unknown) is not a seat" }
         if !Self.rules.contains(draft.rule) { problems["rule"] = "any_blocker, unanimous or majority" }
+        if Council.Mode(rawValue: draft.mode) == nil { problems["mode"] = "review or consult" }
         if let quorum = draft.quorum, !(1...max(draft.seats.count, 1)).contains(quorum) || draft.seats.isEmpty {
             problems["quorum"] = "1 to the number of seats"
         }
@@ -237,10 +239,12 @@ extension ConfigEditor {
 
     static func object(_ draft: CouncilDraft, over existing: [String: Any]) -> [String: Any] {
         var object = existing
-        for key in ["spare", "synthesizer", "quorum"] { object[key] = nil }
+        for key in ["spare", "synthesizer", "quorum", "mode"] { object[key] = nil }
         object["name"] = draft.name
         object["seats"] = draft.seats
         object["rule"] = draft.rule
+        // review is the default, so a review council keeps the file as it was before modes existed.
+        if draft.mode == Council.Mode.consult.rawValue { object["mode"] = draft.mode }
         if let quorum = draft.quorum { object["quorum"] = quorum }
         if !draft.spare.isEmpty { object["spare"] = draft.spare }
         if !draft.synthesizer.isEmpty { object["synthesizer"] = draft.synthesizer }

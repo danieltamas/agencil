@@ -106,6 +106,23 @@ public struct SittingDetail: Sendable, Equatable {
     public let followups: [Followup]
     public let followUpSeats: [String]
     public let followUpDefault: String?
+    /// One seat's stand in a consult sitting (docs/U33-SPEC.md): where it started, where it ended and whether it moved.
+    public struct Position: Sendable, Equatable {
+        public let seat: String
+        public let vendor: String?
+        public let blindPosition: String
+        public let finalPosition: String
+        public let confidence: Double?
+        public let crux: String
+        public let changed: Bool
+        public let because: String?
+        public let questionsBack: [String]
+        public let minority: Bool
+    }
+
+    /// `review` or `consult`; a record from before modes existed is a review.
+    public let mode: String
+    public let positions: [Position]
     public let votes: [Vote]
     public let claims: [Claim]
     public let rounds: [Round]
@@ -132,6 +149,15 @@ public struct SittingDetail: Sendable, Equatable {
         verdict = result?["verdict"] as? String
         rule = result?["rule"] as? String
         reasons = result?["reasons"] as? [String] ?? []
+        mode = result?["mode"] as? String ?? "review"
+        positions = mode != "consult" ? [] : (result?["positions"] as? [[String: Any]] ?? []).map { row in
+            let blind = row["blind"] as? [String: Any] ?? [:], final = row["final"] as? [String: Any] ?? [:]
+            return Position(seat: row["seat"] as? String ?? "", vendor: row["vendor"] as? String,
+                            blindPosition: blind["position"] as? String ?? "", finalPosition: final["position"] as? String ?? "",
+                            confidence: (final["confidence"] as? NSNumber)?.doubleValue, crux: final["crux"] as? String ?? "",
+                            changed: row["kept"] as? Bool == false, because: row["because"] as? String,
+                            questionsBack: row["questions_back"] as? [String] ?? [], minority: row["minority"] as? Bool ?? false)
+        }
         votes = (result?["votes"] as? [[String: Any]] ?? []).map {
             Vote(seat: $0["seat"] as? String ?? "", state: $0["state"] as? String ?? "", vote: $0["vote"] as? String)
         }

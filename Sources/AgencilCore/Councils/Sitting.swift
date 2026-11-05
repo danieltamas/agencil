@@ -58,15 +58,17 @@ extension Broker {
             let attached = try AttachedFiles.readAll(request["files"], atMost: 8, policy: policy)
             let synthesize = try Self.synthesizeFlag(request["synthesize"])
             let author = authorVendor(request["author_vendor"] as? String, parent: parent, config: config)
+            // A consult council has no author to be independent of: no seat is recused and no `author_unknown` is set.
+            let recuse = council.mode == .consult ? "unknown" : author
             let chosen = try Self.chosenSeats(request["seats"], council: council)
             let cap = try Self.capOverride(request["cap_seconds"])
             func shortened(_ seat: Seat) -> Seat { cap.map { seat.capped(at: $0) } ?? seat }
             let slots = chosen.compactMap { config.seat(named: $0) }.map(shortened).map { seat -> Slot in
                 let slot = Slot(seat: seat)
-                if author != "unknown", seat.vendor == author { slot.phase = .recused; slot.reason = "same vendor as the author" }
+                if recuse != "unknown", seat.vendor == recuse { slot.phase = .recused; slot.reason = "same vendor as the author" }
                 return slot
             }
-            var spares = council.spares.compactMap { config.seat(named: $0) }.map(shortened).filter { author == "unknown" || $0.vendor != author }
+            var spares = council.spares.compactMap { config.seat(named: $0) }.map(shortened).filter { recuse == "unknown" || $0.vendor != recuse }
             // A malformed request is refused before any seat is probed; then the panel is checked before anything is
             // written, so a council that cannot sit leaves no run behind.
             let councilRoute = Route(callers: route.callers, target: route.target, hopLimit: route.hopLimit, fallbacks: [],
@@ -74,7 +76,7 @@ extension Broker {
             let commit = try pinnedCommit(request["commit"], repo: repo)
             let fallbackUsed: Bool
             do {
-                fallbackUsed = try preflightGate(slots: slots, spares: &spares, council: council, config: config, author: author,
+                fallbackUsed = try preflightGate(slots: slots, spares: &spares, council: council, config: config, author: recuse,
                                                  caller: caller, parent: parent, question: question, route: councilRoute)
             }
             catch let refusal as Refusal { return settle(refusal, "failed") }
@@ -89,9 +91,9 @@ extension Broker {
                                               project: ProjectLabel.clean(request["project"]), caller: caller)
             let sitting = SittingRun(id: opened.id, number: opened.number, council: council, config: config, route: councilRoute,
                                      caller: caller, parent: parent, snapshot: snapshot, changeKind: kind,
-                                     diffRange: request["diff"] as? String, question: question, authorVendor: author, slots: slots,
+                                     diffRange: request["diff"] as? String, question: question, authorVendor: recuse, slots: slots,
                                      spares: spares, attached: attached.files, images: attached.images)
-            sitting.wantsSummary = synthesize
+            sitting.wantsSummary = synthesize || council.mode == .consult
             if fallbackUsed { sitting.noteFallback() }
             tracking.withLock { sittings[opened.id] = sitting }
             try? threads.recordRequest(caller: caller, outcome: "accepted", runID: opened.id)
@@ -134,28 +136,14 @@ extension Broker {
 
     // MARK: conducting
 
-    private func header(_ s: SittingRun, _ round: String, _ seat: Seat) -> String {
+    func header(_ s: SittingRun, _ round: String, _ seat: Seat) -> String {
         SittingPrompt.header(round: round, sitting: s.id, seat: seat.name, snapshot: s.snapshot.id, kind: s.changeKind,
                              diff: s.diffRange, question: s.question, attached: s.attached)
     }
 
     private func conduct(_ s: SittingRun) {
         do {
-            let seated = s.slots.filter { $0.phase == .pending }
-            try sitRound(s, "blind", slots: seated) { _, seat in SittingPrompt.blind(self.header(s, "blind", seat)) }
-            if s.council.rebuttal, !s.isOver {
-                let answered = s.slots.filter { $0.phase == .answered && !$0.excluded }
-                try sitRound(s, "rebuttal", slots: answered) { _, seat in
-                    SittingPrompt.rebuttal(self.header(s, "rebuttal", seat), others: s.standingClaims.filter { $0.seat != seat.name })
-                }
-            }
-            if s.council.challenge, !s.isOver {
-                let answered = s.slots.filter { $0.phase == .answered && !$0.excluded }
-                let taking = answered.filter { slot in !disputed(s).filter { $0.claim.seat != slot.seat.name }.isEmpty }
-                try sitRound(s, "challenge", slots: taking) { _, seat in
-                    SittingPrompt.challenge(self.header(s, "challenge", seat), disputed: self.disputed(s).filter { $0.claim.seat != seat.name })
-                }
-            }
+            if s.council.mode == .consult { try consultRounds(s) } else { try reviewRounds(s) }
             try sitSynthesis(s)
             try finish(s)
         } catch {
@@ -163,6 +151,24 @@ extension Broker {
                                     json: nil, row: nil)
         }
         tracking.withLock { sittings[s.id] = nil }
+    }
+
+    private func reviewRounds(_ s: SittingRun) throws {
+        let seated = s.slots.filter { $0.phase == .pending }
+        try sitRound(s, "blind", slots: seated) { _, seat in SittingPrompt.blind(self.header(s, "blind", seat)) }
+        if s.council.rebuttal, !s.isOver {
+            let answered = s.slots.filter { $0.phase == .answered && !$0.excluded }
+            try sitRound(s, "rebuttal", slots: answered) { _, seat in
+                SittingPrompt.rebuttal(self.header(s, "rebuttal", seat), others: s.standingClaims.filter { $0.seat != seat.name })
+            }
+        }
+        if s.council.challenge, !s.isOver {
+            let answered = s.slots.filter { $0.phase == .answered && !$0.excluded }
+            let taking = answered.filter { slot in !disputed(s).filter { $0.claim.seat != slot.seat.name }.isEmpty }
+            try sitRound(s, "challenge", slots: taking) { _, seat in
+                SittingPrompt.challenge(self.header(s, "challenge", seat), disputed: self.disputed(s).filter { $0.claim.seat != seat.name })
+            }
+        }
     }
 
     /// p0 and p1 claims that at least one seat disputes, with what every seat said about them.
@@ -180,7 +186,7 @@ extension Broker {
         }
     }
 
-    private func votes(_ s: SittingRun) -> [SeatVote] {
+    func votes(_ s: SittingRun) -> [SeatVote] {
         s.locked {
             s.slots.map { slot in
                 let state = SeatVote.State(rawValue: slot.phase.rawValue) ?? .abstained
@@ -210,12 +216,14 @@ extension Broker {
         guard !s.isOver else { return }
         try sittingRows.setRound(s.id, "synthesis")
         s.setRound("synthesis")
+        let consult = s.council.mode == .consult
         let preview = VerdictTable.decide(input(s, synthesizerFailed: nil))
         let notes = s.locked { s.slots.compactMap { slot in slot.notes.map { (seat: slot.seat.name, text: $0) } } }
         for seat in candidates {
             guard !configured || s.authorVendor == "unknown" || seat.vendor != s.authorVendor else { continue }
-            switch writeSummary(s, seat: seat, prompt: SittingPrompt.synthesis(header(s, "synthesis", seat), claims: preview.claims,
-                                                                              votes: votes(s), notes: notes)) {
+            let prompt = consult ? consultSynthesisPrompt(s, seat: seat)
+                : SittingPrompt.synthesis(header(s, "synthesis", seat), claims: preview.claims, votes: votes(s), notes: notes)
+            switch writeSummary(s, seat: seat, prompt: prompt, check: consult ? { self.consultLeftOut(s, summary: $0) } : { _ in nil }) {
             case .written(let summary):
                 s.locked { s.summary = summary; s.summaryBy = seat.name; s.summaryFallback = !configured }
                 if configured { s.synthesizerFailed = false }
@@ -228,8 +236,8 @@ extension Broker {
 
     private enum Summary { case written(String), unplaceable, failed }
 
-    /// One seat's run of the synthesis round, retrying an answer that does not validate once.
-    private func writeSummary(_ s: SittingRun, seat: Seat, prompt base: String) -> Summary {
+    /// One seat's run of the synthesis round, retrying an answer that does not validate, or that `check` faults, once.
+    private func writeSummary(_ s: SittingRun, seat: Seat, prompt base: String, check: (String) -> String?) -> Summary {
         var text = base
         var retried = false
         while true {
@@ -239,16 +247,20 @@ extension Broker {
             switch outcome {
             case .unplaceable: return .unplaceable
             case .answer(let answer):
+                let problem: String
                 switch AnswerContract.parseSummary(answer) {
                 case .success(let summary):
-                    record(exit: 0)
-                    return .written(summary)
-                case .failure(let problem):
-                    record(exit: 1)
-                    if retried { return .failed }
-                    retried = true
-                    text = SittingPrompt.retry(base, error: problem.message)
+                    guard let fault = check(summary) else {
+                        record(exit: 0)
+                        return .written(summary)
+                    }
+                    problem = fault
+                case .failure(let invalid): problem = invalid.message
                 }
+                record(exit: 1)
+                if retried { return .failed }
+                retried = true
+                text = SittingPrompt.retry(base, error: problem)
             default:
                 record(exit: 1)
                 return .failed
@@ -261,9 +273,15 @@ extension Broker {
             try sittingRows.finish(s.id, state: "failed", reason: "stopped", json: nil, row: nil)
             return
         }
+        if s.council.mode == .consult {
+            let record = consultRecord(s)
+            try sittingRows.finish(s.id, state: "done", reason: nil, json: record.json,
+                                   row: (record.verdict, record.flags, record.minority, s.snapshot.id))
+            return
+        }
         let outcome = VerdictTable.decide(input(s, synthesizerFailed: s.synthesizerFailed))
         var json: [String: Any] = [
-            "sitting": s.id, "council": s.council.name, "state": "done", "verdict": outcome.verdict, "reasons": outcome.reasons,
+            "sitting": s.id, "council": s.council.name, "state": "done", "mode": "review", "verdict": outcome.verdict, "reasons": outcome.reasons,
             "rule": s.council.rule.rawValue, "high_risk": s.council.highRisk, "snapshot": s.snapshot.id, "author_vendor": s.authorVendor,
             "votes": votes(s).map { vote -> [String: Any] in
                 var row: [String: Any] = ["seat": vote.seat, "vendor": vote.vendor, "state": vote.state.rawValue, "valid": vote.valid]

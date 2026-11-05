@@ -110,14 +110,24 @@ struct NewObjectForm: View {
             problem("name")
             FieldBlock(title: "Seats", detail: "Pick the seats that sit together.") { seatChips(store.seatNames, picked: store.councilForm.seats, toggle: toggleSeat) }
             problem("seats")
-            FieldBlock(title: "Verdict rule") {
+            FieldBlock(title: "Kind", detail: "review gates a change with a verdict; consult returns each seat's position on a question.") {
                 HStack(spacing: Space.s) {
-                    ForEach(["majority", "unanimous", "any_blocker"], id: \.self) { rule in
-                        SegmentChip(title: rule, selected: store.councilForm.rule == rule) { store.councilForm.rule = rule }
+                    ForEach(["review", "consult"], id: \.self) { mode in
+                        SegmentChip(title: mode, selected: store.councilForm.mode == mode) { store.councilForm.mode = mode }
                     }
                 }
             }
-            problem("rule")
+            problem("mode")
+            if store.councilForm.mode == "review" {
+                FieldBlock(title: "Verdict rule") {
+                    HStack(spacing: Space.s) {
+                        ForEach(["majority", "unanimous", "any_blocker"], id: \.self) { rule in
+                            SegmentChip(title: rule, selected: store.councilForm.rule == rule) { store.councilForm.rule = rule }
+                        }
+                    }
+                }
+                problem("rule")
+            }
             FieldBlock(title: "Quorum", detail: "Optional. At most the number of seats.") { GlassField(placeholder: "2", text: $store.councilForm.quorum) }
             problem("quorum")
             FieldBlock(title: "Spare seats", detail: "Optional. Called in when a seat cannot sit. Not also a seat of this council.") {

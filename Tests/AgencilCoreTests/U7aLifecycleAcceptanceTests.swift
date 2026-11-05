@@ -6,7 +6,8 @@ import Testing
         let r = try U7aRig(); try r.reply("a", u7aAnswer(claims: [u7aClaim()]))
         let v = try r.decided("PASS")
         #expect(Set(v.keys) == Set(["sitting", "council", "state", "verdict", "reasons", "rule", "high_risk",
-            "snapshot", "author_vendor", "votes", "claims", "minority", "independence"]))
+            "snapshot", "author_vendor", "votes", "claims", "minority", "independence", "mode"]))
+        #expect(v["mode"] as? String == "review")
         for key in ["sitting", "council", "state", "verdict", "rule", "snapshot", "author_vendor"] {
             #expect(v[key] is String)
         }

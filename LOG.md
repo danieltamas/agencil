@@ -1,3 +1,7 @@
+## Unreleased
+
+- Consult councils (U33): set a council's Kind to consult and it answers a question instead of gating a change. Each seat gives one position with its confidence, reasoning, what would change it and questions back, then reviews the others' positions blind to who wrote them. The sitting ends AGREED, SPLIT or ANSWERED with every position kept apart, the minority named, and a synthesis that must cover every seat.
+
 ## 0.6.1 (2026-11-05)
 
 - A seat installed with npm (Codex) runs on the Node it was installed with: a Mac where another Node comes first on PATH (an Intel Homebrew Node) no longer fails the seat with "codex exited with status 1".

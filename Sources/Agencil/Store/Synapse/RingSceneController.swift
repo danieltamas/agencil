@@ -317,8 +317,9 @@ import SwiftUI
 
     private var verdictColor: Color {
         switch verdict {
-        case "PASS": Theme.ok
+        case "PASS", "AGREED", "ANSWERED": Theme.ok
         case "BLOCK": Theme.crit
+        case "SPLIT": Theme.unknown
         default: Theme.warn
         }
     }

@@ -35,9 +35,82 @@ extension DemoPanel {
                     "exchanges": [["seq": 1, "question": threads[2].question, "state": "failed", "reason": "endpoint closed the connection"]]]
         case "s1", "s2":
             return sittingJSON(id)
+        case "s3":
+            return consultJSON()
         default:
             return nil
         }
+    }
+
+    static let consultQuestion = "Should harbor/checkout keep its session store in Postgres or move it to Redis?"
+
+    private static func json(_ object: [String: Any]) -> String {
+        (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
+    }
+
+    /// A consult sitting whose two seats split: claude-opus moves after the review, codex-gpt holds and ends in the minority.
+    private static func consultJSON() -> [String: Any] {
+        let index = "Keep sessions in Postgres and add a partial index on expires_at."
+        let later = "Keep Postgres now; move to Redis once session reads pass 10k per minute."
+        let redis = "Move sessions to Redis with a 30-day TTL."
+        let indexReasoning = "Session reads are **1.2k per minute**, well inside what the primary serves today."
+        let indexCrux = "Reads above 10k per minute, or lock waits on the sessions table."
+        let redisReasoning = "Expiry becomes free and the primary stops carrying session churn."
+        let redisCrux = "A need to join sessions to other tables in SQL."
+        let moved = "The churn argument holds once reads grow; the measured rate says not yet."
+        let opusBlind: [String: Any] = ["position": index, "confidence": 0.7, "reasoning": indexReasoning, "crux": indexCrux,
+                                        "questions_back": ["What read rate do you expect at launch?"]]
+        let codexBlind: [String: Any] = ["position": redis, "confidence": 0.8, "reasoning": redisReasoning, "crux": redisCrux]
+        let opusReview: [String: Any] = ["position": later, "confidence": 0.65, "reasoning": indexReasoning, "crux": indexCrux,
+                                         "questions_back": ["What read rate do you expect at launch?"], "kept": false, "because": moved,
+                                         "new_evidence": true, "assessments": [["position": "P2", "stance": "disagree", "why": "TTL expiry alone does not justify a new store."]]]
+        let codexReview: [String: Any] = ["position": redis, "confidence": 0.75, "reasoning": redisReasoning, "crux": redisCrux, "kept": true,
+                                          "assessments": [["position": "P1", "stance": "partly", "why": "The index helps, but churn still lands on the primary."]]]
+        func seat(_ name: String, _ answer: [String: Any], _ start: Double) -> [String: Any] {
+            ["seat": name, "state": "answered", "started": stamp(start), "ended": stamp(start + 50), "cost_usd": 0.09, "answer": json(answer)]
+        }
+        let summary = """
+            ## Answer
+            Keep sessions in Postgres for now (medium confidence); revisit at 10k reads per minute.
+
+            ## Positions
+            - Keep Postgres now, Redis past 10k reads per minute: claude-opus (moved from an index-only plan).
+            - Move to Redis with a TTL now: codex-gpt.
+
+            ## Disputed
+            - Whether TTL expiry alone justifies a new store. Crux: lock waits on the sessions table.
+
+            ## Minority report
+            - codex-gpt holds that session churn on the primary is worth removing today.
+
+            ## Questions back
+            - What read rate do you expect at launch?
+            """
+        return [
+            "sitting": "s3", "no": 212, "council": "architecture", "state": "done", "round": "verdict", "project": "harbor-checkout  ~/Sites/harbor",
+            "snapshot": "snap_9b20e1", "repo": "harbor/checkout", "question": consultQuestion, "change_kind": "plan",
+            "brief": "Change kind: plan\nQuestion: " + consultQuestion,
+            "rounds": [["round": "blind", "seats": [seat("claude-opus", opusBlind, -7200), seat("codex-gpt", codexBlind, -7190)]],
+                       ["round": "rebuttal", "seats": [seat("claude-opus", opusReview, -7100), seat("codex-gpt", codexReview, -7090)]]],
+            "summary": summary, "summary_by": "claude-opus",
+            "verdict": [
+                "mode": "consult", "verdict": "SPLIT", "reasons": ["The seats do not all agree with each other's positions."], "claims": [Any](),
+                "independence": [String](), "snapshot": "snap_9b20e1",
+                "votes": [["seat": "claude-opus", "vendor": "anthropic", "state": "answered", "valid": true, "reason": NSNull()],
+                          ["seat": "codex-gpt", "vendor": "openai", "state": "answered", "valid": true, "reason": NSNull()]],
+                "positions": [
+                    ["seat": "claude-opus", "vendor": "anthropic", "label": "P1", "blind": ["position": index, "confidence": 0.7],
+                     "final": ["position": later, "confidence": 0.65, "reasoning": indexReasoning, "crux": indexCrux],
+                     "kept": false, "because": moved, "new_evidence": true, "questions_back": ["What read rate do you expect at launch?"], "minority": false],
+                    ["seat": "codex-gpt", "vendor": "openai", "label": "P2", "blind": ["position": redis, "confidence": 0.8],
+                     "final": ["position": redis, "confidence": 0.75, "reasoning": redisReasoning, "crux": redisCrux],
+                     "kept": true, "questions_back": [String](), "minority": true],
+                ],
+                "assessments": [["seat": "claude-opus", "about": "codex-gpt", "stance": "disagree", "why": "TTL expiry alone does not justify a new store."],
+                                ["seat": "codex-gpt", "about": "claude-opus", "stance": "partly", "why": "The index helps, but churn still lands on the primary."]],
+                "minority": [["seat": "codex-gpt", "vendor": "openai", "position": redis]],
+            ] as [String: Any],
+        ]
     }
 
     private static func sittingJSON(_ id: String) -> [String: Any] {

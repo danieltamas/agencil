@@ -17,6 +17,9 @@ final class Slot {
     var result: RoundResult?
     /// The notes of the latest answer that had any, kept across rounds: a seat that fails a later round still said them.
     var notes: String?
+    /// A consult seat's blind answer, and its latest answer that validated (the blind one when the review failed).
+    var blindConsult: ConsultAnswer?
+    var finalConsult: ConsultAnswer?
 
     init(seat: Seat) { self.seat = seat }
 
@@ -67,6 +70,10 @@ final class SittingRun: @unchecked Sendable {
     /// The caller asked for a written summary even when the council has no synthesizer.
     var wantsSummary = false
     var synthesizerFailed: Bool?
+    /// Consult only: the anonymous label of each seat's position (seat name to `P<n>`), which never leaves the broker,
+    /// and whether a review round ran.
+    var labels: [String: String] = [:]
+    var reviewRan = false
     /// Vendors the council was convened with, before any spare took a seat over.
     let conveneVendors: Set<String>
 

@@ -47,14 +47,18 @@ public struct CouncilDraft: Equatable, Sendable {
     public var spare: [String]
     /// Seats that write the closing summary; never also in `seats` or `spare`.
     public var synthesizer: [String]
+    /// review gates a change with a verdict; consult returns the seats' positions on a question.
+    public var mode: String
 
-    public init(name: String, seats: [String], rule: String, quorum: Int? = nil, spare: [String] = [], synthesizer: [String] = []) {
+    public init(name: String, seats: [String], rule: String, quorum: Int? = nil, spare: [String] = [], synthesizer: [String] = [],
+                mode: String = "review") {
         self.name = name
         self.seats = seats
         self.rule = rule
         self.quorum = quorum
         self.spare = spare
         self.synthesizer = synthesizer
+        self.mode = mode
     }
 }
 

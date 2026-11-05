@@ -7,7 +7,7 @@ enum PanelTone {
     static func signal(state: String) -> Signal {
         switch state.lowercased() {
         case "asking", "running", "sitting", "pending", "deliberating": .running
-        case "answered", "pass", "done", "confirmed", "up": .ok
+        case "answered", "pass", "agreed", "done", "confirmed", "up": .ok
         case "failed", "block", "dismissed", "crit": .crit
         case "stopped", "incomplete", "busy", "needs you", "will_fix": .warn
         default: .unknown

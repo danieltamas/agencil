@@ -35,7 +35,7 @@ enum MCPSchemas {
              input: object(["thread": bounded(64), "wait_seconds": wait, "full": ["type": "boolean"],
                             "offset": ["type": "integer", "minimum": 0]], required: ["thread"])),
         Tool(name: "wake_council", title: "Start a sitting of a council",
-             when: "To review a change with several seats and get a verdict.", brokerOp: "wake",
+             when: "To review a change with several seats and get a verdict (a review council), or to consult several seats on a question and get their distinct positions and angles, kept apart (a consult council; list_targets shows each council's mode).", brokerOp: "wake",
              input: object(["council": bounded(64), "brief": bounded(65_536), "repo": text, "diff": text,
                             "change_kind": bounded(64), "author_vendor": bounded(40), "uncommitted": ["type": "boolean"],
                             "wait_seconds": wait],
@@ -59,7 +59,7 @@ enum MCPSchemas {
     /// `tools/list` entries; the output schema exists only from protocol 2025-06-18.
     static func listing(protocolVersion: String) -> [[String: Any]] {
         tools.map { tool in
-            var entry: [String: Any] = ["name": tool.name, "title": tool.title, "description": tool.title,
+            var entry: [String: Any] = ["name": tool.name, "title": tool.title, "description": tool.title + ". " + tool.when,
                                         "inputSchema": tool.input]
             if protocolVersion == "2025-06-18" { entry["outputSchema"] = output }
             return entry

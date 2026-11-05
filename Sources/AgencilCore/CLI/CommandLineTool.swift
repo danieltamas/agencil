@@ -157,7 +157,7 @@ public struct CommandLineTool: Sendable {
         if verb == "preflight", let rows = (data as? [String: Any])?["seats"] as? [[String: Any]] {
             return rows.allSatisfy { $0["reason"] as? String == "ok" } ? 0 : 4
         }
-        // A sitting that reached a verdict exits by it: PASS 0, BLOCK 1, INCOMPLETE 2.
+        // A sitting that reached a verdict exits by it: PASS 0, BLOCK 1, INCOMPLETE 2; a consult's AGREED, SPLIT and ANSWERED 0.
         switch (data as? [String: Any])?["verdict"] as? String {
         case "BLOCK": return 1
         case "INCOMPLETE": return 2

@@ -19,16 +19,40 @@ public struct StructuredAnswer: Sendable, Equatable {
         public var id: String { claim }
     }
 
+    /// A consult seat's answer (docs/U33-SPEC.md): one position on the question, with what would change it.
+    public struct Consult: Sendable, Equatable {
+        public struct Assessment: Sendable, Equatable, Identifiable {
+            /// The anonymous label the seat saw, `P1` to `Pn`.
+            public let label: String
+            /// `agree`, `disagree` or `partly`.
+            public let stance: String
+            public let why: String?
+            public var id: String { label }
+        }
+
+        public let position: String
+        public let confidence: String?
+        public let reasoning: String
+        public let crux: String
+        public let questionsBack: [String]
+        public let assessments: [Assessment]
+        /// Why the seat moved off its first position; nil when it kept it or this is its first answer.
+        public let change: String?
+    }
+
     public let claims: [Claim]
     public let assessments: [Assessment]
     /// `approve`, `block` or `abstain`; nil in a challenge round, where the earlier vote stands.
     public let vote: String?
     public let notes: String?
+    public let consult: Consult?
 
     public init?(_ answer: String) {
         let body = ReadableAnswer.unfenced(answer.trimmingCharacters(in: .whitespacesAndNewlines))
         guard body.first == "{", let root = (try? JSONSerialization.jsonObject(with: Data(body.utf8))) as? [String: Any],
-              root["claims"] != nil || root["assessments"] != nil || root["vote"] != nil || root["notes"] != nil else { return nil }
+              root["position"] is String || root["claims"] != nil || root["assessments"] != nil || root["vote"] != nil
+                || root["notes"] != nil else { return nil }
+        consult = Self.consult(root)
         claims = ((root["claims"] as? [Any]) ?? []).compactMap { item in
             guard let claim = item as? [String: Any] else { return nil }
             let place = (claim["file"] as? String).map { file in (claim["line"] as? NSNumber).map { "\(file):\($0.intValue)" } ?? file }
@@ -43,6 +67,19 @@ public struct StructuredAnswer: Sendable, Equatable {
         }
         vote = root["vote"] as? String
         notes = (root["notes"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    private static func consult(_ root: [String: Any]) -> Consult? {
+        guard let position = root["position"] as? String else { return nil }
+        let assessments = ((root["assessments"] as? [Any]) ?? []).compactMap { item -> Consult.Assessment? in
+            guard let value = item as? [String: Any], let label = value["position"] as? String else { return nil }
+            return Consult.Assessment(label: label, stance: value["stance"] as? String ?? "partly", why: value["why"] as? String)
+        }
+        let because = (root["because"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        return Consult(position: position, confidence: ClaimBody.percent((root["confidence"] as? NSNumber)?.doubleValue),
+                       reasoning: root["reasoning"] as? String ?? "", crux: root["crux"] as? String ?? "",
+                       questionsBack: (root["questions_back"] as? [Any] ?? []).compactMap { $0 as? String },
+                       assessments: assessments, change: root["kept"] as? Bool == false ? because : nil)
     }
 }
 

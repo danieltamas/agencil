@@ -3,8 +3,11 @@ import Foundation
 /// A named set of seats with the rules of a sitting (docs/U7-SPEC.md "Config").
 public struct Council: Equatable, Sendable {
     public enum Rule: String, Sendable { case anyBlocker = "any_blocker", unanimous, majority }
+    /// `review` gates a change with claims and votes; `consult` keeps the seats' distinct positions apart (docs/U33-SPEC.md).
+    public enum Mode: String, Sendable { case review, consult }
 
     public let name: String
+    public let mode: Mode
     public let seats: [String]
     public let spares: [String]
     public let synthesizers: [String]
@@ -37,6 +40,12 @@ extension SeatConfig {
             func fail(_ problem: String) -> ConfigProblem { ConfigProblem(key: "councils", problem: problem) }
             guard let name = item["name"] as? String, name.range(of: "^[a-z0-9][a-z0-9-]{0,39}$", options: .regularExpression) != nil else {
                 throw fail("a council name is 1 to 40 characters of a-z, 0-9 and dashes")
+            }
+            // The mode decides what kind of council this is, so a bad one is reported before any check of its members.
+            var mode = Council.Mode.review
+            if let value = item["mode"] {
+                guard let text = value as? String, let parsed = Council.Mode(rawValue: text) else { throw fail("council \(name) mode is review or consult") }
+                mode = parsed
             }
             guard seen.insert(name).inserted else { throw fail("council \(name) is listed twice") }
             guard !seatNames.contains(name), aliases[name] == nil else { throw fail("council \(name) has the name of a seat or alias") }
@@ -89,7 +98,7 @@ extension SeatConfig {
                 guard let count = whole(value), (10...7200).contains(count) else { throw fail("council \(name) deadline_seconds is 10 to 7200") }
                 deadline = count
             }
-            return Council(name: name, seats: members, spares: spares, synthesizers: synthesizers, rule: rule,
+            return Council(name: name, mode: mode, seats: members, spares: spares, synthesizers: synthesizers, rule: rule,
                            highRisk: flag(item["high_risk"]) ?? false, quorum: quorum, rebuttal: flag(rounds["rebuttal"]) ?? true,
                            challenge: flag(rounds["challenge"]) ?? false, localOnly: item["residency"] as? String == "local",
                            silentAfter: silent, deadlineSeconds: deadline)

@@ -26,7 +26,7 @@ struct SeatForm {
 
     private mutating func forgetPreset() { preset = ""; vendor = ""; plan = ""; hosted = nil }
 }
-struct CouncilForm { var name = "", seats: [String] = [], rule = "majority", quorum = "", spare: [String] = [], synthesizer: [String] = [] }
+struct CouncilForm { var name = "", seats: [String] = [], rule = "majority", quorum = "", spare: [String] = [], synthesizer: [String] = [], mode = "review" }
 struct RouteForm { var callers = "", target = "", hops = "" }
 
 /// What an Edit sheet changes and what it was when the sheet opened, so a save refuses a file that changed since.
@@ -254,7 +254,7 @@ enum EditTarget: Equatable {
                 let quorum = whole(councilForm.quorum, "quorum")
                 guard found.isEmpty else { throw SheetProblems(fields: found) }
                 let draft = CouncilDraft(name: councilForm.name, seats: councilForm.seats, rule: councilForm.rule, quorum: quorum,
-                                         spare: councilForm.spare, synthesizer: councilForm.synthesizer)
+                                         spare: councilForm.spare, synthesizer: councilForm.synthesizer, mode: councilForm.mode)
                 if case .council(let was) = editing { try editor.update(council: was.name, was: was, with: draft) } else { try editor.add(draft) }
             case .route:
                 let hops = whole(routeForm.hops, "hopLimit")

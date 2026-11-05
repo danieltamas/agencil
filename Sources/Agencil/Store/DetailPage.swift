@@ -74,8 +74,34 @@ struct DetailPage: Equatable, Identifiable {
     var canFollowUp = false
     var rounds: [Round] = []
     var claims: [DemoPanel.Finding] = []
+    /// A consult sitting's seats and where each ended up, in the broker's order; empty for a review.
+    var positions: [Position] = []
     var loading = false
     var problem: String?
+}
+
+extension DetailPage {
+    struct Position: Equatable, Identifiable {
+        let seat: String
+        var vendor = ""
+        let finalPosition: String
+        let confidence: String?
+        let crux: String
+        let changed: Bool
+        /// The seat's own reason for moving, shown with the position it started from.
+        let change: String?
+        let minority: Bool
+        var id: String { seat }
+    }
+
+    static func positions(_ detail: SittingDetail, vendors: [String: String]) -> [Position] {
+        detail.positions.map { stand in
+            let change = stand.changed ? "was: " + stand.blindPosition + (stand.because.map { " - because " + $0 } ?? "") : nil
+            return Position(seat: stand.seat, vendor: vendors[stand.seat] ?? stand.vendor ?? "", finalPosition: stand.finalPosition,
+                            confidence: ClaimBody.percent(stand.confidence), crux: stand.crux, changed: stand.changed,
+                            change: change, minority: stand.minority)
+        }
+    }
 }
 
 extension DetailPage {
@@ -151,9 +177,14 @@ extension DetailPage {
             page.sections.append(Section(heading: "Verdict: \(detail.verdict ?? state)", text: detail.reasons.map { "- " + $0 }.joined(separator: "\n"), tone: page.tone))
         }
         if let reason = detail.reason { page.sections.append(Section(heading: "Why it ended", text: reason, tone: page.tone)) }
-        page.seats = detail.votes.map { Fact(name: $0.seat, value: $0.vote ?? $0.state) }
+        page.positions = positions(detail, vendors: vendors)
+        // A consult seat casts no vote: its row shows the confidence it ended on.
+        let confidence = Dictionary(page.positions.map { ($0.seat, $0.confidence) }, uniquingKeysWith: { first, _ in first })
+        page.seats = detail.votes.map { Fact(name: $0.seat, value: (confidence[$0.seat] ?? nil) ?? $0.vote ?? $0.state) }
         page.rounds = detail.rounds.map { round in
-            Round(name: String(round.name.prefix(1).uppercased() + round.name.dropFirst()), answers: round.seats.map { answer(round: $0, vendor: vendors[$0.name] ?? "") })
+            // The ledger names a consult's second round rebuttal; to the owner it is the review of the other positions.
+            let name = detail.mode == "consult" && round.name == "rebuttal" ? "review" : round.name
+            return Round(name: String(name.prefix(1).uppercased() + name.dropFirst()), answers: round.seats.map { answer(round: $0, vendor: vendors[$0.name] ?? "") })
         }
         page.claims = detail.claims.map { claim in
             DemoPanel.Finding(id: claim.id, severity: claim.severity.uppercased(), place: claim.place, claim: claim.body.text,

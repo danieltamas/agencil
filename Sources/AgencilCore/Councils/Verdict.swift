@@ -121,3 +121,74 @@ enum VerdictTable {
         return (claims, minority)
     }
 }
+
+/// One consult seat's view of another seat's position, with the label resolved to the seat it stands for.
+struct ConsultStance: Equatable {
+    let seat: String
+    let about: String
+    let stance: String
+    let why: String?
+}
+
+struct ConsultInput {
+    struct Answer {
+        let seat: String
+        let vendor: String
+        let answer: ConsultAnswer
+    }
+    /// Seats that sat, and the council's explicit quorum when it has one.
+    let convened: Int
+    let quorum: Int?
+    /// The seats with a valid answer, in council order.
+    let answers: [Answer]
+    let reviewRan: Bool
+    let stances: [ConsultStance]
+    let conveneVendors: Set<String>
+    let fallbackUsed: Bool
+    /// Nil when no synthesizer is configured.
+    let synthesizerFailed: Bool?
+    let noSynthesis: Bool
+}
+
+struct ConsultOutcome: Equatable {
+    let verdict: String
+    let reasons: [String]
+    let flags: [String]
+    /// Seats whose position more than half of the seats assessing it disagree with.
+    let minority: [String]
+}
+
+/// The consult table of docs/U33-SPEC.md item 8, first match wins. Agreement counts only what the seats said of each
+/// other in the review round: a summary cannot make a split council agree.
+enum ConsultVerdict {
+    static func decide(_ input: ConsultInput) -> ConsultOutcome {
+        let answers = input.answers
+        let vendors = Set(answers.map(\.vendor))
+        let changed = answers.filter { $0.answer.kept == false }
+        let (verdict, reason) = verdict(input)
+        var flags: [String] = []
+        if input.fallbackUsed { flags.append("fallback_used") }
+        if !input.conveneVendors.subtracting(vendors).isEmpty { flags.append("vendor_missing") }
+        if answers.count >= 2, vendors.count == 1 { flags.append("single_vendor") }
+        if verdict == "AGREED", !changed.isEmpty { flags.append("converged_in_review") }
+        if changed.contains(where: { $0.answer.newEvidence == false }) { flags.append("changed_without_evidence") }
+        if input.noSynthesis { flags.append("no_synthesis") }
+        // The review judged blind positions: a seat that moved off its own no longer holds what was disagreed with.
+        let minority = answers.filter { $0.answer.kept != false }.map(\.seat).filter { seat in
+            let about = input.stances.filter { $0.about == seat }
+            return !about.isEmpty && 2 * about.filter { $0.stance == "disagree" }.count > about.count
+        }
+        return ConsultOutcome(verdict: verdict, reasons: [reason], flags: flags, minority: minority)
+    }
+
+    private static func verdict(_ input: ConsultInput) -> (String, String) {
+        let count = input.answers.count
+        if input.synthesizerFailed == true { return ("INCOMPLETE", "synthesizer failed") }
+        if count < (input.quorum ?? input.convened / 2 + 1) { return ("INCOMPLETE", "quorum: \(count) valid answer(s)") }
+        if count < 2 { return ("ANSWERED", "one seat answered") }
+        if !input.reviewRan || input.stances.isEmpty { return ("ANSWERED", "the seats did not review each other") }
+        if input.stances.allSatisfy({ $0.stance == "agree" }) { return ("AGREED", "every assessment agrees") }
+        let apart = input.stances.filter { $0.stance != "agree" }.count
+        return ("SPLIT", "\(apart) of \(input.stances.count) assessments disagree or agree in part")
+    }
+}

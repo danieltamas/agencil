@@ -42,7 +42,7 @@ enum ScreenshotCommand {
                     try HouseRender.write(PanelView(store: PanelStore.demo(), tab: tab), to: directory.appendingPathComponent("panel-\(tab)\(suffix).png"), look: look, scale: scale)
                 }
                 for (name, id) in [("thread-done", "t2"), ("thread-failed", "t3"), ("thread-running", "t1"),
-                                   ("sitting-done", "s2"), ("sitting-running", "s1"), ("finding", "f1")] {
+                                   ("sitting-done", "s2"), ("sitting-running", "s1"), ("sitting-consult", "s3"), ("finding", "f1")] {
                     try HouseRender.write(PanelView(store: PanelStore.demo(opening: id)), to: directory.appendingPathComponent("detail-\(name)\(suffix).png"),
                                           look: look, scale: scale)
                 }

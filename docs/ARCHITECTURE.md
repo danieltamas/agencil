@@ -21,7 +21,9 @@ macOS 14, no third-party dependencies.
 3. `Asks` resolves a seat (harness plus model) to a working install, admits it (capacity, memory, budget
    reservation), runs it in a confined process or an HTTP request, and records an exchange on a thread.
 4. `Sitting` convenes a council: blind round, optional rebuttal and challenge, synthesis, and a verdict with
-   the minority report kept. Each round thread is an ordinary ask.
+   the minority report kept. Each round thread is an ordinary ask. A consult council (`SittingConsult`) runs a blind
+   round and an anonymous review of the other positions instead, and records every seat's position with an
+   AGREED, SPLIT or ANSWERED verdict (docs/U33-SPEC.md).
 5. The ledger (`agencil.sqlite`, system `libsqlite3`) keeps threads, exchanges (with the harness and model that
    answered, tokens and cost), sittings, claims, assessments, reservations and preflights. Rows that record
    history are never rewritten.

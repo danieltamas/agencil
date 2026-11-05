@@ -11,8 +11,12 @@ public struct ClaimBody: Sendable, Equatable {
     public init(text: String, fix: String?, confidence: Double?) {
         self.text = text
         self.fix = fix.flatMap { $0.isEmpty ? nil : $0 }
-        // A confidence outside 0...1 is clamped and a non-number is dropped: the conversion to Int traps on either.
-        self.confidence = confidence.flatMap { $0.isFinite ? "\(Int((min(max($0, 0), 1) * 100).rounded()))%" : nil }
+        self.confidence = Self.percent(confidence)
+    }
+
+    /// A confidence outside 0...1 is clamped and a non-number is dropped: the conversion to Int traps on either.
+    public static func percent(_ confidence: Double?) -> String? {
+        confidence.flatMap { $0.isFinite ? "\(Int((min(max($0, 0), 1) * 100).rounded()))%" : nil }
     }
 
     public init(_ body: String) {

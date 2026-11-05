@@ -29,7 +29,7 @@ extension SettingsStore {
             guard councilRows.indices.contains(index), let council = drafts.councils.first(where: { $0.name == councilRows[index].name })
             else { return changedSinceShown() }
             councilForm = CouncilForm(name: council.name, seats: council.seats, rule: council.rule, quorum: council.quorum.map(String.init) ?? "",
-                                      spare: council.spare, synthesizer: council.synthesizer)
+                                      spare: council.spare, synthesizer: council.synthesizer, mode: council.mode)
             editing = .council(was: council)
         case .route:
             guard shownRoutes.indices.contains(index), drafts.routes.indices.contains(index), drafts.routes[index] == shownRoutes[index]

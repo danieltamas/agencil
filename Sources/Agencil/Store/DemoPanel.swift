@@ -100,6 +100,8 @@ extension DemoPanel {
                 ["id": "s1", "no": 214, "council": "code-review", "state": running, "round": "blind", "started": stamp(-130), "cost_usd": 0.42],
                 ["id": "s2", "no": 213, "council": "security", "state": "BLOCK", "round": "verdict", "started": stamp(-3600), "ended": stamp(-3238),
                  "cost_usd": 1.1, "verdict": "BLOCK"],
+                ["id": "s3", "no": 212, "council": "architecture", "state": "SPLIT", "round": "verdict", "started": stamp(-7200),
+                 "ended": stamp(-6980), "cost_usd": 0.38, "verdict": "SPLIT", "question": consultQuestion],
             ],
             "findings": findings.map { ["id": $0.id, "severity": $0.severity.lowercased(), "file": String($0.place.split(separator: ":")[0]), "line": Int($0.place.split(separator: ":")[1]) ?? 1, "body": ledgerBody($0),
                                          "backers": $0.backers, "dissenters": $0.dissent, "minority": $0.dissent > 0, "disposition": "open"] },

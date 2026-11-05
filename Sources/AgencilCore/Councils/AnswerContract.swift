@@ -17,6 +17,27 @@ struct SeatAssessment: Equatable {
     let why: String?
 }
 
+/// What a consult seat thinks of another seat's position, which it knows only by its label (`P2`).
+struct ConsultAssessment: Equatable {
+    let label: String
+    let stance: String
+    let why: String?
+}
+
+/// A seat's answer in a consult council (docs/U33-SPEC.md item 5). `kept`, `because` and `newEvidence` come only
+/// from the review round.
+struct ConsultAnswer: Equatable {
+    let position: String
+    let confidence: Double
+    let reasoning: String
+    let crux: String
+    let questionsBack: [String]
+    var assessments: [ConsultAssessment] = []
+    var kept: Bool?
+    var because: String?
+    var newEvidence: Bool?
+}
+
 struct SeatAnswer: Equatable {
     var claims: [SeatClaim]
     var assessments: [SeatAssessment]
@@ -118,6 +139,69 @@ enum AnswerContract {
             throw Problem(message: "\(label).stance must be support, dispute or abstain")
         }
         return SeatAssessment(claim: claim, stance: stance, why: value["why"] as? String)
+    }
+
+    static let reasoningLimit = 8192
+    /// Also bounds `because` and an assessment's `why`: each reaches the synthesis prompt.
+    static let cruxLimit = 1024
+    /// A council has far fewer seats; more entries are noise a seat could pad the prompt with.
+    static let assessmentLimit = 16
+    private static let consultStances: Set<String> = ["agree", "disagree", "partly"]
+
+    /// A consult seat's answer; `review` also requires `kept`, and with `kept: false` the reason and whether new evidence
+    /// moved it. Keys of the review shape (`vote`, `claims`, `severity`) are ignored.
+    static func parseConsult(_ text: String, review: Bool) -> Result<ConsultAnswer, Problem> {
+        do {
+            let root = try object(in: text)
+            func filled(_ key: String) throws -> String {
+                guard let value = root[key] as? String, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    throw Problem(message: "\(key) must be a non-empty string")
+                }
+                return value
+            }
+            let position = try filled("position")
+            guard position.count <= 300, !position.contains(where: \.isNewline) else {
+                throw Problem(message: "position must be one line of at most 300 characters")
+            }
+            guard let confidence = SeatConfig.number(root["confidence"]), (0.0...1.0).contains(confidence) else {
+                throw Problem(message: "confidence must be a number from 0 to 1")
+            }
+            var questions: [String] = []
+            if let value = root["questions_back"] {
+                guard let list = value as? [String], list.count <= 5 else { throw Problem(message: "questions_back must be at most 5 strings") }
+                questions = list.map { bounded($0, 500) }
+            }
+            var answer = ConsultAnswer(position: position, confidence: confidence, reasoning: bounded(try filled("reasoning"), reasoningLimit),
+                                       crux: bounded(try filled("crux"), cruxLimit), questionsBack: questions)
+            guard review else { return .success(answer) }
+            guard let kept = root["kept"] as? Bool else { throw Problem(message: "kept must be true or false") }
+            answer.kept = kept
+            if !kept {
+                answer.because = bounded(try filled("because"), cruxLimit)
+                guard let moved = root["new_evidence"] as? Bool else { throw Problem(message: "new_evidence must be true or false") }
+                answer.newEvidence = moved
+            }
+            if let value = root["assessments"] {
+                guard let list = value as? [Any], list.count <= assessmentLimit else {
+                    throw Problem(message: "assessments must be a list of at most \(assessmentLimit)")
+                }
+                for (index, item) in list.enumerated() {
+                    guard let entry = item as? [String: Any], let label = entry["position"] as? String, !label.isEmpty else {
+                        throw Problem(message: "assessments[\(index)].position must be a position label")
+                    }
+                    guard let stance = entry["stance"] as? String, consultStances.contains(stance) else {
+                        throw Problem(message: "assessments[\(index)].stance must be agree, disagree or partly")
+                    }
+                    answer.assessments.append(ConsultAssessment(label: bounded(label, 8), stance: stance,
+                                                                why: (entry["why"] as? String).map { bounded($0, cruxLimit) }))
+                }
+            }
+            return .success(answer)
+        } catch let problem as Problem {
+            return .failure(problem)
+        } catch {
+            return .failure(Problem(message: "the answer does not validate"))
+        }
     }
 
     /// The synthesizer's `{"summary": "..."}`.
