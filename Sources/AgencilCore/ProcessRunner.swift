@@ -154,8 +154,9 @@ public struct ProcessRunner: Sendable {
         throw Failure.spawnFailed("\(program) not found on PATH")
     }
 
-    /// The program's own directory first, so a tool finds the helpers installed beside it.
-    private static func path(for executable: String, base: String) -> String {
+    /// The program's own directory first, so a tool finds the helpers installed beside it: an npm harness
+    /// (`#!/usr/bin/env node`) must run on the node it was installed with, not the first one on PATH.
+    static func path(for executable: String, base: String) -> String {
         let own = (executable as NSString).deletingLastPathComponent
         let rest = base.split(separator: ":").map(String.init).filter { $0 != own }
         return ([own.isEmpty ? "." : own] + rest).joined(separator: ":")

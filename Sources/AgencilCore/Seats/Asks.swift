@@ -218,8 +218,10 @@ extension Broker {
                 invocation = try confined(invocation, copy: copy, runDirectory: runDirectory, harness: seat.harness)
             }
             // A shell reports $PWD as inherited when it names the working directory, so it must match the path we gave.
+            // PATH comes from the harness, not the sandbox wrapper argv[0] may now be.
+            let seatPath = ProcessRunner.path(for: executable, base: environment["PATH"] ?? "/usr/bin:/bin")
             var launchRequest: [String: Any] = ["argv": invocation.argv, "cwd": workingDirectory,
-                                                "env": invocation.environment.merging(["PWD": workingDirectory]) { _, mine in mine },
+                                                "env": invocation.environment.merging(["PWD": workingDirectory, "PATH": seatPath]) { _, mine in mine },
                                                 "reservation": ["seconds": seat.capSeconds]]
             if invocation.stdoutIsAnswer { launchRequest["stdout"] = answerFile }
             else if invocation.usage == .codexEvents { launchRequest["stdout"] = UsageFormat.eventsFile(besides: answerFile) }

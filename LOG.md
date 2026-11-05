@@ -1,3 +1,7 @@
+## Unreleased
+
+- A seat installed with npm (Codex) runs on the Node it was installed with: a Mac where another Node comes first on PATH (an Intel Homebrew Node) no longer fails the seat with "codex exited with status 1".
+
 ## 0.6.0 (2026-11-05)
 
 - Answers and questions in a thread or sitting are drawn as Markdown: headings, lists and fenced code show formatted instead of as raw text.
