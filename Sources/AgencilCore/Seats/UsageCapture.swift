@@ -38,6 +38,23 @@ enum UsageCapture {
         }
     }
 
+    /// Why the run failed, as the stream states it; nil when it names no failure. Under `--json` codex writes only a
+    /// start-up banner to stderr, so its `turn.failed` event is the one place the real reason is. The `error` items
+    /// before it are warnings, not the cause.
+    static func failure(_ format: UsageFormat, answerFile: String) -> String? {
+        guard format == .codexEvents,
+              let text = try? String(contentsOfFile: UsageFormat.eventsFile(besides: answerFile), encoding: .utf8) else { return nil }
+        for line in text.split(separator: "\n").reversed() {
+            guard let event = object(line), event["type"] as? String == "turn.failed",
+                  let message = (event["error"] as? [String: Any])?["message"] as? String else { continue }
+            // The provider's reply arrives as JSON inside the message; its own message is the readable part.
+            let stated = (object(message)?["error"] as? [String: Any])?["message"] as? String ?? message
+            let oneLine = stated.split(whereSeparator: \.isNewline).joined(separator: " ").trimmingCharacters(in: .whitespaces)
+            return oneLine.isEmpty ? nil : oneLine
+        }
+        return nil
+    }
+
     private static func object(_ text: some StringProtocol) -> [String: Any]? {
         (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any]
     }

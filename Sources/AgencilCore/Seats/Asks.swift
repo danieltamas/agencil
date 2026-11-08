@@ -298,7 +298,8 @@ extension Broker {
                 finishExchange(thread: thread.id, seq: seq, state: .answered, answer: text, reason: nil)
             }
         } else {
-            let detail = lastLine(ofLog: launchID).map { ": \($0)" } ?? ""
+            let stated = format.flatMap { UsageCapture.failure($0, answerFile: answerFile) }.map { String($0.prefix(200)) }
+            let detail = (stated ?? lastLine(ofLog: launchID)).map { ": \($0)" } ?? ""
             let code = status.map { "status \($0)" } ?? "an unknown status"
             finishExchange(thread: thread.id, seq: seq, state: .failed, answer: nil, reason: "\(seat.harness) exited with \(code)\(detail)")
         }

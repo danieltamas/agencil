@@ -1,3 +1,7 @@
+## Unreleased
+
+- A failed Codex seat says why (the provider's own error, such as an unsupported model) instead of "Reading additional input from stdin...", and one failed version check no longer moves a seat onto an older copy of its harness for ten minutes.
+
 ## 0.7.0 (2026-11-06)
 
 - Consult councils: set a council's Kind to consult and it answers a question instead of gating a change. Each seat gives one position with its confidence, reasoning, what would change it and questions back, then reviews the others' positions blind to who wrote them. The sitting ends AGREED, SPLIT or ANSWERED with every position kept apart, the minority named, and a synthesis that must cover every seat.
