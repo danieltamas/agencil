@@ -1,4 +1,4 @@
-## Unreleased
+## 0.7.1 (2026-11-08)
 
 - A failed Codex seat says why (the provider's own error, such as an unsupported model) instead of "Reading additional input from stdin...", and one failed version check no longer moves a seat onto an older copy of its harness for ten minutes.
 
