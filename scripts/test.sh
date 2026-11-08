@@ -23,9 +23,17 @@ if swift test "${extra[@]}" --scratch-path "$scratch" 2>&1 | tee "$log"; then
   exit 0
 fi
 
+# A runner killed by a signal is a defect, not load: no test teardown ran, so every live test broker is orphaned.
+# A serial rerun that passes would hide it, so the gate fails here.
+# SwiftPM's line can be glued to the end of a test's line, so it is matched anywhere, not at a line start.
+if crash=$(grep -m1 -oE 'error: Exited with unexpected signal code [0-9]+' "$log"); then
+  echo "test.sh: the test runner was killed by a signal ($crash); not rerunning" >&2
+  exit 1
+fi
+
 # "Suite Name failed after ..." names what to run again. A suite with a display name is printed in quotes and
 # filtered by its type, the struct under its @Suite line. A suite whose type is not found, or none named at all
-# (a build error, a crash), runs the whole suite again serially.
+# (a build error), runs the whole suite again serially.
 names=$(sed -nE 's/.*Suite "([^"]+)" failed after.*/\1/p; s/.*Suite ([A-Za-z0-9_]+) failed after.*/\1/p' "$log" | sort -u)
 suites=()
 while IFS= read -r name; do

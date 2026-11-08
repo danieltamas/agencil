@@ -98,6 +98,7 @@ final class U6cHTTP: @unchecked Sendable {
             "price": ["input_per_mtok": 2.0, "output_per_mtok": 5.0]])
     }
     private func serve(_ c: Int32) {
+        var noPipe: Int32 = 1; guard setsockopt(c, SOL_SOCKET, SO_NOSIGPIPE, &noPipe, 4) == 0 else { return }
         var t = timeval(tv_sec: 2, tv_usec: 0)
         setsockopt(c, SOL_SOCKET, SO_RCVTIMEO, &t, socklen_t(MemoryLayout.size(ofValue: t)))
         var header = Data(), byte: UInt8 = 0
@@ -118,7 +119,6 @@ final class U6cHTTP: @unchecked Sendable {
         guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return }
         var reply = Data("HTTP/1.1 \(failed ? "500 Error" : "200 OK")\r\nContent-Type: application/json\r\nContent-Length: \(data.count)\r\nConnection: close\r\n\r\n".utf8)
         reply.append(data)
-        var noPipe: Int32 = 1; setsockopt(c, SOL_SOCKET, SO_NOSIGPIPE, &noPipe, 4)
         reply.withUnsafeBytes { bytes in
             var offset = 0
             while offset < bytes.count {

@@ -115,6 +115,8 @@ final class BrokerHome: @unchecked Sendable {
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { throw BrokerFailure("socket failed") }
         defer { close(fd) }
+        var noPipe: Int32 = 1
+        guard setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noPipe, 4) == 0 else { throw BrokerFailure("setsockopt failed") }
         var timeout = timeval(tv_sec: 30, tv_usec: 0)
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout.size(ofValue: timeout)))
         var address = sockaddr_un()
@@ -128,8 +130,6 @@ final class BrokerHome: @unchecked Sendable {
             }
         }
         guard connected == 0 else { throw BrokerFailure("connect failed") }
-        var noPipe: Int32 = 1
-        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noPipe, 4)
         var data = try JSONSerialization.data(withJSONObject: object); data.append(10)
         try data.withUnsafeBytes { bytes in
             var sent = 0

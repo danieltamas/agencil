@@ -1,3 +1,7 @@
+## Unreleased
+
+- The test suite no longer dies of SIGPIPE when a fake broker answers a client that already left, so test brokers are no longer orphaned, and the test gate fails outright when the runner is killed by a signal instead of hiding it behind a serial rerun.
+
 ## 0.7.1 (2026-11-08)
 
 - A failed Codex seat says why (the provider's own error, such as an unsupported model) instead of "Reading additional input from stdin...", and one failed version check no longer moves a seat onto an older copy of its harness for ten minutes.

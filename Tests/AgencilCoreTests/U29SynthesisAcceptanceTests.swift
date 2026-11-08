@@ -29,14 +29,14 @@ private final class U29Wire: @unchecked Sendable {
             let peer = accept(fd, nil, nil)
             guard peer >= 0 else { return }
             defer { close(peer) }
+            var noPipe: Int32 = 1
+            guard setsockopt(peer, SOL_SOCKET, SO_NOSIGPIPE, &noPipe, 4) == 0 else { return }
             var timeout = timeval(tv_sec: 30, tv_usec: 0)
             setsockopt(peer, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout.size(ofValue: timeout)))
             var bytes = Data(), byte: UInt8 = 0
             while read(peer, &byte, 1) == 1, byte != 10 { bytes.append(byte) }
             try? bytes.write(to: capture)
             let reply = Data("{\"ok\":true,\"data\":{\"sitting\":\"s-wire\",\"state\":\"running\"}}\n".utf8)
-            var noPipe: Int32 = 1
-            setsockopt(peer, SOL_SOCKET, SO_NOSIGPIPE, &noPipe, 4)
             reply.withUnsafeBytes { _ = write(peer, $0.baseAddress!, $0.count) }
         }
     }

@@ -140,6 +140,8 @@ final class U6aHTTP: @unchecked Sendable {
     }
     func requests() -> [[String: Any]] { lock.lock(); defer { lock.unlock() }; return received }
     private func serve(_ client: Int32, models: [String]) {
+        var noPipe: Int32 = 1
+        guard setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &noPipe, 4) == 0 else { return }
         var timeout = timeval(tv_sec: 10, tv_usec: 0)
         setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout.size(ofValue: timeout)))
         var bytes = Data(), byte: UInt8 = 0
@@ -160,8 +162,6 @@ final class U6aHTTP: @unchecked Sendable {
         guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return }
         var response = Data("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: \(data.count)\r\nConnection: close\r\n\r\n".utf8)
         response.append(data)
-        var noPipe: Int32 = 1
-        setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &noPipe, 4)
         response.withUnsafeBytes { raw in
             var offset = 0
             while offset < raw.count {
