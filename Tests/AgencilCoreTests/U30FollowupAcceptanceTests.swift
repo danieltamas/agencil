@@ -225,9 +225,10 @@ private final class U30Rig {
         let f = try U30Rig(), r = f.r
         let id = try f.finished()
         try r.put("opencode.ask.hold")
+        let askCount = r.observations("opencode", "ask").count
         let first = try f.data(f.request(id, "FIRST_OWNER_TEXT"))
         let thread = try #require(first["thread"] as? String)
-        try brokerPoll(15) { !r.observations("opencode", "ask").isEmpty }
+        try brokerPoll(15) { r.observations("opencode", "ask").count > askCount }
         let before = try f.counts(), observations = r.observations().count
         try f.failure(f.request(id, "TOO_EARLY"), exit: 4,
                       message: "failed: d is still answering the last follow-up")
