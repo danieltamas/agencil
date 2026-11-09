@@ -83,7 +83,7 @@ import Testing
         let probes = try r.observation(".probes")
         #expect(probes.split(separator: "\n").count == 5)
         #expect(probes.split(separator: "\n").allSatisfy { $0.hasPrefix("DENIED ") })
-        #expect(try r.observation(".config") == "HARNESS_ALLOWED_MARKER")
+        #expect(try r.observation(".config").isEmpty)
         #expect(try r.observation(".readme") == "COMMITTED_MARKER")
         let files = FileManager.default.enumerator(at: r.home.url.appendingPathComponent("runs"), includingPropertiesForKeys: nil)
         while let file = files?.nextObject() as? URL {

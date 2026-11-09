@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Seats confined to a repo copy run again (U34): the sandbox reads where a linked harness really lives (an npm Codex, a versioned Claude) and reaches the system resolver, and Codex runs with a home of its own in the run directory instead of the owner's `~/.codex`, so a seat can no longer read your Codex history or plant config, hooks or skills in it. A seat run that refreshes the Codex login may leave your own Codex asking you to log in again.
+
 - The test suite no longer dies of SIGPIPE when a fake broker answers a client that already left, so test brokers are no longer orphaned, and the test gate fails outright when the runner is killed by a signal instead of hiding it behind a serial rerun.
 
 ## 0.7.1 (2026-11-08)

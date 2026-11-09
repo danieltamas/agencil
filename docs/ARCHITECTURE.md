@@ -33,8 +33,11 @@ macOS 14, no third-party dependencies.
 ## Confinement and who may call the broker
 
 A seat that works on a repo copy runs under `sandbox-exec` (`Seats/Confinement.swift`): writes only in its run
-directory, reads only the copy, its own harness config and system paths, network allowed for the model API, and a
-last-match deny for Unix sockets under the Agencil home, so it cannot reach the broker. A seat without a repo copy is
+directory, reads only the copy, its own harness config, where its executable's links lead (the npm package root at
+most) and system paths, network allowed for the model API (with the resolver socket), and a last-match deny for Unix
+sockets under the Agencil home, so it cannot reach the broker. A Codex seat reads nothing of the owner's `~/.codex`:
+`Seats/SeatHome.swift` gives it a `CODEX_HOME` in the run directory holding a copy of the login, removed with the
+run; nothing the seat writes there is copied back (docs/U34-SPEC.md). A seat without a repo copy is
 not sandboxed, so the broker also refuses by ancestry: `Broker.handle` runs `attributeRoot` (the process-tree walk in
 `Seats/Attribution.swift`) before every operation outside `seatOps`, and a descendant of a seat run, or a caller whose
 ancestry cannot be established, is refused. `launch` runs an arbitrary argv outside every sandbox, so only a broker

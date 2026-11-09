@@ -64,12 +64,16 @@ extension Broker {
         let runs = directory.appendingPathComponent("runs")
         for name in (try? FileManager.default.contentsOfDirectory(atPath: runs.path)) ?? [] where name.hasPrefix("th_") && !asking.contains(name) {
             try? FileManager.default.removeItem(at: runs.appendingPathComponent(name + "/copy"))
+            SeatHome.remove(runDirectory: runs.appendingPathComponent(name))
         }
     }
 
-    /// Removes the exported repo of an exchange that has ended, whatever its outcome.
+    /// Removes the exported repo and the seat's own home (its login copy included) of an exchange that has ended,
+    /// whatever its outcome.
     func removeCopy(thread: String, seq: Int) {
-        try? FileManager.default.removeItem(at: directory.appendingPathComponent("runs/\(thread)-\(seq)/copy"))
+        let run = directory.appendingPathComponent("runs/\(thread)-\(seq)")
+        SeatHome.remove(runDirectory: run)
+        try? FileManager.default.removeItem(at: run.appendingPathComponent("copy"))
     }
 }
 
@@ -88,9 +92,14 @@ extension Broker {
         let launcher = try Confinement.executable(environment: environment)
         let temporary = runDirectory.appendingPathComponent("tmp")
         try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let home = Confinement.home(environment: environment)
         let argv = try Confinement.wrap(invocation.argv, launcher: launcher, copy: copy, runDirectory: runDirectory, harness: harness,
-                                        home: Confinement.home(environment: environment), brokerHome: directory.path)
-        return Invocation(argv: argv, environment: invocation.environment.merging(["TMPDIR": temporary.path]) { _, mine in mine },
+                                        home: home, brokerHome: directory.path)
+        var confinedEnvironment = ["TMPDIR": temporary.path]
+        if let seatHome = try SeatHome.prepare(harness: harness, runDirectory: runDirectory, home: home) {
+            confinedEnvironment.merge(seatHome) { _, mine in mine }
+        }
+        return Invocation(argv: argv, environment: invocation.environment.merging(confinedEnvironment) { _, mine in mine },
                           workingDirectory: copy.path, stdoutIsAnswer: invocation.stdoutIsAnswer, usage: invocation.usage)
     }
 }

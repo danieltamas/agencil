@@ -296,10 +296,11 @@ instead and never the file's path or content.
 
 A process seat run with a repo is started under `/usr/bin/sandbox-exec` with a generated profile (denied by default):
 reads allowed only inside the copy, the run's own directory (answer, usage, profile), the seat's executable
-directory, system directories (`/usr`, `/bin`, `/sbin`, `/System`, `/Library`, `/private/etc`, `/private/var/db`,
-`/dev`), and the harness's own config under the real home (`codex`: `~/.codex`; `claude`: `~/.claude` and
-`~/.claude.json`; `opencode`: `~/.config/opencode` and `~/.local/share/opencode`; `hermes`: `~/.hermes`). Writes allowed only in
-the run directory and a private `TMPDIR` inside it. `TMPDIR` points there. Network stays allowed (a hosted harness
+directory and where its links lead (docs/U34-SPEC.md), system directories (`/usr`, `/bin`, `/sbin`, `/System`, `/Library`,
+`/private/etc`, `/private/var/db`, `/dev`), the system resolver's socket, and the harness's own config under the real
+home (`claude`: `~/.claude` and `~/.claude.json`; `opencode`: `~/.config/opencode` and `~/.local/share/opencode`;
+`hermes`: `~/.hermes`). `codex` reads nothing of `~/.codex`: it runs with a home of its own inside the run directory
+(docs/U34-SPEC.md). Writes allowed only in the run directory and a private `TMPDIR` inside it. `TMPDIR` points there. Network stays allowed (a hosted harness
 needs its API). Therefore these reads fail inside the seat: `~/.ssh/id_ed25519`, `../` outside the copy, a symlink
 in the repo pointing at `$HOME`, `.git/config` (absent), and the real repo's path. If `sandbox-exec` is missing, the ask fails
 closed: `failed: confinement unavailable`. The profile's allow-list is written by the broker, never taken from the repo.
