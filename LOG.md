@@ -1,4 +1,4 @@
-## Unreleased
+## 0.7.2 (2026-11-09)
 
 - Seats confined to a repo copy run again (U34): the sandbox reads where a linked harness really lives (an npm Codex, a versioned Claude) and reaches the system resolver, and Codex runs with a home of its own in the run directory instead of the owner's `~/.codex`, so a seat can no longer read your Codex history or plant config, hooks or skills in it. A seat run that refreshes the Codex login may leave your own Codex asking you to log in again.
 
