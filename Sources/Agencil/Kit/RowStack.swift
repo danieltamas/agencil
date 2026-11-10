@@ -19,27 +19,29 @@ struct RowStack<Item: Identifiable, Row: View, Header: View>: View {
     /// Once every local item is shown: a pill with this title that fetches more. Nil when the list is complete.
     var more: RowStackMore?
     var footer: AnyView?
+    /// Space kept under the last row, so a floating action over the list never covers it.
+    var clearance: CGFloat
     @Environment(\.stillImage) private var stillImage
     @State private var shown = Self.page
 
-    init(items: [Item], more: RowStackMore? = nil, footer: AnyView? = nil,
+    init(items: [Item], more: RowStackMore? = nil, footer: AnyView? = nil, clearance: CGFloat = 0,
          @ViewBuilder row: @escaping (Item) -> Row, @ViewBuilder header: @escaping () -> Header) {
         self.items = items
         self.more = more
         self.footer = footer
+        self.clearance = clearance
         self.row = row
         self.header = header
     }
 
+    // No side inset of its own: it sits in the panel's middle column, which already holds `Space.panelInset`.
     var body: some View {
         if stillImage {
-            VStack(spacing: Space.s) { rows }.padding(.horizontal, Space.panelInset)
+            VStack(spacing: Space.m) { rows }.padding(.bottom, clearance)
                 .frame(minHeight: 0, maxHeight: .infinity, alignment: .top).clipped()
         } else {
             ScrollView {
-                LazyVStack(spacing: Space.s) { rows }
-                    .padding(.horizontal, Space.panelInset)
-                    .padding(.bottom, Space.l)
+                LazyVStack(spacing: Space.m) { rows }.padding(.bottom, clearance)
             }
             .scrollIndicators(.never)
         }

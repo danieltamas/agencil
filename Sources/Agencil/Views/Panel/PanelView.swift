@@ -141,7 +141,7 @@ struct PanelView: View {
         if store.data == nil {
             WaitingState(title: waiting)
         } else {
-            ScrollView { rows.padding(.bottom, tab == "sittings" ? Size.floatingClearance : 0) }.scrollIndicators(.hidden)
+            rows
         }
     }
 
@@ -166,43 +166,51 @@ struct PanelView: View {
         }
     }
 
+    /// Each tab is its own `RowStack`, so a long list builds one page of rows at a time and paging restarts per tab.
     @ViewBuilder private var rows: some View {
-        VStack(spacing: Space.m) {
-            switch tab {
-            case "threads":
-                let items = store.threads(filter: filter, search: search)
+        switch tab {
+        case "threads":
+            let items = store.threads(filter: filter, search: search)
+            RowStack(items: items) { item in ThreadRow(thread: item, open: { store.open(thread: item.id) }) } header: {
                 if items.isEmpty { EmptyState(symbol: "bubble.left.and.bubble.right", title: "No threads yet", detail: "Agents ask a seat through Agencil and the exchange lands here.") }
-                ForEach(items) { item in ThreadRow(thread: item, open: { store.open(thread: item.id) }) }
-            case "sittings":
-                let items = store.sittings(search: search)
+            }
+        case "sittings":
+            let items = store.sittings(search: search)
+            RowStack(items: items, clearance: Size.floatingClearance) { item in
+                SittingRow(sitting: item, stopping: store.stopping.contains(item.id), stop: store.stopAction(item.id), open: { store.open(sitting: item.id) })
+            } header: {
                 if items.isEmpty { EmptyState(symbol: "circle.hexagongrid", title: "No sittings yet", detail: "A council sits when an agent or a trigger wakes it.") }
-                ForEach(items) { item in SittingRow(sitting: item, stopping: store.stopping.contains(item.id), stop: store.stopAction(item.id),
-                                         open: { store.open(sitting: item.id) }) }
-            case "findings":
-                let items = store.findings(search: search)
+            }
+        case "findings":
+            let items = store.findings(search: search)
+            RowStack(items: items) { item in
+                FindingRow(finding: item, confirm: store.decideAction(item.id, confirm: true), dismiss: store.decideAction(item.id, confirm: false),
+                           adjudicate: store.adjudicateAction(item.id), open: { store.open(finding: item.id) })
+            } header: {
                 if items.isEmpty { EmptyState(symbol: "checkmark.seal", title: "Nothing to decide", detail: "Claims from a sitting wait here for your call.") }
-                ForEach(items) { item in FindingRow(finding: item, confirm: store.decideAction(item.id, confirm: true), dismiss: store.decideAction(item.id, confirm: false),
-                                       adjudicate: store.adjudicateAction(item.id), open: { store.open(finding: item.id) }) }
-            case "learn":
+            }
+        case "learn":
+            RowStack(items: store.proposals, footer: store.canRollback ? AnyView(rollback) : nil) { item in
+                ProposalRow(proposal: item, approve: store.learnAction(item.id, "approve"), reject: store.learnAction(item.id, "reject"),
+                            review: store.learnAction(item.id, "review"))
+            } header: {
                 if store.proposals.isEmpty && !store.canRollback {
                     EmptyState(symbol: "sparkles", title: "Nothing to learn yet", detail: "Proposals to drop, swap or add a seat appear here once outcomes pile up.")
                 }
-                ForEach(store.proposals) { item in
-                    ProposalRow(proposal: item, approve: store.learnAction(item.id, "approve"), reject: store.learnAction(item.id, "reject"),
-                                review: store.learnAction(item.id, "review"))
-                }
-                if store.canRollback {
-                    AsyncPress(id: "rollback", action: store.learnAction(nil, "rollback")) { running, press in
-                        ChipButton(title: running ? "Rolling back..." : "Roll back the last council change", action: press)
-                    }
-                }
-            default:
-                let items = store.seats(search: search)
-                if items.isEmpty { EmptyState(symbol: "person.2.wave.2", title: "No seats configured", detail: "Add a seat in Settings to start.") }
-                ForEach(items) { item in
-                    SeatScoreRow(seat: item, open: { store.open(seat: item.id); AppRelaunch.activate(); openSettings() })
-                }
             }
+        default:
+            let items = store.seats(search: search)
+            RowStack(items: items) { item in
+                SeatScoreRow(seat: item, open: { store.open(seat: item.id); AppRelaunch.activate(); openSettings() })
+            } header: {
+                if items.isEmpty { EmptyState(symbol: "person.2.wave.2", title: "No seats configured", detail: "Add a seat in Settings to start.") }
+            }
+        }
+    }
+
+    private var rollback: some View {
+        AsyncPress(id: "rollback", action: store.learnAction(nil, "rollback")) { running, press in
+            ChipButton(title: running ? "Rolling back..." : "Roll back the last council change", action: press)
         }
     }
 
