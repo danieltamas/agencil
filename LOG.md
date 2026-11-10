@@ -1,6 +1,6 @@
-## Unreleased
+## 0.7.3 (2026-11-10)
 
-- The panel's lists show 25 rows at a time with "Show N more" and build rows only as they scroll in, so a Findings tab with dozens of open claims opens without lag.
+- The panel's lists show 25 rows at a time with "Show N more" and build rows only as they scroll in, so a Findings tab with dozens of open claims opens in about a third of a second instead of several seconds.
 
 ## 0.7.2 (2026-11-09)
 
