@@ -25,7 +25,8 @@ public struct AccessState: Equatable, Sendable {
 
 /// The Agent access pane's installs (docs/U9-SPEC.md "AgentAccess"), over the `install-mcp` machinery.
 public struct AgentAccess: Sendable {
-    fileprivate static let supported = ["claude", "codex", "opencode"]
+    /// The harnesses Agencil can wire to ask it, so the only callers a route from Setup can name.
+    public static let supported = ["claude", "codex", "opencode"]
 
     private let installer: McpInstaller
     fileprivate let environment: [String: String]

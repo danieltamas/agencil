@@ -5,6 +5,7 @@ import SwiftUI
 struct SettingsPaneView: View {
     @Bindable var store: SettingsStore
     let pane: SettingsPane
+    @Environment(\.openWindow) private var openWindow
     @State private var look = Appearance.shared.look
     @State private var lookProblem: String?
     @State var budgetVendor = ""
@@ -91,6 +92,11 @@ struct SettingsPaneView: View {
                 }
                 .padding(.vertical, Space.m)
                 if let lookProblem { ProblemText(text: lookProblem) }
+            }
+            SettingsCard(title: "Setup", detail: "Finds the coding agents on this Mac and proposes seats, a council and routes.") {
+                SettingsRow(title: "Run setup again", detail: "Nothing is written until you press Create on a step.") {
+                    ChipButton(title: "Open setup") { openWindow(id: SetupStore.windowID) }
+                }
             }
             SettingsCard(title: "Running") {
                 SwitchRow(title: "Open at login", isOn: Binding(get: { store.openAtLogin }, set: { store.setOpenAtLogin($0) }))

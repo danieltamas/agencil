@@ -62,10 +62,10 @@ struct SettingsView: View {
         .frame(minWidth: Size.settingsMin.width, minHeight: Size.settingsMin.height)
         .background(Backdrop())
         .houseScheme()
-        // A seat row on the panel asks for its detail: the Seats pane, with that seat marked.
+        // A seat row on the panel asks for its detail (the Seats pane, with that seat marked); Setup asks for Agent access.
         // The store outlives the window, so each open reads the config again: the CLI may have changed it meanwhile.
-        .onAppear { store.reload(); if route.claim() { pane = .seats } }
-        .onChange(of: route.pending) { _, waiting in if waiting, route.claim() { pane = .seats } }
+        .onAppear { store.reload(); if route.claim() { pane = route.pane } }
+        .onChange(of: route.pending) { _, waiting in if waiting, route.claim() { pane = route.pane } }
     }
 
     private var sidebar: some View {

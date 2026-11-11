@@ -2,6 +2,7 @@
 
 - New seat, council and route sheets in Settings no longer close by themselves a few seconds after opening: the Settings window keeps one store for the app's life instead of getting a new one each time the panel's data changed.
 - A finding whose evidence is quoted code (HTML, source, a fenced snippet) shows it in a code block on the card and in its detail, instead of as running body text.
+- A first-run Setup window (U37) finds the coding agents on this Mac, proposes a seat for each, a cross-vendor review council you arrange by dragging seats, and routes you draw by dragging agents onto it; each step writes only when you press Create, and Settings > General can run it again. Antigravity is now found as a harness (its seats come in U36).
 
 ## 0.7.3 (2026-11-10)
 

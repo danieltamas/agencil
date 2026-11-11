@@ -73,6 +73,12 @@ enum Size {
     /// The open panel is this tall in every tab, like its sibling apps: the tallest that fits the screen, at most `panelMaxHeight`.
     static var panelHeight: CGFloat { min(panelMaxHeight, (NSScreen.main?.visibleFrame.height ?? 820) - 40) }
     static let settingsMin = CGSize(width: 760, height: 540)
+    /// The first-run Setup window: fixed, wide enough for three seat tiles a row, tall enough for seven tiles.
+    static let setupWindow = CGSize(width: 760, height: 560)
+    /// The least width of one tile in Setup's grids: three a row in the window.
+    static let setupTile: CGFloat = 210
+    /// The left column of Setup's council and routes steps, the tiles that are dragged.
+    static let setupColumn: CGFloat = 250
     static let settingsSidebar: CGFloat = 196
     static let modalWidth: CGFloat = 520
     static let panelListLimit: CGFloat = 340

@@ -50,6 +50,13 @@
       "installHint": "/opt/homebrew/bin/brew install gemini-cli, or npm install -g @google/gemini-cli"
     },
     {
+      "kind": "antigravity",
+      "executable": "agy",
+      "versionArguments": ["--version"],
+      "chainNotes": "No known non-interactive status command, so sign-in stays unknown. Chain probe not defined yet (docs/U36-SPEC.md).",
+      "installHint": "/opt/homebrew/bin/brew install --cask antigravity-cli"
+    },
+    {
       "kind": "aider",
       "executable": "aider",
       "versionArguments": ["--version"],

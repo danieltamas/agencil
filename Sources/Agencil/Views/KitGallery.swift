@@ -33,6 +33,12 @@ struct KitGallery: View {
                     Chip(text: "PASS", color: Theme.color(for: .ok))
                 }
             }
+            DropTile(payload: DemoStore.longModelId, selected: true, action: {}) {
+                Text(DemoStore.longModelId).font(.house.rowTitle).foregroundStyle(Theme.textPrimary).lineLimit(1).truncationMode(.middle)
+            }
+            DropCard(title: "review", detail: DemoStore.longReason, accept: { _ in }) {
+                ChipButton(title: "claude-opus", symbol: "xmark") {}
+            }
             SearchField(text: $text, prompt: "Search runs")
             GlassField(placeholder: "Repo", text: $text)
             MenuField(title: DemoStore.longModelId, options: DemoStore.seats) { _ in }

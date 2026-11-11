@@ -13,8 +13,18 @@ import Observation
     /// True from `show(seat:)` until the window has claimed the request.
     private(set) var pending = false
 
+    /// The pane the pending request opens: Seats for a seat, or the one `show(pane:)` named.
+    private(set) var pane: SettingsPane = .seats
+
     func show(seat name: String) {
         seat = name
+        pane = .seats
+        pending = true
+    }
+
+    /// Asks the Settings window to open on `pane` (Setup's link to Agent access).
+    func show(pane: SettingsPane) {
+        self.pane = pane
         pending = true
     }
 

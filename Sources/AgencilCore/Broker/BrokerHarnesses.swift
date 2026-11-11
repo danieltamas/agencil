@@ -3,10 +3,13 @@ import Foundation
 extension Broker {
     /// The `harnesses` op: what is installed, its version and sign-in, one row per catalog kind.
     func harnessesOp(_ request: [String: Any]) -> [String: Any] {
-        let probes = discovery.snapshot(environment: environment, home: directory, force: request["probe"] as? Bool == true)
+        // A result carried over a failed probe keeps its install, but its sign-in is from an earlier check: shown as
+        // unknown, never as a fresh yes or no.
+        let (probes, carried) = discovery.marked(environment: environment, home: directory, force: request["probe"] as? Bool == true)
         let rows = probes.map { probe -> [String: Any] in
             let signedIn: String
             switch probe.signedIn {
+            case _ where carried.contains(probe.kind): signedIn = "unknown"
             case .signedIn: signedIn = "yes"
             case .signedOut: signedIn = "no"
             case .unknown: signedIn = "unknown"

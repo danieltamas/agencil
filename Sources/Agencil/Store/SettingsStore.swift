@@ -196,6 +196,12 @@ enum EditTarget: Equatable {
         socket = AccessFacts.socket(home: home)
     }
 
+    /// The config as stored, or nil when there is no config directory or it cannot be read.
+    func configValues() -> [String: String]? {
+        guard let directory else { return nil }
+        return try? ConfigStore(directory: directory).read().values
+    }
+
     private func refreshWiring() {
         guard let directory, let agentAccess else { return }
         let values = (try? ConfigStore(directory: directory).read().values) ?? [:]

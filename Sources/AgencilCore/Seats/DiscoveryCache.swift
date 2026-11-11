@@ -24,9 +24,15 @@ final class DiscoveryCache: @unchecked Sendable {
 
     /// Every catalog harness in catalog order. `force` probes again; otherwise the cache serves while it is fresh.
     func snapshot(environment: [String: String], home: URL, force: Bool) -> [HarnessProbe] {
-        guard let catalog = try? HarnessCatalog.embedded() else { return [] }
+        marked(environment: environment, home: home, force: force).probes
+    }
+
+    /// `snapshot`, with the kinds whose result is an earlier probe standing in for one that failed at the latest
+    /// refresh. Both are read under one lock, so a refresh in between cannot pair one refresh's probes with another's.
+    func marked(environment: [String: String], home: URL, force: Bool) -> (probes: [HarnessProbe], carried: Set<String>) {
+        guard let catalog = try? HarnessCatalog.embedded() else { return ([], []) }
         refreshIfStale(catalog, environment: environment, home: home, force: force)
-        return lock.withLock { catalog.entries.compactMap { probes[$0.kind] } }
+        return lock.withLock { (catalog.entries.compactMap { probes[$0.kind] }, carried) }
     }
 
     /// One refresh at a time, and freshness is judged after waiting: callers that found the cache stale together

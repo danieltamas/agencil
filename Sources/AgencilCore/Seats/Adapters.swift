@@ -74,6 +74,9 @@ public enum Adapter {
         }
     }
 
+    /// Whether `command` builds a process for the harness, so a seat on it can run. Ollama is a request, not a process.
+    public static func runs(_ harness: String) -> Bool { ["codex", "claude", "opencode", "hermes"].contains(harness) }
+
     /// Whether the harness can look at an attached image: claude reads the file it is named, codex takes `-i`.
     public static func seesImages(_ harness: String) -> Bool { harness == "claude" || harness == "codex" }
 
