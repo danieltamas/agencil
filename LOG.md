@@ -1,4 +1,4 @@
-## Unreleased
+## 0.8.0 (2026-11-11)
 
 - New seat, council and route sheets in Settings no longer close by themselves a few seconds after opening: the Settings window keeps one store for the app's life instead of getting a new one each time the panel's data changed.
 - A finding whose evidence is quoted code (HTML, source, a fenced snippet) shows it in a code block on the card and in its detail, instead of as running body text.

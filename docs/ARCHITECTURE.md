@@ -75,6 +75,19 @@ write paths, not emphasis. `Kit/Tokens.swift` holds the limits (`Size.longTextCh
 and never literals.
 The Costs pane reads the ledger, so it survives the Data pane pruning old text.
 
+## App stores and first-run Setup
+
+`AgencilApp` holds its stores in `@State` for the app's life: `PanelStore`, `SettingsStore` and `SetupStore`. The
+scene body runs again whenever the panel's data changes, so a store built inside it would be replaced each time and
+drop an open sheet or a Setup step; the Settings window reloads the config each time it opens instead.
+
+Setup (docs/U37-SPEC.md) is a `Window` scene that opens once per launch while the config has no seat, and from
+Settings > General. `SetupPlan` (`AgencilCore/Settings`, pure) turns the broker's `harnesses` rows into proposed seats
+from `SeatPreset`, a cross-vendor review council and one route per agent; `SetupStore` reads the rows only on the
+owner's Find agents press and writes each step through `SettingsStore`'s `ConfigEditor`, the same path as the
+Settings sheets. The `harnesses` op reports a sign-in carried over a failed probe (`DiscoveryCache.marked`) as
+unknown. `Kit/DropTiles.swift` is the one place drag and drop is drawn; a press always does what a drop does.
+
 ## Contracts
 
 - `docs/AGENT-API.md`: CLI verbs, the seven MCP tools, routing and exit codes.
