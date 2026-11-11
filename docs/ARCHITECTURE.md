@@ -37,7 +37,12 @@ directory, reads only the copy, its own harness config, where its executable's l
 most) and system paths, network allowed for the model API (with the resolver socket), and a last-match deny for Unix
 sockets under the Agencil home, so it cannot reach the broker. A Codex seat reads nothing of the owner's `~/.codex`:
 `Seats/SeatHome.swift` gives it a `CODEX_HOME` in the run directory holding a copy of the login, removed with the
-run; nothing the seat writes there is copied back (docs/U34-SPEC.md). A seat without a repo copy is
+run; nothing the seat writes there is copied back (docs/U34-SPEC.md). macOS refuses a sandbox inside a sandbox, so a
+confined Codex seat runs without its own and its commands inherit the profile: in place of open network that
+profile allows one loopback port, where `Seats/EgressProxy.swift` tunnels `CONNECT` to the vendor's hosts
+(`Seats/Egress.swift`) and refuses everything else. The proxy runs in a helper process of its own
+(`agencil egress-proxy`, `Seats/EgressHelper.swift`) that outlives the broker, so the port is never free for another
+local user to take while a seat may still run (docs/U38-SPEC.md). A seat without a repo copy is
 not sandboxed, so the broker also refuses by ancestry: `Broker.handle` runs `attributeRoot` (the process-tree walk in
 `Seats/Attribution.swift`) before every operation outside `seatOps`, and a descendant of a seat run, or a caller whose
 ancestry cannot be established, is refused. `launch` runs an arbitrary argv outside every sandbox, so only a broker

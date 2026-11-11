@@ -44,12 +44,16 @@ public enum Adapter {
 
     /// Nil for harnesses with no process adapter (ollama is a request; the rest are not adapted in 0.1.0).
     /// `reportUsage` swaps in each harness's JSON output so the run's tokens and cost can be read (UsageCapture); the
-    /// availability probe keeps the plain-text invocation.
+    /// availability probe keeps the plain-text invocation. `ownSandbox` is false only for a run the broker confines.
     public static func command(seat: Seat, executable: String, prompt: String, answerFile: String,
-                               runDirectory: String, reportUsage: Bool = false, images: [String] = []) throws -> Invocation? {
+                               runDirectory: String, reportUsage: Bool = false, images: [String] = [],
+                               ownSandbox: Bool = true) throws -> Invocation? {
         switch seat.harness {
         case "codex":
-            return Invocation(argv: [executable, "exec", "--ignore-user-config", "--disable", "hooks", "-s", "read-only",
+            // Codex cannot start its sandbox inside the broker's (macOS refuses to nest them), so a confined seat runs
+            // without it and the broker's profile is the boundary (docs/U38-SPEC.md).
+            let sandbox = ownSandbox ? "read-only" : "danger-full-access"
+            return Invocation(argv: [executable, "exec", "--ignore-user-config", "--disable", "hooks", "-s", sandbox,
                                      "--skip-git-repo-check", "-o", answerFile, "-m", seat.model] + (reportUsage ? ["--json"] : [])
                                      + images.flatMap { ["-i", $0] } + (images.isEmpty ? [] : ["--"]) + [prompt],
                               environment: [:], workingDirectory: nil, stdoutIsAnswer: false, usage: reportUsage ? .codexEvents : nil)

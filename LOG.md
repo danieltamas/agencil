@@ -1,3 +1,7 @@
+## 0.8.1 (2026-11-11)
+
+- A Codex seat asked with a repo can run commands again (U38): macOS refused Codex's own sandbox inside Agencil's, so every command failed and the seat answered that it could read nothing. The seat now runs under Agencil's sandbox alone, and its only network is a local proxy that connects to the model vendor's hosts and nothing else.
+
 ## 0.8.0 (2026-11-11)
 
 - New seat, council and route sheets in Settings no longer close by themselves a few seconds after opening: the Settings window keeps one store for the app's life instead of getting a new one each time the panel's data changed.

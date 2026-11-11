@@ -89,7 +89,11 @@ enum Confinement {
             || credentials.contains { within(directory, $0) }
     }
 
-    static func profile(copy: String, runDirectory: String, executable: String, harness: String, home: String, brokerHome: String) -> String {
+    /// `egressPort` set: the seat's commands inherit this profile (docs/U38-SPEC.md), so its only network is the broker's
+    /// proxy on that loopback port. Nil: the harness keeps its commands off the network itself.
+    static func profile(copy: String, runDirectory: String, executable: String, harness: String, home: String, brokerHome: String,
+                        egressPort: Int? = nil) -> String {
+        let network = egressPort.map { "(allow network-outbound (remote tcp \"localhost:\($0)\"))" } ?? "(allow network*)"
         let named = [copy, runDirectory] + (harnessConfig[harness] ?? []).map { home + "/" + $0 }
         let copy = real(copy), run = real(runDirectory)
         let executableDirectories = executableReads(executable)
@@ -107,7 +111,7 @@ enum Confinement {
         let lines: [String] = [
             "(version 1)", "(deny default)",
             "(allow process-exec) (allow process-fork) (allow signal (target self)) (allow sysctl-read)",
-            "(allow mach-lookup) (allow ipc-posix-shm) (allow network*)",
+            "(allow mach-lookup) (allow ipc-posix-shm) \(network)",
             // A seat reaches the model's API, never the broker: the last matching rule wins, so this denies the broker's
             // socket after network is allowed. Both spellings, because the kernel matches the resolved path.
             "(deny network* (remote unix-socket (subpath \(quoted(brokerHome)))))",
@@ -122,9 +126,11 @@ enum Confinement {
     }
 
     /// The argv that starts `argv` under the profile written to the run directory.
-    static func wrap(_ argv: [String], launcher: String, copy: URL, runDirectory: URL, harness: String, home: String, brokerHome: String) throws -> [String] {
+    static func wrap(_ argv: [String], launcher: String, copy: URL, runDirectory: URL, harness: String, home: String, brokerHome: String,
+                     egressPort: Int? = nil) throws -> [String] {
         let file = runDirectory.appendingPathComponent("confine.sb")
-        let text = profile(copy: copy.path, runDirectory: runDirectory.path, executable: argv[0], harness: harness, home: home, brokerHome: brokerHome)
+        let text = profile(copy: copy.path, runDirectory: runDirectory.path, executable: argv[0], harness: harness, home: home, brokerHome: brokerHome,
+                           egressPort: egressPort)
         try text.write(to: file, atomically: true, encoding: .utf8)
         return [launcher, "-f", file.path] + argv
     }

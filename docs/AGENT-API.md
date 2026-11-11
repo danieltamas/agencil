@@ -56,7 +56,7 @@ One broker per Mac owns the ledger, the budgets and the concurrency cap:
 
 The resolved seat is spawned with the harness adapter's hardened argv. Each adapter has a required test,
 with stdin closed and output written to a file:
-- `codex exec --ignore-user-config --disable hooks -s read-only`.
+- `codex exec --ignore-user-config --disable hooks -s read-only`. On a repo copy Codex's own sandbox cannot start inside the broker's, so the seat runs with `-s danger-full-access` under the broker's profile, whose only network is a loopback proxy that connects to the model vendor's hosts and nothing else (docs/U38-SPEC.md).
 - `claude -p` with user settings only, strict MCP and the sandbox forced.
 - `opencode run` from inside the run's worktree. OpenCode's external-directory rule is a permission prompt, not OS isolation, so the adapter writes a per-run OpenCode config that denies edit, bash, webfetch and external directories, and verifies it took effect with a probe before the first real run. If it cannot, the adapter refuses hosted runs.
 

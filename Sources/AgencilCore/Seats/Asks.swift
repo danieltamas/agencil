@@ -203,7 +203,8 @@ extension Broker {
             }
             guard let executable = resolved.executable,
                   var invocation = try Adapter.command(seat: seat, executable: executable, prompt: prompt, answerFile: answerFile,
-                                                       runDirectory: runDirectory.path, reportUsage: true, images: packet.imagePaths) else {
+                                                       runDirectory: runDirectory.path, reportUsage: true, images: packet.imagePaths,
+                                                       ownSandbox: packet.copy == nil) else {
                 return fail("\(seat.harness) has no adapter")
             }
             if seat.harness == "opencode" {

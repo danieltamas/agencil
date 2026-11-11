@@ -52,6 +52,9 @@ public final class Broker: @unchecked Sendable {
     /// Exchange keys ("<thread>-<seq>") that were asked to stop, and the Ollama requests that can be cancelled.
     var stoppedThreads: Set<String> = []
     var ollamaTasks: [String: URLSessionTask] = [:]
+    /// One ask at a time finds or starts a harness's egress helper (docs/U38-SPEC.md); not `tracking`, because a start
+    /// waits for the helper's record.
+    let egressLock = NSLock()
     /// Sittings that are running, by id; a finished sitting is read from the ledger.
     var sittings: [String: SittingRun] = [:]
     /// "<sitting>|<seat>" of follow-ups between finding the seat's thread and the exchange existing, so two panels' first

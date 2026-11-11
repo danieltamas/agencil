@@ -1,6 +1,6 @@
 import Foundation
 
-/// The `agencil` verbs. Everything but version, serve, mcp, install-mcp and run-seat is a thin client of the broker.
+/// The `agencil` verbs. Everything but version, serve, mcp, install-mcp, run-seat and egress-proxy is a thin client of the broker.
 public struct CommandLineTool: Sendable {
     struct Usage: Error { let message: String }
 
@@ -38,7 +38,7 @@ public struct CommandLineTool: Sendable {
         "install-mcp": Spec(positionals: 1...1, valued: ["--caller"], switches: ["--json", "--dry-run", "--uninstall"]),
         "access": Spec(positionals: 0...0),
         "install-instructions": Spec(positionals: 1...1, switches: ["--json", "--dry-run", "--uninstall"]),
-        "serve": Spec(positionals: 0...0), "run-seat": Spec(positionals: 1...1),
+        "serve": Spec(positionals: 0...0), "run-seat": Spec(positionals: 1...1), "egress-proxy": Spec(positionals: 1...1),
     ]
 
     let environment: [String: String]
@@ -73,6 +73,8 @@ public struct CommandLineTool: Sendable {
             try Broker(home: try home(), environment: environment).serve()
         case "run-seat":
             return Launcher.run(nonce: parsed.positionals[0], home: try home())
+        case "egress-proxy":
+            return EgressHelper.run(harness: parsed.positionals[0], home: try home())
         case "mcp":
             return MCPServer(home: try home(), caller: parsed.value("--caller") ?? "unknown").run()
         case "install-mcp":

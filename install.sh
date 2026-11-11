@@ -155,6 +155,8 @@ uninstall() {
     rm -rf "$root/Agencil.app" || fail "could not remove $root/Agencil.app"
   done
   rm -f "$cli_link"
+  # A seat proxy helper outlives the app on purpose; it ends when its record is gone.
+  rm -f "$HOME/.agencil"/egress-*.json
   if ((purge)); then rm -rf "$HOME/.agencil"; fi
   echo "Removed Agencil."
   ((purge)) || echo "Your history is kept in ~/.agencil; remove it with: rm -rf ~/.agencil"

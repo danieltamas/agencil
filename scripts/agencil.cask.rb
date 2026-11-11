@@ -24,7 +24,9 @@ cask "agencil" do
                           writable_paths: ["Agencil.app"], writable_base: :appdir
   end
 
-  uninstall quit: "ro.danieltamas.agencil"
+  # A seat proxy helper outlives the app on purpose; it ends when its record is gone.
+  uninstall quit:   "ro.danieltamas.agencil",
+            delete: "~/.agencil/egress-codex.json"
 
   zap trash: [
     "~/.agencil",
