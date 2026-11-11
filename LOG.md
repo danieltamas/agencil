@@ -1,3 +1,8 @@
+## Unreleased
+
+- New seat, council and route sheets in Settings no longer close by themselves a few seconds after opening: the Settings window keeps one store for the app's life instead of getting a new one each time the panel's data changed.
+- A finding whose evidence is quoted code (HTML, source, a fenced snippet) shows it in a code block on the card and in its detail, instead of as running body text.
+
 ## 0.7.3 (2026-11-10)
 
 - The panel's lists show 25 rows at a time with "Show N more" and build rows only as they scroll in, so a Findings tab with dozens of open claims opens in about a third of a second instead of several seconds.

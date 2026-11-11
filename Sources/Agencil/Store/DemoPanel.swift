@@ -22,6 +22,8 @@ enum DemoPanel {
         var voices: String? = nil
         /// Where the claim points: `file:line`, or plain words when a seat raised it on the question itself.
         var origin: String { place.hasPrefix("QUESTION:") ? "Raised on the question" : place }
+        /// The claim as a code block when the seat quoted code, so markup and source never run on as body text.
+        var claimItems: [MarkdownBlock.Item]? { ClaimBody.code(claim).map { [.code($0)] } }
     }
     struct SeatRow: Identifiable {
         let id: String; let model: String; let up: Bool; let confirmed: String; let coverage: String

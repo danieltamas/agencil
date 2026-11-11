@@ -8,7 +8,13 @@ struct DetailPage: Equatable, Identifiable {
     struct Fact: Equatable, Identifiable { let name: String; let value: String; var id: String { name } }
     struct Section: Equatable, Identifiable {
         let heading: String; let text: String; var tone: Signal?
+        /// True when `text` is code to show as one code block, never read as Markdown (a fence inside it stays code).
+        var code = false
         var id: String { heading + String(text.prefix(24)) }
+        var blocks: @Sendable (String) -> [MarkdownBlock.Item] {
+            if code { return { text in [MarkdownBlock.Item.code(text)] } }
+            return DetailPage.markdownItems
+        }
     }
     struct Answer: Equatable, Identifiable {
         let seat: String; let meta: String; let text: String; let tone: Signal
@@ -206,7 +212,8 @@ extension DetailPage {
                               tone: PanelTone.signal(severity: finding.severity))
         page.facts = [fact("Confidence", finding.confidence), Fact(name: "Backers", value: "\(finding.backers)"),
                       Fact(name: "Dissent", value: "\(finding.dissent)")]
-        page.sections = [Section(heading: "Claim", text: finding.claim)]
+        let code = ClaimBody.code(finding.claim)
+        page.sections = [Section(heading: "Claim", text: code ?? finding.claim, code: code != nil)]
         if let fix = finding.fix { page.sections.append(Section(heading: "Fix", text: fix)) }
         return page
     }

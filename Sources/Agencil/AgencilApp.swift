@@ -8,6 +8,9 @@ enum MenuTitle {
 @main
 struct AgencilApp: App {
     @State private var store: PanelStore
+    /// Held for the app's lifetime: `body` runs again whenever the panel's data changes, and a store built inside it
+    /// would be replaced each time, dropping any sheet open in Settings.
+    @State private var settings: SettingsStore
 
     @State private var glyph = MenuBarGlyphModel()
     private let perf = PerfScenario.requested
@@ -18,6 +21,7 @@ struct AgencilApp: App {
         if let perf = PerfScenario.requested {
             let stub = perf.store()
             _store = State(initialValue: stub)
+            _settings = State(initialValue: SettingsStore())
             perf.launch(stub)
             return
         }
@@ -25,6 +29,7 @@ struct AgencilApp: App {
         AppBroker.start()
         UpdateStore.shared.start()
         _store = State(initialValue: PanelStore.launch())
+        _settings = State(initialValue: SettingsStore.launch())
     }
 
     var body: some Scene {
@@ -35,7 +40,7 @@ struct AgencilApp: App {
         }
         .menuBarExtraStyle(.window)
         Settings {
-            SettingsView(store: SettingsStore.launch())
+            SettingsView(store: settings)
         }
     }
 }

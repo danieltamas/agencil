@@ -83,7 +83,11 @@ struct FindingRow: View {
                     if let confidence = finding.confidence { Text(confidence).font(.house.meta).foregroundStyle(Theme.textTertiary) }
                     if finding.dissent > 0 { Chip(text: "minority", color: Theme.warn, style: .outline) }
                 }
-                Text(finding.claim).font(.house.body).foregroundStyle(Theme.textPrimary).fixedSize(horizontal: false, vertical: true)
+                if let items = finding.claimItems {
+                    MarkdownBlock(items: items)
+                } else {
+                    Text(finding.claim).font(.house.body).foregroundStyle(Theme.textPrimary).fixedSize(horizontal: false, vertical: true)
+                }
                 if let fix = finding.fix {
                     // Three lines are enough to judge a fix; the rest opens on demand so the buttons stay in view.
                     (Text("Suggested fix: ").foregroundStyle(Theme.textTertiary) + Text(fix).foregroundStyle(Theme.textPrimary))

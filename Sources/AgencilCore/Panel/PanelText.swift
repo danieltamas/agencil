@@ -28,6 +28,42 @@ public struct ClaimBody: Sendable, Equatable {
         self.init(text: object["evidence"] as? String ?? "", fix: object["fix"] as? String,
                   confidence: (object["confidence"] as? NSNumber)?.doubleValue)
     }
+
+    /// The evidence as code to show in a code block, or nil when it reads as prose. Seats are asked for a "quoted
+    /// snippet" but some write a sentence, so the text decides: a fence, a markup tag, or mostly code-shaped lines.
+    public static func code(_ evidence: String) -> String? {
+        let trimmed = evidence.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("```") { return unfenced(trimmed) }
+        // Markup leads the snippet, or tags outnumber a passing mention like "the <form> tag".
+        let tags = trimmed.ranges(of: #/<\/?[A-Za-z][A-Za-z0-9-]*(\s[^<>]*)?\/?>/#).count
+        if tags > 0 && (trimmed.hasPrefix("<") || tags >= 3) { return evidence.trimmingCharacters(in: .newlines) }
+        let lines = trimmed.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        guard !lines.isEmpty else { return nil }
+        return lines.filter(codeShaped).count * 2 >= lines.count ? evidence.trimmingCharacters(in: .newlines) : nil
+    }
+
+    /// The lines between the opening fence and the closing one, indentation kept; an unclosed fence runs to the end.
+    /// `\r\n` is one Character in Swift, so lines split on any newline.
+    private static func unfenced(_ text: String) -> String {
+        var lines = text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).dropFirst()
+        if lines.last?.trimmingCharacters(in: .whitespaces).hasPrefix("```") == true { lines = lines.dropLast() }
+        return lines.joined(separator: "\n")
+    }
+
+    private static let codeEndings: Set<Character> = [";", "{", "}"]
+    private static let codeTokens = ["=>", "::", "==", "!=", "&&", "||", "();", "->"]
+    private static let codeStarts = ["func ", "let ", "const ", "var ", "def ", "fn ", "import ", "return ", "if (", "for (",
+                                     "//", "#include", "SELECT ", "INSERT ", "UPDATE ", "CREATE "]
+
+    /// A line ending in `;`, `{` or `}`, or opening like a statement, is code. A token such as `->` counts only on a line
+    /// that does not read as a sentence: no final `.`, `?` or `!` and fewer than three plain words, so
+    /// "Changing A -> B skips validation" and "A -> B skips auth." stay prose.
+    private static func codeShaped(_ line: String) -> Bool {
+        if line.last.map(codeEndings.contains) == true || codeStarts.contains(where: line.hasPrefix) { return true }
+        if line.last.map({ ".?!".contains($0) }) == true { return false }
+        let words = line.split(separator: " ").filter { $0.count >= 3 && $0.allSatisfy(\.isLetter) }.count
+        return words < 3 && codeTokens.contains(where: line.contains)
+    }
 }
 
 /// A model's answer for reading. Seats are told to answer with one JSON object; a person reads labelled lines instead.

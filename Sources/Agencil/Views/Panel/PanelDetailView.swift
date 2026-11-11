@@ -117,7 +117,7 @@ struct PanelDetailView: View {
     private func block(_ section: DetailPage.Section) -> some View {
         VStack(alignment: .leading, spacing: Space.xs) {
             Eyebrow(text: section.heading, color: section.tone.map(Theme.color(for:)) ?? Theme.textTertiary)
-            LongText(text: section.text, color: section.tone == .crit ? Theme.crit : Theme.textPrimary, blocks: DetailPage.markdownItems)
+            LongText(text: section.text, color: section.tone == .crit ? Theme.crit : Theme.textPrimary, blocks: section.blocks)
         }
     }
 

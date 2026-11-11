@@ -63,7 +63,8 @@ struct SettingsView: View {
         .background(Backdrop())
         .houseScheme()
         // A seat row on the panel asks for its detail: the Seats pane, with that seat marked.
-        .onAppear { if route.claim() { pane = .seats } }
+        // The store outlives the window, so each open reads the config again: the CLI may have changed it meanwhile.
+        .onAppear { store.reload(); if route.claim() { pane = .seats } }
         .onChange(of: route.pending) { _, waiting in if waiting, route.claim() { pane = .seats } }
     }
 
