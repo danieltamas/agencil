@@ -28,6 +28,8 @@ public struct Invocation: Equatable, Sendable {
     /// Set when the argv asks the harness for its machine-readable stream, from which the usage (and for some harnesses
     /// the answer) is read. Nil for the plain-text invocation.
     public var usage: UsageFormat?
+    /// Environment the seat gets but the ledger never stores, such as a login token (docs/U39-SPEC.md).
+    public var secretEnvironment: [String: String] = [:]
 }
 
 /// Harness adapters: the hardened argv for each kind, as pure functions of the seat and the run.

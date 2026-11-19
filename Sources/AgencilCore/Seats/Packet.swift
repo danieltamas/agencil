@@ -96,11 +96,16 @@ extension Broker {
         let egressPort = try egressPort(for: harness)
         let argv = try Confinement.wrap(invocation.argv, launcher: launcher, copy: copy, runDirectory: runDirectory, harness: harness,
                                         home: home, brokerHome: directory.path, egressPort: egressPort)
-        var confinedEnvironment = ["TMPDIR": temporary.path].merging(egressPort.map(Egress.environment(port:)) ?? [:]) { _, mine in mine }
+        // Claude ignores TMPDIR and makes /tmp/claude-<uid>, which the profile denies, unless CLAUDE_CODE_TMPDIR names a place.
+        let temporaryEnvironment = ["TMPDIR": temporary.path, "CLAUDE_CODE_TMPDIR": temporary.path]
+        var confinedEnvironment = temporaryEnvironment.merging(egressPort.map(Egress.environment(port:)) ?? [:]) { _, mine in mine }
         if let seatHome = try SeatHome.prepare(harness: harness, runDirectory: runDirectory, home: home) {
             confinedEnvironment.merge(seatHome) { _, mine in mine }
         }
+        // Outside the sandbox Claude reads its own Keychain login; inside it, the broker passes the token (docs/U39-SPEC.md).
+        let login = harness == "claude" ? try ClaudeLogin.secretEnvironment(environment: environment) : [:]
         return Invocation(argv: argv, environment: invocation.environment.merging(confinedEnvironment) { _, mine in mine },
-                          workingDirectory: copy.path, stdoutIsAnswer: invocation.stdoutIsAnswer, usage: invocation.usage)
+                          workingDirectory: copy.path, stdoutIsAnswer: invocation.stdoutIsAnswer, usage: invocation.usage,
+                          secretEnvironment: invocation.secretEnvironment.merging(login) { _, mine in mine })
     }
 }

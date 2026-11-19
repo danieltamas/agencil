@@ -1,3 +1,7 @@
+## Unreleased
+
+- A Claude seat asked with a repo answers again (U39). It failed at start with `EPERM ... mkdir '/tmp/claude-501'`, because Claude ignores `TMPDIR`; it now also gets `CLAUDE_CODE_TMPDIR`, the private temporary folder in its run directory. Past that it was logged out, because the sandbox cannot reach the Keychain: Agencil now reads the owner's Claude login itself and hands the seat only the short-lived access token, never the refresh token, and never into the ledger. An expired login stops the ask with a message that says so. A confined Claude seat can also no longer read `~/.claude/.credentials.json`, which holds a refresh token. A program Agencil runs whose exit is only seen after its deadline now counts as timed out, as documented, instead of being accepted.
+
 ## 0.8.1 (2026-11-11)
 
 - A Codex seat asked with a repo can run commands again (U38): macOS refused Codex's own sandbox inside Agencil's, so every command failed and the seat answered that it could read nothing. The seat now runs under Agencil's sandbox alone, and its only network is a local proxy that connects to the model vendor's hosts and nothing else.

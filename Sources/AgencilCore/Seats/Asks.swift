@@ -228,7 +228,7 @@ extension Broker {
             else if invocation.usage == .codexEvents { launchRequest["stdout"] = UsageFormat.eventsFile(besides: answerFile) }
             // The token reaches the seat's environment but never the ledger, which keeps launch environments in clear.
             let capability = ThreadStore.newCapability()
-            launchRequest["secret_env"] = ["AGENCIL_CAP": capability]
+            launchRequest["secret_env"] = invocation.secretEnvironment.merging(["AGENCIL_CAP": capability]) { _, mine in mine }
             let began = Date()
             let started: [String: Any]
             // The exchange is tied to its launch before the seat can start, so a crash never orphans a running group.
@@ -255,8 +255,10 @@ extension Broker {
             return reply(thread, awaiting: exchange.seq, wait: wait)
         } catch {
             // Setup failed before any seat ran: the exchange must not stay asking and block every follow-up.
-            finishExchange(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil,
-                                reason: "the seat could not be set up: \(error.localizedDescription)")
+            // A refusal says why in its own words (an expired login); anything else gets the generic reason.
+            let reason = (error as? Refusal).map { $0.message.hasPrefix("failed: ") ? String($0.message.dropFirst("failed: ".count)) : $0.message }
+                ?? "the seat could not be set up: \(error.localizedDescription)"
+            finishExchange(thread: thread.id, seq: exchange.seq, state: .failed, answer: nil, reason: reason)
             throw error
         }
     }

@@ -16,7 +16,8 @@ four sandboxed Codex launches exited 1, and no confined launch ever answered. Th
 With all three closed, a confined `codex exec` answered, reading nothing of the real `~/.codex`.
 
 Claude is out of scope for gap 3: its login lives in the Keychain under a name bound to its config directory, so a
-fresh `CLAUDE_CONFIG_DIR` is logged out. Gaps 1 and 2 are closed for every harness.
+fresh `CLAUDE_CONFIG_DIR` is logged out. Gaps 1 and 2 are closed for every harness. docs/U39-SPEC.md closes the
+Claude login gap.
 
 ## Behaviour
 

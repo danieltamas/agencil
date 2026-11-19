@@ -12,6 +12,9 @@ enum Confinement {
     private static let harnessConfig: [String: [String]] = [
         "claude": [".claude", ".claude.json"], "opencode": [".config/opencode", ".local/share/opencode"], "hermes": [".hermes"],
     ]
+    /// Logins kept inside a granted config folder: a refresh token there would outlive the run (docs/U39-SPEC.md). The
+    /// seat gets its access token from the broker instead.
+    private static let harnessSecrets: [String: [String]] = ["claude": [".claude/.credentials.json"]]
     /// The system resolver's socket, reached as /var/run/mDNSResponder through the /var link: without these no host name
     /// resolves inside the sandbox, though network itself is allowed (docs/U34-SPEC.md).
     private static let resolverLiterals = ["/var", "/private/var/run", "/private/var/run/mDNSResponder"]
@@ -38,6 +41,12 @@ enum Confinement {
         guard let resolved = realpath(path, nil) else { return path }
         defer { free(resolved) }
         return String(cString: resolved)
+    }
+
+    /// The path with its folder resolved but its last part kept: the spelling under which the kernel looks up a link
+    /// itself, or a file that does not exist yet.
+    private static func inResolvedFolder(_ path: String) -> String {
+        real((path as NSString).deletingLastPathComponent) + "/" + (path as NSString).lastPathComponent
     }
 
     private static func quoted(_ path: String) -> String {
@@ -104,11 +113,18 @@ enum Confinement {
         // A refused directory still leaves the executable itself readable, or the seat could not start at all.
         let executableFiles = granted.count == executableDirectories.count ? [] : Array(Set([executable, real(executable)])).sorted()
         let reads = Array(Set(named.map(real) + granted)).sorted() + systemReadable
+        // A named path that is a link is read through its own node first: that node alone, in the kernel's spelling.
+        let linkNodes = Array(Set(named.map(inResolvedFolder)).subtracting(reads)).sorted()
         // The walk is allowed along both spellings of a path: a link such as /tmp is read before it is followed.
-        let walk = Set((reads + named + executableFiles + [(executable as NSString).deletingLastPathComponent]).flatMap(ancestors(of:))).sorted()
-        let files = executableFiles.map { "(literal \(quoted($0)))" }.joined()
+        let walk = Set((reads + named + linkNodes + executableFiles + [(executable as NSString).deletingLastPathComponent])
+            .flatMap(ancestors(of:))).sorted()
+        let files = (executableFiles + linkNodes).map { "(literal \(quoted($0)))" }.joined()
         let resolver: String = "(allow file-read* " + resolverLiterals.map { "(literal \(quoted($0)))" }.joined(separator: " ") + ")"
-        let lines: [String] = [
+        // After the grants, so the last matching rule denies; every spelling, since the kernel matches the resolved path.
+        // The resolved folder plus the name covers a file created after the profile under a linked config folder.
+        let secrets = (harnessSecrets[harness] ?? []).map { home + "/" + $0 }.flatMap { [$0, real($0), inResolvedFolder($0)] }
+        let hidden = Array(Set(secrets)).sorted().map { "(literal \(quoted($0)))" }.joined(separator: " ")
+        var lines: [String] = [
             "(version 1)", "(deny default)",
             "(allow process-exec) (allow process-fork) (allow signal (target self)) (allow sysctl-read)",
             "(allow mach-lookup) (allow ipc-posix-shm) \(network)",
@@ -122,6 +138,7 @@ enum Confinement {
             "(allow file-write* (subpath \(quoted(run))) (literal \"/dev/null\") (literal \"/dev/dtracehelper\") (literal \"/dev/tty\")"
                 + " (regex #\"^/dev/(fd|ttys?)[0-9]*$\"))",
         ]
+        if !hidden.isEmpty { lines.append("(deny file-read* file-write* \(hidden))") }
         return lines.joined(separator: "\n") + "\n"
     }
 

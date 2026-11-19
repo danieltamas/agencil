@@ -56,12 +56,16 @@ public struct ProcessRunner: Sendable {
             exitWait: while true {
                 try Task.checkCancellation()
                 drain()
-                switch Self.liveness(child.pid) {
-                case .exited: break exitWait
+                let state = Self.liveness(child.pid)
+                // Read after the probe: an exit it saw before this moment, when this moment is in time, was in time.
+                // An exit not proven in time is a timeout, even when the program exited 0.
+                let overdue = ContinuousClock.now >= deadline
+                switch state {
+                case .exited where !overdue: break exitWait
                 case .lost(let code): throw Failure.waitFailed(code)
-                case .running: break
+                case .exited, .running: break
                 }
-                if overLimit() || ContinuousClock.now >= deadline {
+                if overLimit() || overdue {
                     let limited = overLimit()
                     try await Self.terminate(child.pid, gracePeriod: gracePeriod)
                     owned = false
