@@ -20,8 +20,8 @@ would then be readable by anything the seat runs. Instead the broker reads the i
 2. **The broker reads the login.** For a confined `claude` seat, before launch, the broker runs
    `/usr/bin/security find-generic-password -a <owner's login name> -s "Claude Code-credentials" -w` through the
    broker's process runner (`ProcessRunner`), with a 10 second deadline. The tool runs in its own process group. The
-   whole group is killed when the tool exits or at the deadline, and a run that passed the deadline is a failure even
-   when it exits 0. The account is required: an older item of the same service, under account
+   whole group is killed when the tool exits or at the deadline; a tool still running at the deadline is a failure
+   even if it would exit 0 after TERM. The account is required: an older item of the same service, under account
    `unknown`, can sit beside the live one, and without `-a` the tool may return it. The item is JSON; the broker takes
    `claudeAiOauth.accessToken`. Other fields (`refreshToken`, `mcpOAuth`) are not used.
 3. **Only the access token reaches the seat.** The seat starts with `CLAUDE_CODE_OAUTH_TOKEN` set to that token. The
@@ -71,6 +71,14 @@ would then be readable by anything the seat runs. Instead the broker reads the i
 - **The ledger:** launch environments are stored in clear, so the token goes through `secret_env` only (item 4).
 - **Fail closed:** an expired token stops the ask; an unreadable item gives a logged-out seat, never a wider grant.
 - **Enforced at:** the broker (Keychain read, token parse, launch environment); the kernel sandbox applies the profile.
+
+## Known limits
+
+- **An exit seen late is accepted.** `ProcessRunner` polls; when its poll runs after the deadline and finds the tool
+  already exited, the output is used. Rejecting it was tried and reverted: on a starved machine the poll runs seconds
+  late, and tools that exited at once read as timeouts (no login, failed probes). The window is a tool that exits
+  just after the deadline; its output is still a Keychain item the broker asked for, checked for expiry after the read.
+- **A token can expire mid-answer.** The 60 second margin is far below a seat's time cap.
 
 ## Interfaces (fixed so tests can be written before the code)
 

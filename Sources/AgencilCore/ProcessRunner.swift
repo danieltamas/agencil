@@ -56,16 +56,14 @@ public struct ProcessRunner: Sendable {
             exitWait: while true {
                 try Task.checkCancellation()
                 drain()
-                let state = Self.liveness(child.pid)
-                // Read after the probe: an exit it saw before this moment, when this moment is in time, was in time.
-                // An exit not proven in time is a timeout, even when the program exited 0.
-                let overdue = ContinuousClock.now >= deadline
-                switch state {
-                case .exited where !overdue: break exitWait
+                // An exit is accepted whenever it is seen: on a starved machine the poll can run seconds late, and a
+                // program that finished in time must not read as a timeout (docs/U39-SPEC.md "Known limits").
+                switch Self.liveness(child.pid) {
+                case .exited: break exitWait
                 case .lost(let code): throw Failure.waitFailed(code)
-                case .exited, .running: break
+                case .running: break
                 }
-                if overLimit() || overdue {
+                if overLimit() || ContinuousClock.now >= deadline {
                     let limited = overLimit()
                     try await Self.terminate(child.pid, gracePeriod: gracePeriod)
                     owned = false
