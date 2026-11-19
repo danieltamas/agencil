@@ -20,8 +20,8 @@ would then be readable by anything the seat runs. Instead the broker reads the i
 2. **The broker reads the login.** For a confined `claude` seat, before launch, the broker runs
    `/usr/bin/security find-generic-password -a <owner's login name> -s "Claude Code-credentials" -w` through the
    broker's process runner (`ProcessRunner`), with a 10 second deadline. The tool runs in its own process group. The
-   whole group is killed when the tool exits or at the deadline; a tool still running at the deadline is a failure
-   even if it would exit 0 after TERM. The account is required: an older item of the same service, under account
+   whole group is killed when the tool exits or at the deadline; a tool that exits after the deadline is a failure
+   even when it exits 0 (see Known limits for how the exit time is read). The account is required: an older item of the same service, under account
    `unknown`, can sit beside the live one, and without `-a` the tool may return it. The item is JSON; the broker takes
    `claudeAiOauth.accessToken`. Other fields (`refreshToken`, `mcpOAuth`) are not used.
 3. **Only the access token reaches the seat.** The seat starts with `CLAUDE_CODE_OAUTH_TOKEN` set to that token. The
@@ -74,10 +74,16 @@ would then be readable by anything the seat runs. Instead the broker reads the i
 
 ## Known limits
 
-- **An exit seen late is accepted.** `ProcessRunner` polls; when its poll runs after the deadline and finds the tool
-  already exited, the output is used. Rejecting it was tried and reverted: on a starved machine the poll runs seconds
-  late, and tools that exited at once read as timeouts (no login, failed probes). The window is a tool that exits
-  just after the deadline; its output is still a Keychain item the broker asked for, checked for expiry after the read.
+- **An exit is judged by the kernel's exit time.** `ProcessRunner` polls, and on a starved machine a poll runs seconds
+  late. When a poll finds the tool exited, the runner reads the kernel's record of when it exited
+  (`proc_pid_rusage`, `ri_proc_exit_abstime`, valid while the child is unreaped) and compares it with a deadline on
+  the same clock (`mach_absolute_time`). A timely exit seen late is accepted; an exit after the deadline is a timeout.
+  Judging by the poll's own time was tried first and turned instant exits into timeouts under load. When the record
+  cannot be trusted (the call fails, or the child's start time is not after the spawn, as in a Rosetta process whose
+  clock is rescaled), the moment of the poll stands in for the exit, on the same clock. The whole wait (the deadline
+  taken just before the spawn, a running child's timeout, and the exit check) uses this one clock, which stops while
+  the Mac sleeps: every `ProcessRunner` deadline counts awake time. A timeout too large for the clock means no
+  deadline.
 - **A token can expire mid-answer.** The 60 second margin is far below a seat's time cap.
 
 ## Interfaces (fixed so tests can be written before the code)

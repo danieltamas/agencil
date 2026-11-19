@@ -39,6 +39,10 @@ public struct ProcessRunner: Sendable {
         let executable = try Self.resolve(program, path: env["PATH"] ?? Self.defaultPath)
         env["PATH"] = Self.path(for: executable, base: env["PATH"] ?? Self.defaultPath)
 
+        // One clock and one deadline for the whole wait: `mach_absolute_time`, awake time, the clock the kernel records
+        // a child's exit on. Computed before the spawn, so nothing after it can trap.
+        let budget = Self.ticks(timeout)
+        let spawnedAt = mach_absolute_time()
         let child = try Self.spawn(executable: executable, argv: argv, environment: env, directory: directory)
         defer { close(child.stdout); close(child.stderr) }
         var out = Data(), err = Data()
@@ -52,18 +56,21 @@ public struct ProcessRunner: Sendable {
         // the group cannot hit a recycled id. Everything that reaps it clears the flag.
         var owned = true
         do {
-            let deadline = ContinuousClock.now + timeout
+            let (sum, wrapped) = spawnedAt.addingReportingOverflow(budget)
+            let deadline = wrapped ? UInt64.max : sum
             exitWait: while true {
                 try Task.checkCancellation()
                 drain()
-                // An exit is accepted whenever it is seen: on a starved machine the poll can run seconds late, and a
-                // program that finished in time must not read as a timeout (docs/U39-SPEC.md "Known limits").
                 switch Self.liveness(child.pid) {
-                case .exited: break exitWait
+                case .exited:
+                    // Judged by when the kernel says the child exited, not when this poll ran: a starved poll can run
+                    // seconds late, and must neither turn a timely exit into a timeout nor let a late one through.
+                    // Without a trusted record, the moment of this poll stands in for the exit.
+                    if (Self.exitTime(child.pid, spawnedAt: spawnedAt) ?? mach_absolute_time()) < deadline { break exitWait }
                 case .lost(let code): throw Failure.waitFailed(code)
                 case .running: break
                 }
-                if overLimit() || ContinuousClock.now >= deadline {
+                if overLimit() || mach_absolute_time() >= deadline {
                     let limited = overLimit()
                     try await Self.terminate(child.pid, gracePeriod: gracePeriod)
                     owned = false
@@ -106,6 +113,39 @@ public struct ProcessRunner: Sendable {
         }
         killAll(pid)
         _ = reap(pid)
+    }
+
+    /// When the unreaped child exited, on this process's `mach_absolute_time`. Nil when the record cannot be trusted:
+    /// the call failed, or the child's own start time is not on this clock (a Rosetta process sees a rescaled clock
+    /// while the kernel keeps native ticks). Then the poll's own clock decides.
+    private static func exitTime(_ pid: pid_t, spawnedAt: UInt64) -> UInt64? {
+        var usage = rusage_info_v4()
+        let read = withUnsafeMutablePointer(to: &usage) {
+            $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(pid, RUSAGE_INFO_V4, $0) }
+        }
+        guard read == 0, usage.ri_proc_start_abstime >= spawnedAt, usage.ri_proc_exit_abstime >= usage.ri_proc_start_abstime,
+              usage.ri_proc_exit_abstime <= mach_absolute_time() else { return nil }
+        return usage.ri_proc_exit_abstime
+    }
+
+    /// `duration` in `mach_absolute_time` ticks, rounded down, exact: ticks = (s * 10^18 + as) * denom / (numer * 10^9),
+    /// in 128-bit steps. A negative duration is 0; only a result past the clock's range saturates to `UInt64.max`.
+    private static func ticks(_ duration: Duration) -> UInt64 {
+        var timebase = mach_timebase_info_data_t()
+        mach_timebase_info(&timebase)
+        let (seconds, attoseconds) = duration.components
+        guard seconds >= 0, attoseconds >= 0, timebase.numer > 0 else { return 0 }
+        let numer = UInt64(timebase.numer), denom = UInt64(timebase.denom), billion: UInt64 = 1_000_000_000
+        // Whole seconds: s * 10^9 * denom / numer, with the remainder carried in units of 1/numer tick.
+        let scaledSeconds = UInt64(seconds).multipliedFullWidth(by: billion * denom)
+        guard scaledSeconds.high < numer else { return .max }
+        let (secondTicks, carried) = numer.dividingFullWidth(scaledSeconds)
+        // The rest: (carried * 10^9 + as * denom) / (numer * 10^9), below 1 + denom ticks.
+        let scaledRest = UInt64(attoseconds).multipliedFullWidth(by: denom)
+        let (low, carry) = scaledRest.low.addingReportingOverflow(carried * billion)
+        let (restTicks, _) = (numer * billion).dividingFullWidth((scaledRest.high + (carry ? 1 : 0), low))
+        let (total, overflow) = secondTicks.addingReportingOverflow(restTicks)
+        return overflow ? .max : total
     }
 
     /// KILL for the leader itself (it may have left its group) and for the rest of the group. Called only while
