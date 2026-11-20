@@ -40,9 +40,13 @@ public enum ModelCatalogSources {
 
     /// Runs `argv` and returns its stdout. The program is found on `directories`; not found is `notInstalled`.
     public static func run(_ argv: [String], directories: [URL], runner: ProcessRunner = ProcessRunner()) async throws -> Data {
-        guard let program = argv.first,
-              let found = directories.map({ $0.appendingPathComponent(program).path }).first(where: { FileManager.default.isExecutableFile(atPath: $0) })
-        else { throw Failure.notInstalled(argv.first ?? "?") }
+        guard let program = argv.first else { throw Failure.notInstalled("?") }
+        // Every copy is a candidate and the newest wins, as for a seat: a stale copy earlier on the list must not.
+        let candidates = HarnessDiscovery.unique(directories.map { $0.appendingPathComponent(program).path })
+            .filter { FileManager.default.isExecutableFile(atPath: $0) }
+        guard let found = try await HarnessDiscovery.newest(candidates, program: program, runner: runner) else {
+            throw Failure.notInstalled(program)
+        }
         let output: ProcessOutput
         do { output = try await runner.run([found] + argv.dropFirst(), timeout: .seconds(20), gracePeriod: .milliseconds(100)) }
         catch is CancellationError { throw CancellationError() }
@@ -51,11 +55,9 @@ public enum ModelCatalogSources {
         return output.stdout
     }
 
-    /// PATH first, then where a Finder-launched app (a short PATH) still finds the usual installs.
+    /// PATH first, then where an app started at login (a short PATH) still finds the usual installs.
     public static func searchDirectories(environment: [String: String]) -> [URL] {
-        let home = FileManager.default.homeDirectoryForCurrentUser
         let path = (environment["PATH"] ?? "/usr/bin:/bin").split(separator: ":").map { URL(fileURLWithPath: String($0)) }
-        return path + [home.appendingPathComponent(".local/bin"), home.appendingPathComponent(".opencode/bin"),
-                       URL(fileURLWithPath: "/opt/homebrew/bin"), URL(fileURLWithPath: "/usr/local/bin")]
+        return path + HarnessDiscovery.knownInstallDirectories(home: FileManager.default.homeDirectoryForCurrentUser)
     }
 }

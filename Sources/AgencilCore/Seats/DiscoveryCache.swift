@@ -44,18 +44,23 @@ final class DiscoveryCache: @unchecked Sendable {
         }
     }
 
-    /// Superset's agent wrappers (`~/.superset/bin`, `~/.superset-<name>/bin`) re-run the real binary found on PATH.
+    /// Superset's agent wrappers (`~/.superset/bin`, `~/.superset-<name>/bin`, and since its rename to Paradev
+    /// `~/.paradev/bin`, `~/.paradev-<name>/bin`) re-run the real binary found on PATH.
     private static func isShimDirectory(_ path: String) -> Bool {
         let components = path.split(separator: "/")
-        return components.count >= 2 && components.last == "bin" && components[components.count - 2].hasPrefix(".superset")
+        guard components.count >= 2, components.last == "bin" else { return false }
+        let parent = components[components.count - 2]
+        return parent.hasPrefix(".superset") || parent.hasPrefix(".paradev")
     }
 
     private func refresh(_ catalog: HarnessCatalog, environment: [String: String], home: URL) {
         // A seat runs the real harness: a launcher shim that looks the binary up on PATH cannot find it from the sandbox.
         var directories = (environment["PATH"] ?? "/usr/bin:/bin").split(separator: ":")
             .filter { !Self.isShimDirectory(String($0)) }.map { URL(fileURLWithPath: String($0)) }
-        let user = FileManager.default.homeDirectoryForCurrentUser
-        var known = [user.appendingPathComponent(".local/bin"), user.appendingPathComponent(".opencode/bin"), URL(fileURLWithPath: "/opt/homebrew/bin"), URL(fileURLWithPath: "/usr/local/bin")]
+        // Where each harness was found last time is looked at again: a version folder that cannot be listed this time
+        // must not make an install that is still there read as removed.
+        let previous = lock.withLock { probes.values.flatMap { $0.paths.map { $0.deletingLastPathComponent() } } }
+        var known = HarnessDiscovery.knownInstallDirectories(home: FileManager.default.homeDirectoryForCurrentUser) + previous
         // With test seams on, a stub directory goes first and only PATH entries inside the Agencil home count,
         // so the real installs on the machine running the tests cannot leak in.
         if environment["AGENCIL_TEST_SEAMS"] == "1" {

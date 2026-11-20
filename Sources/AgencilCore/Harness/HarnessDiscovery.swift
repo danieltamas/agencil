@@ -137,7 +137,27 @@ public struct HarnessDiscovery: Sendable {
         return stat(path, &info) == 0 && (info.st_mode & S_IFMT) == S_IFREG && access(path, X_OK) == 0
     }
 
-    private static func unique(_ paths: [String]) -> [String] {
+    /// Of several installs of one program, the one reporting the newest version: the choice discovery makes for a seat,
+    /// for callers outside the broker. One candidate is returned unrun; one whose version command fails is skipped, and
+    /// when none answers, the first stands.
+    static func newest(_ paths: [String], program: String, runner: ProcessRunner = ProcessRunner()) async throws -> String? {
+        guard paths.count > 1 else { return paths.first }
+        let arguments = (try? HarnessCatalog.embedded())?.entries.first { $0.executable == program }?.versionArguments ?? ["--version"]
+        var best: (path: String, version: String)?
+        for path in paths {
+            // A cancelled refresh starts nothing more; any other failure only skips this copy.
+            try Task.checkCancellation()
+            let output: ProcessOutput
+            do { output = try await runner.run([path] + arguments, timeout: .seconds(20), gracePeriod: gracePeriod) }
+            catch is CancellationError { throw CancellationError() }
+            catch { continue }
+            guard output.status == 0, let version = parseVersion(output.stdout) else { continue }
+            if best.map({ isNewer(version, than: $0.version) }) ?? true { best = (path, version) }
+        }
+        return best?.path ?? paths.first
+    }
+
+    static func unique(_ paths: [String]) -> [String] {
         var seen = Set<String>()
         return paths.filter { seen.insert($0).inserted }
     }
@@ -147,6 +167,22 @@ public struct HarnessDiscovery: Sendable {
     }
 
     /// The first dotted number on the first non-empty line ("codex-cli 0.5.1" gives "0.5.1"), else that line.
+    /// Where harnesses live that an app started at login cannot see: its PATH is only /usr/bin:/bin:/usr/sbin:/sbin.
+    /// The usual installer folders, and the `bin` of every Node version a version manager keeps, since an
+    /// npm-installed harness (codex) sits beside its own node there. Discovery runs the newest install it finds.
+    public static func knownInstallDirectories(home: URL) -> [URL] {
+        let fixed = [".local/bin", ".opencode/bin", ".bun/bin", ".npm-global/bin"].map { home.appendingPathComponent($0) }
+            + ["/opt/homebrew/bin", "/usr/local/bin"].map { URL(fileURLWithPath: $0) }
+        let managers = [(".nvm/versions/node", "bin"), (".local/share/fnm/node-versions", "installation/bin"),
+                        ("Library/Application Support/fnm/node-versions", "installation/bin")]
+        let nodeVersions = managers.flatMap { root, leaf -> [URL] in
+            let folder = home.appendingPathComponent(root)
+            let versions = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+            return versions.filter { !$0.hasPrefix(".") }.sorted().map { folder.appendingPathComponent($0).appendingPathComponent(leaf) }
+        }
+        return fixed + nodeVersions
+    }
+
     private static func parseVersion(_ stdout: Data) -> String? {
         let text = String(decoding: stdout, as: UTF8.self)
         guard let line = text.split(whereSeparator: \.isNewline).map({ $0.trimmingCharacters(in: .whitespaces) })
