@@ -42,7 +42,10 @@ confined Codex seat runs without its own and its commands inherit the profile: i
 profile allows one loopback port, where `Seats/EgressProxy.swift` tunnels `CONNECT` to the vendor's hosts
 (`Seats/Egress.swift`) and refuses everything else. The proxy runs in a helper process of its own
 (`agencil egress-proxy`, `Seats/EgressHelper.swift`) that outlives the broker, so the port is never free for another
-local user to take while a seat may still run (docs/U38-SPEC.md). A seat without a repo copy is
+local user to take while a seat may still run (docs/U38-SPEC.md). A confined Claude seat cannot reach the Keychain:
+the broker reads the owner's login item itself (`Seats/ClaudeLogin.swift`, through `ProcessRunner`) and passes only
+the access token, in the launch's `secret_env`, which the ledger never stores; the profile denies
+`~/.claude/.credentials.json`, where a refresh token can sit (docs/U39-SPEC.md). A seat without a repo copy is
 not sandboxed, so the broker also refuses by ancestry: `Broker.handle` runs `attributeRoot` (the process-tree walk in
 `Seats/Attribution.swift`) before every operation outside `seatOps`, and a descendant of a seat run, or a caller whose
 ancestry cannot be established, is refused. `launch` runs an arbitrary argv outside every sandbox, so only a broker
@@ -92,6 +95,11 @@ from `SeatPreset`, a cross-vendor review council and one route per agent; `Setup
 owner's Find agents press and writes each step through `SettingsStore`'s `ConfigEditor`, the same path as the
 Settings sheets. The `harnesses` op reports a sign-in carried over a failed probe (`DiscoveryCache.marked`) as
 unknown. `Kit/DropTiles.swift` is the one place drag and drop is drawn; a press always does what a drop does.
+An app started at login gets only `/usr/bin:/bin:/usr/sbin:/sbin`, so harness discovery (`DiscoveryCache`) and the
+model catalog (`ModelCatalogSources`) both search PATH plus `HarnessDiscovery.knownInstallDirectories`: the usual
+installer folders and every nvm or fnm Node version's `bin`, where an npm-installed harness sits beside its node.
+Discovery also looks again where it found each harness last time; with several copies the newest version wins in
+both. Superset and Paradev wrapper folders are skipped, since a wrapper cannot find its harness inside the sandbox.
 
 ## Contracts
 
