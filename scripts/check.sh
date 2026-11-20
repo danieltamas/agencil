@@ -49,7 +49,8 @@ lint_ascii() {
   done
   ((${#targets[@]})) || { fail "nothing to lint under $root"; return; }
   local list
-  list=$(find "${targets[@]}" -type f ! -name '*.png' ! -name '*.icns' ! -name '*.pdf' -print0 | tr '\0' '\n') \
+  # .DS_Store is Finder's binary metadata, git-ignored and written whenever a folder is opened in Finder.
+  list=$(find "${targets[@]}" -type f ! -name '*.png' ! -name '*.icns' ! -name '*.pdf' ! -name '.DS_Store' -print0 | tr '\0' '\n') \
     || { fail "cannot list the files to lint"; return; }
   # A failure of the scan itself fails the gate: only a clean run with no hits passes.
   hits=$(printf '%s\n' "$list" | tr '\n' '\0' | xargs -0 perl -CSD -ne 'print "$ARGV:$.: non-ASCII punctuation\n" if /[\x{2010}-\x{2015}\x{2018}-\x{201F}\x{2026}\x{00A0}\x{00AD}\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2060}\x{FEFF}]/; close ARGV if eof') \
