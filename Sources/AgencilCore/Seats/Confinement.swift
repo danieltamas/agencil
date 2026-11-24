@@ -8,9 +8,10 @@ enum Confinement {
     /// "/etc" is a link to "/private/etc": the link itself is read before it is followed, so both spellings are listed.
     private static let systemReadable = ["/usr", "/bin", "/sbin", "/System", "/Library", "/etc", "/private/etc", "/private/var/db", "/dev",
                                          "/private/var/select", "/Applications/Xcode.app", "/opt/homebrew", "/usr/local"]
-    /// Codex is absent: it gets a home of its own in the run directory (SeatHome), never the owner's ~/.codex.
+    /// Codex is absent, and OpenCode keeps only its config: each writes a home of its own in the run directory
+    /// (SeatHome), never the owner's ~/.codex or OpenCode's data, state and cache folders.
     private static let harnessConfig: [String: [String]] = [
-        "claude": [".claude", ".claude.json"], "opencode": [".config/opencode", ".local/share/opencode"], "hermes": [".hermes"],
+        "claude": [".claude", ".claude.json"], "opencode": [".config/opencode"], "hermes": [".hermes"],
     ]
     /// Logins kept inside a granted config folder: a refresh token there would outlive the run (docs/U39-SPEC.md). The
     /// seat gets its access token from the broker instead.

@@ -1,3 +1,9 @@
+## Unreleased
+
+- Agencil no longer stops answering agents after some hours of use (U40). Each `git` or `ps` call it made left one file descriptor open, and when it ran out the broker stopped taking connections for good: agents' calls hung or read "Agencil is not running" while the app was open. Those descriptors are now closed, the broker keeps accepting after a transient failure, and a connection that gets no reply now says so instead of "not running".
+- Confined OpenCode seats start again (U40). OpenCode crashed at start because the sandbox let it write none of its data, state and cache folders; it now gets fresh ones in the run directory, holding only a copy of its login and model list, and it can no longer read the owner's OpenCode session history.
+- A confined seat can no longer turn its answer file into a link to one of the owner's files and get that file back as its answer, or into a pipe that hangs the exchange (U40): Agencil now reads every file a seat writes without following links, and only up to a size limit.
+
 ## 0.8.2 (2026-11-20)
 
 - Codex seats work again after a restart. Agencil starts at login with a short system PATH, so a Codex installed through nvm (or fnm) was reported as "codex is not installed" until the app was started from a terminal. Agencil now also looks in every Node version's folder those managers keep, and in the folders where it found each agent before. With several copies, the model list uses the newest, the same one seats run. Superset's renamed Paradev wrappers are skipped like the old ones, since they cannot run inside a seat's sandbox.

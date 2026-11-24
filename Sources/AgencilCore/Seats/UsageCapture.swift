@@ -30,7 +30,7 @@ enum UsageCapture {
     /// The answer the stream carries (nil when the answer lives elsewhere or the stream is not the expected shape) and its usage.
     static func read(_ format: UsageFormat, answerFile: String) -> (answer: String?, usage: HarnessUsage?) {
         let path = format == .codexEvents ? UsageFormat.eventsFile(besides: answerFile) : answerFile
-        guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { return (nil, nil) }
+        guard let text = SafeRead.text(path) else { return (nil, nil) }
         switch format {
         case .claudeResult: return claude(text)
         case .codexEvents: return (nil, codex(text))
@@ -43,7 +43,7 @@ enum UsageCapture {
     /// before it are warnings, not the cause.
     static func failure(_ format: UsageFormat, answerFile: String) -> String? {
         guard format == .codexEvents,
-              let text = try? String(contentsOfFile: UsageFormat.eventsFile(besides: answerFile), encoding: .utf8) else { return nil }
+              let text = SafeRead.text(UsageFormat.eventsFile(besides: answerFile)) else { return nil }
         for line in text.split(separator: "\n").reversed() {
             guard let event = object(line), event["type"] as? String == "turn.failed",
                   let message = (event["error"] as? [String: Any])?["message"] as? String else { continue }

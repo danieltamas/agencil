@@ -43,7 +43,14 @@ public struct GhClient: GitHubClient {
         process.standardOutput = out
         process.standardError = err
         process.standardInput = stdin
-        do { try process.run() } catch { throw LeaderboardError(message: "cannot run gh: \(error.localizedDescription)") }
+        // Every end is closed here, not on release: a broker thread never drains its autorelease pool, so they would leak.
+        do { try process.run() } catch {
+            for pipe in [out, err, stdin] {
+                try? pipe.fileHandleForWriting.close()
+                try? pipe.fileHandleForReading.close()
+            }
+            throw LeaderboardError(message: "cannot run gh: \(error.localizedDescription)")
+        }
         let watchdog = DispatchWorkItem { process.terminate() }
         DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: watchdog)
         defer { watchdog.cancel() }
@@ -51,6 +58,8 @@ public struct GhClient: GitHubClient {
         try? stdin.fileHandleForWriting.close()
         let data = out.fileHandleForReading.readDataToEndOfFile()
         let error = String(decoding: err.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        try? out.fileHandleForReading.close()
+        try? err.fileHandleForReading.close()
         process.waitUntilExit()
         return (process.terminationStatus, data, error.trimmingCharacters(in: .whitespacesAndNewlines))
     }

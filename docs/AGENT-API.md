@@ -26,7 +26,7 @@ add fields freely, never remove or repurpose one without bumping `api` in the en
 One broker per Mac owns the ledger, the budgets and the concurrency cap:
 - The broker is the Agencil app. `agencil serve` runs the same engine headless, for a Mac without a logged-in UI.
 - The CLI and the MCP server are thin clients. They speak JSON lines over a Unix socket (mode 0600, owner only): the CLI on `~/.agencil/agencil.sock`, the MCP server on the agent door `~/.agencil/agent.sock`, which serves only `ping`, `ask`, `wake`, `result`, `status`, `stop` and `list_targets`.
-- With no broker running, every client command exits 3 with `agencil: Agencil is not running (open the app or run agencil serve)`. Clients never run seats themselves, so two MCP sessions can never double-spend a budget.
+- With no broker running, every client command exits 3 with `agencil: Agencil is not running (open the app or run agencil serve)`. A broker that takes the connection and closes it without a valid reply line also exits 3 (a broker that stays silent leaves the client waiting), with `agencil: Agencil took the request but gave no answer (try again; if it repeats, quit and reopen Agencil)`. Clients never run seats themselves, so two MCP sessions can never double-spend a budget.
 
 ## Resolution (a target to a working process)
 

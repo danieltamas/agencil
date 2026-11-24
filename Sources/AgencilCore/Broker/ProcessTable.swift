@@ -76,8 +76,14 @@ enum ProcessTable {
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
-        try process.run()
+        // Both ends are closed here, not on release: a broker thread never drains its autorelease pool, so they would leak.
+        do { try process.run() } catch {
+            try? pipe.fileHandleForWriting.close()
+            try? pipe.fileHandleForReading.close()
+            throw error
+        }
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        try? pipe.fileHandleForReading.close()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else { throw CocoaError(.fileReadUnknown) }
         return String(decoding: data, as: UTF8.self)

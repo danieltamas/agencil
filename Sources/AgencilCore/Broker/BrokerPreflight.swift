@@ -226,7 +226,8 @@ extension Broker {
             case .failure(let failure): return (.error, PreflightClassifier.clean(String(describing: failure)), nil)
             case .success(let output):
                 let stdout = String(decoding: output.stdout, as: UTF8.self)
-                let said = invocation.stdoutIsAnswer ? stdout : (try? String(contentsOf: answerFile, encoding: .utf8)) ?? ""
+                // The probed harness wrote this file: a link, FIFO or huge file in its place reads as no answer.
+                let said = invocation.stdoutIsAnswer ? stdout : SafeRead.text(answerFile.path) ?? ""
                 let text = stdout + "\n" + output.stderr
                 let (reason, detail) = PreflightClassifier.classify(status: output.status, output: text,
                                                                     answer: said.trimmingCharacters(in: .whitespacesAndNewlines))

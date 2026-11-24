@@ -5,41 +5,54 @@ import Foundation
 /// hooks or skills that run unconfined later. Only the login is copied in, and nothing the seat writes comes back:
 /// the broker cannot prove that tokens a seat wrote belong to the owner's account.
 enum SeatHome {
-    private struct Layout {
+    /// One folder the harness writes, named to it by `variable`. `seeds` are owner files copied in, relative to both
+    /// `source` (under the owner's home) and the fresh folder.
+    private struct Folder {
         let variable: String
         let directory: String
-        let login: String
+        let source: String
+        let seeds: [String]
     }
 
-    private static let layouts: [String: Layout] = ["codex": Layout(variable: "CODEX_HOME", directory: ".codex", login: "auth.json")]
+    /// OpenCode keeps data, state and cache in three XDG folders and crashes when one is not writable; its config stays
+    /// the owner's, read-only (Confinement). The model catalog is seeded so the seat resolves the same model names.
+    private static let layouts: [String: [Folder]] = [
+        "codex": [Folder(variable: "CODEX_HOME", directory: ".codex", source: ".codex", seeds: ["auth.json"])],
+        "opencode": [
+            Folder(variable: "XDG_DATA_HOME", directory: "data", source: ".local/share", seeds: ["opencode/auth.json"]),
+            Folder(variable: "XDG_STATE_HOME", directory: "state", source: ".local/state", seeds: []),
+            Folder(variable: "XDG_CACHE_HOME", directory: "cache", source: ".cache", seeds: ["opencode/models.json"]),
+        ],
+    ]
+
+    /// Larger than any login or model catalog: a seed over it is not copied. A seed that is a link, sits under a linked
+    /// folder, is missing or is not a regular file copies nothing either, and the seat then runs without it.
+    private static let seedLimit = 32 << 20
 
     static func prepare(harness: String, runDirectory: URL, home: String) throws -> [String: String]? {
-        guard let layout = layouts[harness] else { return nil }
-        let seatHome = runDirectory.appendingPathComponent("home").appendingPathComponent(layout.directory)
+        guard let folders = layouts[harness] else { return nil }
         let manager = FileManager.default
-        try manager.createDirectory(at: seatHome, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-        try manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: seatHome.deletingLastPathComponent().path)
-        if let login = ownerLogin(home + "/" + layout.directory + "/" + layout.login) {
-            guard manager.createFile(atPath: seatHome.appendingPathComponent(layout.login).path, contents: login,
-                                     attributes: [.posixPermissions: 0o600]) else {
-                throw Refusal(exit: 70, message: "failed: could not prepare the seat's home")
+        let root = runDirectory.appendingPathComponent("home")
+        var environment: [String: String] = [:]
+        for folder in folders {
+            let seatFolder = root.appendingPathComponent(folder.directory)
+            try manager.createDirectory(at: seatFolder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            try manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: root.path)
+            for seed in folder.seeds {
+                guard let contents = SafeRead.ownerFile(home: home, relative: folder.source + "/" + seed, limit: seedLimit) else { continue }
+                let target = seatFolder.appendingPathComponent(seed)
+                try manager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true,
+                                            attributes: [.posixPermissions: 0o700])
+                guard manager.createFile(atPath: target.path, contents: contents, attributes: [.posixPermissions: 0o600]) else {
+                    throw Refusal(exit: 70, message: "failed: could not prepare the seat's home")
+                }
             }
+            environment[folder.variable] = seatFolder.path
         }
-        return [layout.variable: seatHome.path]
+        return environment
     }
 
     static func remove(runDirectory: URL) {
         try? FileManager.default.removeItem(at: runDirectory.appendingPathComponent("home"))
-    }
-
-    /// The owner's login when it is a regular file; a link, a missing file or anything else copies nothing, and the
-    /// seat then runs logged out. Non-blocking, so a FIFO in its place cannot hang the ask.
-    private static func ownerLogin(_ path: String) -> Data? {
-        let descriptor = open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
-        guard descriptor >= 0 else { return nil }
-        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
-        var status = stat()
-        guard fstat(descriptor, &status) == 0, status.st_mode & S_IFMT == S_IFREG else { return nil }
-        return try? handle.readToEnd() ?? Data()
     }
 }

@@ -121,7 +121,7 @@ extension Broker {
     /// A process seat reports what it used in `usage.json` of its run directory; anything malformed is not a report.
     func reportedUsage(thread: String, seq: Int) -> (dollars: Double, tokens: Int)? {
         let file = directory.appendingPathComponent("runs/\(thread)-\(seq)/usage.json")
-        guard let data = try? Data(contentsOf: file), data.count <= 4096,
+        guard let data = SafeRead.file(file.path, limit: 4096),
               let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let dollars = SeatConfig.number(object["dollars"]), dollars >= 0,
               let tokens = SeatConfig.whole(object["tokens"]), (0...OllamaClient.countLimit).contains(tokens) else { return nil }

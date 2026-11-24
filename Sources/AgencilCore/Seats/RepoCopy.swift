@@ -25,9 +25,15 @@ enum RepoCopy {
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
-        guard (try? process.run()) != nil else { return nil }
+        // Both ends are closed here, not on release: a broker thread never drains its autorelease pool, so they would leak.
+        guard (try? process.run()) != nil else {
+            try? pipe.fileHandleForWriting.close()
+            try? pipe.fileHandleForReading.close()
+            return nil
+        }
         DispatchQueue.global().asyncAfter(deadline: .now() + 30) { stop([process]) }
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        try? pipe.fileHandleForReading.close()
         process.waitUntilExit()
         return process.terminationStatus == 0 ? data : nil
     }

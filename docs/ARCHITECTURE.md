@@ -37,7 +37,8 @@ directory, reads only the copy, its own harness config, where its executable's l
 most) and system paths, network allowed for the model API (with the resolver socket), and a last-match deny for Unix
 sockets under the Agencil home, so it cannot reach the broker. A Codex seat reads nothing of the owner's `~/.codex`:
 `Seats/SeatHome.swift` gives it a `CODEX_HOME` in the run directory holding a copy of the login, removed with the
-run; nothing the seat writes there is copied back (docs/U34-SPEC.md). macOS refuses a sandbox inside a sandbox, so a
+run; nothing the seat writes there is copied back (docs/U34-SPEC.md). An OpenCode seat gets its data, state and cache
+folders there the same way, holding copies of its login and model list (docs/U40-SPEC.md). macOS refuses a sandbox inside a sandbox, so a
 confined Codex seat runs without its own and its commands inherit the profile: in place of open network that
 profile allows one loopback port, where `Seats/EgressProxy.swift` tunnels `CONNECT` to the vendor's hosts
 (`Seats/Egress.swift`) and refuses everything else. The proxy runs in a helper process of its own

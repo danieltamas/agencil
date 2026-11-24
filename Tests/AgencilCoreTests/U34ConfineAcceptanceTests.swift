@@ -116,7 +116,7 @@ struct U34ConfineAcceptanceTests {
     }
 
     // Acceptance 6.
-    @Test(arguments: ["codex", "missing", "claude", "opencode", "hermes"])
+    @Test(arguments: ["codex", "missing", "claude", "hermes"])
     func prepareCreatesOnlyCodexHome(scenario: String) throws {
         let fixture = try BrokerHome(), root = fixture.url
         let home = U34Support.testHome(root), run = root.appendingPathComponent("run")
@@ -124,7 +124,7 @@ struct U34ConfineAcceptanceTests {
         if scenario != "missing" { try U34Support.put(URL(fileURLWithPath: home).appendingPathComponent(".codex/auth.json"), original) }
         let prepared = try SeatHome.prepare(harness: scenario == "missing" ? "codex" : scenario, runDirectory: run, home: home)
         let directory = run.appendingPathComponent("home/.codex")
-        if ["claude", "opencode", "hermes"].contains(scenario) {
+        if ["claude", "hermes"].contains(scenario) {
             #expect(prepared == nil)
             #expect(!FileManager.default.fileExists(atPath: run.appendingPathComponent("home").path))
             return

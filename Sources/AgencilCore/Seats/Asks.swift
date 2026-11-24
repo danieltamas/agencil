@@ -292,7 +292,7 @@ extension Broker {
         } else if status == 0 {
             // The JSON stream, when the harness wrote one, carries the answer too; if it cannot be read the file is the answer as before.
             let captured = format.map { UsageCapture.read($0, answerFile: answerFile) }
-            let written = (try? String(contentsOfFile: answerFile, encoding: .utf8)) ?? ""
+            let written = SafeRead.text(answerFile) ?? ""
             let text = (captured?.answer ?? written).trimmingCharacters(in: .whitespacesAndNewlines)
             if text.isEmpty {
                 finishExchange(thread: thread.id, seq: seq, state: .failed, answer: nil, reason: "\(seat.harness) answered nothing")
@@ -310,7 +310,9 @@ extension Broker {
 
     func lastLine(ofLog launchID: String) -> String? {
         let log = directory.appendingPathComponent("runs/\(launchID).log")
-        guard let text = try? String(contentsOf: log, encoding: .utf8) else { return nil }
+        // The seat writes this log through its stderr, so only its end is read: a flooded log cannot exhaust memory.
+        guard let tail = SafeRead.tail(log.path, count: 64 << 10) else { return nil }
+        let text = String(decoding: tail, as: UTF8.self)
         return text.split(separator: "\n").last.map { String($0.prefix(200)) }
     }
 

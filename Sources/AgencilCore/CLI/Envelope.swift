@@ -18,6 +18,9 @@ public enum Envelope {
 /// A thin client of the broker socket: one request, one reply.
 public struct BrokerClient: Sendable {
     public static let notRunning = "Agencil is not running (open the app or run agencil serve)"
+    /// The socket took the connection but no reply line came back: the broker is up and closed it, cut the reply, or is
+    /// stuck. Saying "not running" here sends the caller to start an app that is already open.
+    public static let noAnswer = "Agencil took the request but gave no answer (try again; if it repeats, quit and reopen Agencil)"
 
     public struct Failure: Error { public let message: String; public let exit: Int32 }
 
@@ -38,7 +41,7 @@ public struct BrokerClient: Sendable {
         guard UnixSocket.write(descriptor, line: UnixSocket.json(request)),
               case .line(let data) = UnixSocket.Reader(descriptor: descriptor).next(),
               let reply = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-            throw Failure(message: Self.notRunning, exit: 3)
+            throw Failure(message: Self.noAnswer, exit: 3)
         }
         return reply
     }

@@ -132,7 +132,13 @@ public final class Broker: @unchecked Sendable {
     private func acceptLoop(_ listener: Int32, door: Door) {
         while true {
             let client = accept(listener, nil, nil)
-            if client < 0 { if errno == EINTR { continue }; return }
+            if client < 0 {
+                // Only a closed listener ends the loop. Out of descriptors or an aborted connection passes: returning would
+                // leave the socket bound with no one accepting, so every client hangs or reads "not running".
+                if errno == EBADF || errno == EINVAL || errno == ENOTSOCK { return }
+                if errno != EINTR { usleep(100_000) }
+                continue
+            }
             _ = fcntl(client, F_SETFD, FD_CLOEXEC)
             // A silent client may not hold a thread forever, and there is a ceiling on how many it may hold.
             var timeout = timeval(tv_sec: idleSeconds, tv_usec: 0)

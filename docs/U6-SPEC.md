@@ -298,7 +298,7 @@ A process seat run with a repo is started under `/usr/bin/sandbox-exec` with a g
 reads allowed only inside the copy, the run's own directory (answer, usage, profile), the seat's executable
 directory and where its links lead (docs/U34-SPEC.md), system directories (`/usr`, `/bin`, `/sbin`, `/System`, `/Library`,
 `/private/etc`, `/private/var/db`, `/dev`), the system resolver's socket, and the harness's own config under the real
-home (`claude`: `~/.claude` and `~/.claude.json`; `opencode`: `~/.config/opencode` and `~/.local/share/opencode`;
+home (`claude`: `~/.claude` and `~/.claude.json`; `opencode`: `~/.config/opencode`, with its data, state and cache folders in the run directory (docs/U40-SPEC.md);
 `hermes`: `~/.hermes`). `codex` reads nothing of `~/.codex`: it runs with a home of its own inside the run directory
 (docs/U34-SPEC.md). Writes allowed only in the run directory and a private `TMPDIR` inside it. `TMPDIR` points there. Network stays allowed (a hosted harness
 needs its API). Therefore these reads fail inside the seat: `~/.ssh/id_ed25519`, `../` outside the copy, a symlink
