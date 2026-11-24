@@ -1,4 +1,4 @@
-## Unreleased
+## 0.8.3 (2026-11-24)
 
 - Agencil no longer stops answering agents after some hours of use (U40). Each `git` or `ps` call it made left one file descriptor open, and when it ran out the broker stopped taking connections for good: agents' calls hung or read "Agencil is not running" while the app was open. Those descriptors are now closed, the broker keeps accepting after a transient failure, and a connection that gets no reply now says so instead of "not running".
 - Confined OpenCode seats start again (U40). OpenCode crashed at start because the sandbox let it write none of its data, state and cache folders; it now gets fresh ones in the run directory, holding only a copy of its login and model list, and it can no longer read the owner's OpenCode session history.
