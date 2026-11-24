@@ -45,12 +45,13 @@ final class DiscoveryCache: @unchecked Sendable {
     }
 
     /// Superset's agent wrappers (`~/.superset/bin`, `~/.superset-<name>/bin`, and since its rename to Paradev
-    /// `~/.paradev/bin`, `~/.paradev-<name>/bin`) re-run the real binary found on PATH.
+    /// `~/.paradev/bin`, `~/.paradev-<name>/bin`) re-run the real binary found on PATH, and so do super.engineering's
+    /// (`~/.super.engineering/bin`).
     private static func isShimDirectory(_ path: String) -> Bool {
         let components = path.split(separator: "/")
         guard components.count >= 2, components.last == "bin" else { return false }
         let parent = components[components.count - 2]
-        return parent.hasPrefix(".superset") || parent.hasPrefix(".paradev")
+        return parent.hasPrefix(".superset") || parent.hasPrefix(".paradev") || parent == ".super.engineering"
     }
 
     private func refresh(_ catalog: HarnessCatalog, environment: [String: String], home: URL) {
@@ -59,7 +60,9 @@ final class DiscoveryCache: @unchecked Sendable {
             .filter { !Self.isShimDirectory(String($0)) }.map { URL(fileURLWithPath: String($0)) }
         // Where each harness was found last time is looked at again: a version folder that cannot be listed this time
         // must not make an install that is still there read as removed.
+        // A shim folder remembered from before this rule (or a build without it) is dropped here too.
         let previous = lock.withLock { probes.values.flatMap { $0.paths.map { $0.deletingLastPathComponent() } } }
+            .filter { !Self.isShimDirectory($0.path) }
         var known = HarnessDiscovery.knownInstallDirectories(home: FileManager.default.homeDirectoryForCurrentUser) + previous
         // With test seams on, a stub directory goes first and only PATH entries inside the Agencil home count,
         // so the real installs on the machine running the tests cannot leak in.
