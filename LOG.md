@@ -1,4 +1,4 @@
-## Unreleased
+## 0.8.4 (2026-11-24)
 
 - Seats work on a Mac where super.engineering puts its agent wrappers first on PATH: Agencil now skips `~/.super.engineering/bin` like the Superset and Paradev wrappers, and forgets one it found before. The wrapper cannot run inside a seat's sandbox, so an OpenCode seat failed with "opencode is not installed".
 
